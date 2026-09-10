@@ -132,16 +132,25 @@ function mapToolArgs(
 }
 
 export async function runSessionCli(argv: string[]): Promise<number> {
-  const serverUrl = process.env.BW_SERVER_URL ?? "http://127.0.0.1:3456";
   const token = process.env.BW_TOKEN;
-  const cfg: SessionCliConfig = { serverUrl, ...(token !== undefined ? { token } : {}) };
-
   const [cmd, ...rest] = argv;
+
+  // stop 命令不需要服务
+  if (cmd === "stop") {
+    const { stopServer } = await import("./daemon.ts");
+    const stopped = await stopServer();
+    ok({ result: stopped ? "server stopped" : "no server running" });
+  }
+
+  // 其余命令需要服务——自动拉起后台守护
+  const { ensureServer } = await import("./daemon.ts");
+  const daemon = await ensureServer(token);
+  const cfg: SessionCliConfig = { serverUrl: daemon.url, token: daemon.token };
 
   if (cmd === undefined || cmd === "--help" || cmd === "-h") {
     console.log(`bw s — session-based browser tools for external agents
 
-Requires: bw serve running (or BW_SERVER_URL env pointing to it)
+Server auto-starts on first use. Use 'bw s stop' to shut it down.
 
 Usage:
   bw s create [--url <url>]              create session, returns sessionId
@@ -162,9 +171,10 @@ Usage:
   bw s closetab <id>                     close current tab
   bw s confirm <id> <cid> --yes|--no     approve/deny confirmation
   bw s close <id>                        close session
+  bw s stop                              stop background server
 
 Env:
-  BW_SERVER_URL  server address (default http://127.0.0.1:3456)
+  BW_SERVER_URL  use remote server (skip auto-start)
   BW_TOKEN       bearer token`);
     return 0;
   }
@@ -185,7 +195,7 @@ Env:
       undefined,
       "CREATE_FAILED",
       String(data.error ?? "failed to create session"),
-      `is 'bw serve' running on ${serverUrl}?`,
+      `is bw serve running on ${daemon.url}?`,
     );
   }
 
