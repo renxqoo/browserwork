@@ -1,7 +1,7 @@
 # 豁免清单：路径<TAB>理由[<TAB>min=N]。
-# 不带 min=N = 完全豁免（文件不应出现在 lcov）；带 min=N = 阈值豁免（在 lcov 但允许低于 90）。
-# 随批次清空，B8 收口必须为空。
-packages/service/src/cli.ts	B7 CLI 入口（process.exit 副作用；B8 以 CLI 冒烟替代）
-packages/service/src/index.ts	B7 barrel（只含 re-export，测试经动态 import 消费不进 lcov）
-packages/service/src/cli-run.ts	B7 真实 LLM 路径（loadEnvFile/printEvent 需真 GLM key+浏览器）	min=70
-packages/service/src/server.ts	B7 SSE 运行中 error 分支需真实并发/SSE 断连	min=45
+# B8 收口：核心包（core/driver/perception/actions/policies/agent）豁免为空。
+# service 包 3 项部分豁免——残余为 SSE 网络故障分支与 printEvent 确认/预算事件分支，
+# 需真实网络故障注入或特定事件流剧本（基础设施成本 > 覆盖价值，验收记录已落档）。
+packages/service/src/cli-run.ts	printEvent 确认/预算/卡死分支需特定事件流剧本（B8 验收记录）	min=75
+packages/service/src/cli.ts	模块级 import.meta.main 分支（bun build 产物运行时才走）	min=70
+packages/service/src/server.ts	SSE overflow/catch/running-state Promise.race 分支需网络故障注入（B8 验收记录）	min=70

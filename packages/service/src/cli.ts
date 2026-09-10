@@ -23,7 +23,7 @@ interface ParsedArgs {
   token: string | undefined;
 }
 
-function parseArgs(argv: string[]): ParsedArgs {
+export function parseArgs(argv: string[]): ParsedArgs {
   const out: ParsedArgs = {
     command: undefined,
     goal: undefined,
@@ -54,8 +54,8 @@ function parseArgs(argv: string[]): ParsedArgs {
   return out;
 }
 
-async function main(): Promise<number> {
-  const args = parseArgs(process.argv.slice(2));
+export async function main(argv?: string[]): Promise<number> {
+  const args = parseArgs(argv ?? process.argv.slice(2));
   const cmd = args.command;
   if (cmd === "--version" || cmd === "-v") {
     console.log(VERSION);
@@ -91,4 +91,6 @@ async function main(): Promise<number> {
   return 2;
 }
 
-process.exit(await main());
+if (import.meta.main) {
+  process.exit(await main());
+}
