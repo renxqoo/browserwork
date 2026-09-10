@@ -1,6 +1,5 @@
 /** B8 收口：service 包全覆盖冲刺（豁免清空） */
 import { describe, expect, test } from "bun:test";
-import type { TaskEvent } from "@bw/core";
 import * as cliModule from "../src/cli.ts";
 import { runCliTask } from "../src/cli-run.ts";
 // 触碰 barrel 和 CLI 入口（使其进入 lcov）

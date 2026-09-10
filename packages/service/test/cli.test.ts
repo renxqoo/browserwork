@@ -320,7 +320,7 @@ describe("B7 覆盖补齐 2", () => {
       headers: { authorization: "Bearer t" },
       signal: controller.signal,
     });
-    const sse = await sseFetch;
+    const _sse = await sseFetch;
     controller.abort();
     // 不应炸
     await fetch(`${server.url}/tasks/${id}/abort`, {

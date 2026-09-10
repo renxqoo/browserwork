@@ -19,6 +19,8 @@ export interface FakeWorldOptions {
   enterSubmit?: { submit: boolean; action?: string; method?: string };
   bodyText?: string;
   quietMs?: number; // settle 表达式返回值（默认 = 已静默）
+  /** 优先分发（返回 undefined 则走默认特征分发）——inspect/eval 类表达式用 */
+  extraEvaluate?: (expression: string) => unknown;
 }
 
 export interface FakeWorld {
@@ -50,6 +52,8 @@ export function makeFakeWorld(opts: FakeWorldOptions): FakeWorld {
       {
         selectors,
         evaluateHandler: (expr) => {
+          const extra = opts.extraEvaluate?.(expr);
+          if (extra !== undefined) return extra;
           if (expr === EXTRACT_EXPRESSION) {
             return {
               nodes: rawNodes,

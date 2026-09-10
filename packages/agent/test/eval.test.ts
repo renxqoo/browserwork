@@ -12,7 +12,7 @@ import { type EvalResult, fixtureEvalTasks, printEvalReport } from "./eval.ts";
 
 describe.skipIf(process.platform !== "darwin")("B8 评测集（fixture · 假 LLM · 真 webkit）", () => {
   test("20 任务全跑 + 四指标报告落档", async () => {
-    await withFixtureServer(async (origin) => {
+    await withFixtureServer(async (_origin) => {
       const tasks = fixtureEvalTasks();
       expect(tasks.length).toBeGreaterThanOrEqual(20); // 口径下限
       const results: EvalResult[] = [];

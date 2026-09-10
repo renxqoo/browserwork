@@ -3,11 +3,13 @@
  * PID 文件 + 健康检查 + 空闲自动退出（全部会话关闭后 60s 无操作即退）。
  */
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-const PID_DIR = join(process.env.HOME ?? "/tmp", ".bw");
-const PID_FILE = join(PID_DIR, "serve.pid");
+/** 惰性解析（BW_HOME 可测试覆写；模块加载时固化会让 env 覆写失效） */
+const pidDir = (): string => join(process.env.BW_HOME ?? process.env.HOME ?? "/tmp", ".bw");
+const PID_FILE = (): string => join(pidDir(), "serve.pid");
+const TOKEN_FILE = (): string => join(pidDir(), "serve.token");
 const DEFAULT_PORT = 3456;
 const STARTUP_TIMEOUT_MS = 5000;
 const IDLE_EXIT_MS = 60_000; // 无会话 60s 后自动退出
@@ -20,22 +22,28 @@ export interface DaemonInfo {
 }
 
 function readPidFile(): DaemonInfo | undefined {
-  if (!existsSync(PID_FILE)) return undefined;
+  if (!existsSync(PID_FILE())) return undefined;
   try {
-    return JSON.parse(readFileSync(PID_FILE, "utf8")) as DaemonInfo;
+    return JSON.parse(readFileSync(PID_FILE(), "utf8")) as DaemonInfo;
   } catch {
-    unlinkSync(PID_FILE);
+    unlinkSync(PID_FILE());
     return undefined;
   }
 }
 
 function writePidFile(info: DaemonInfo): void {
-  mkdirSync(PID_DIR, { recursive: true });
-  writeFileSync(PID_FILE, JSON.stringify(info));
+  mkdirSync(pidDir(), { recursive: true });
+  writeFileSync(PID_FILE(), JSON.stringify(info), { mode: 0o600 });
+  // P0-4：PID 文件含 token——仅属主可读（mkdir 后 umask 可能放宽，显式收紧）
+  try {
+    chmodSync(PID_FILE(), 0o600);
+  } catch {
+    /* 最佳努力 */
+  }
 }
 
 function removePidFile(): void {
-  if (existsSync(PID_FILE)) unlinkSync(PID_FILE);
+  if (existsSync(PID_FILE())) unlinkSync(PID_FILE());
 }
 
 /** 检查服务器是否在运行（发一个轻量请求） */
@@ -48,6 +56,47 @@ export async function isServerRunning(url: string, token?: string): Promise<bool
     return res.status !== 0;
   } catch {
     return false;
+  }
+}
+
+/** 探测「活着且 token 可用」（401 = 活着但不可复用） */
+async function probeAuthorized(url: string, token: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${url}/sessions`, {
+      headers: { authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(1500),
+    });
+    return res.status === 200;
+  } catch {
+    return false;
+  }
+}
+
+/** 后台 serve 的 argv（P0-2：不含 token——token 经 env 传递，导出以供测试断言） */
+export function serveSpawnArgs(port: number): string[] {
+  return [process.argv[1] ?? "bun", "serve", "--port", String(port)];
+}
+
+/** 手动 `bw serve` 未给 token 时：自动生成的 token 落盘（0600），供 bw s 复用 */
+export function persistServeToken(token: string): string {
+  mkdirSync(pidDir(), { recursive: true });
+  writeFileSync(TOKEN_FILE(), token, { mode: 0o600 });
+  try {
+    chmodSync(TOKEN_FILE(), 0o600);
+  } catch {
+    /* 最佳努力 */
+  }
+  return TOKEN_FILE();
+}
+
+/** 读取手动 serve 落盘的 token */
+export function readServeToken(): string | undefined {
+  if (!existsSync(TOKEN_FILE())) return undefined;
+  try {
+    const t = readFileSync(TOKEN_FILE(), "utf8").trim();
+    return t !== "" ? t : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -71,16 +120,26 @@ export async function ensureServer(token?: string): Promise<DaemonInfo> {
     removePidFile(); // 僵尸 PID 文件
   }
 
+  // 2.5 用户手动 `bw serve`（无 PID 文件）→ 探测默认端口（须 token 验证通过，非仅活着）
+  {
+    const url = `http://127.0.0.1:${DEFAULT_PORT}`;
+    for (const candidate of [token, readServeToken()]) {
+      if (candidate === undefined) continue;
+      if (await probeAuthorized(url, candidate)) {
+        return { url, pid: 0, port: DEFAULT_PORT, token: candidate };
+      }
+    }
+  }
+
   // 3. 没有服务 → 后台拉起
   const port = DEFAULT_PORT;
   const url = `http://127.0.0.1:${port}`;
-  const cliPath = process.argv[1] ?? "bun"; // 当前 CLI 脚本路径（bundled 或源码）
-
   const autoToken = token ?? crypto.randomUUID();
-  const child = spawn("bun", [cliPath, "serve", "--port", String(port), "--token", autoToken], {
+  // P0-2：token 只走 env（BW_TOKEN）——argv 会暴露在 ps 里
+  const child = spawn("bun", serveSpawnArgs(port), {
     detached: true,
     stdio: "ignore",
-    env: { ...process.env, BW_DAEMON: "1" },
+    env: { ...process.env, BW_DAEMON: "1", BW_TOKEN: autoToken },
   });
   child.unref();
 

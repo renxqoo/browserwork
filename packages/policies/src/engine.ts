@@ -195,7 +195,7 @@ interface ConfirmRecord {
 }
 
 /** 动作签名：kind + 参数规范化（决定「同一动作」的批准语义） */
-function actionSignatureOf(action: BrowserAction): string {
+function _actionSignatureOf(action: BrowserAction): string {
   const { kind } = action;
   const parts: string[] = [kind];
   if ("index" in action && action.index !== undefined) parts.push(action.index);

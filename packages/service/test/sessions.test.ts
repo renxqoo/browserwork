@@ -17,12 +17,27 @@ function startFixtureServer(): Promise<{ origin: string; stop(): void }> {
           `<!doctype html><html lang="en"><head><title>Test Home</title></head><body>
 <h1>Home</h1>
 <a href="/page2">Go to Page 2</a>
+<a href="/bounce">Bounce</a>
 <input type="text" id="q" placeholder="search" />
 <input type="password" id="pw" />
 <select id="sel"><option value="a">A</option><option value="b">B</option></select>
 <button id="btn" onclick="document.getElementById('out').textContent='clicked'">Click Me</button>
 <p id="out">idle</p>
 <button id="danger" onclick="void 0">Checkout Now</button>
+</body></html>`,
+          { headers: { "content-type": "text/html; charset=utf-8" } },
+        );
+      }
+      if (p === "/bounce") {
+        // S1③ 场景：同源链接 → 302 到未批准域（预检看不到最终目标）
+        return Response.redirect("https://example.com", 302);
+      }
+      if (p === "/devtools") {
+        return new Response(
+          `<!doctype html><html lang="en"><head><title>Devtools</title></head><body>
+<h1>Devtools</h1>
+<button id="log" onclick="console.log('hello-from-page')">Log</button>
+<button id="boom" onclick="nullRef.click()">Boom</button>
 </body></html>`,
           { headers: { "content-type": "text/html; charset=utf-8" } },
         );
@@ -318,17 +333,125 @@ describe.skipIf(process.platform !== "darwin")("外部会话模式", () => {
       maxSessions: 2,
     });
     const s1 = await mgr.create(fixture.origin);
-    const s2 = await mgr.create(fixture.origin);
+    const _s2 = await mgr.create(fixture.origin);
     expect(mgr.list().length).toBe(2);
 
     await expect(mgr.create(fixture.origin)).rejects.toThrow();
 
     mgr.close(s1.id);
-    const s3 = await mgr.create(fixture.origin); // 有空位了
+    const _s3 = await mgr.create(fixture.origin); // 有空位了
     expect(mgr.list().length).toBe(2);
 
     mgr.closeAll();
     expect(mgr.list().length).toBe(0);
+  }, 30_000);
+
+  /** 收集已缓冲事件（300ms 无新事件即止；不挂死在 events 生成器上） */
+  async function collectEvents(m: SessionManager, id: string, waitMs: number) {
+    const out: Array<{ type: string; reason?: string }> = [];
+    const it = m.events(id)[Symbol.asyncIterator]();
+    const deadline = Date.now() + waitMs;
+    while (Date.now() < deadline) {
+      const next = (await Promise.race([
+        it.next(),
+        new Promise<{ done: true; value: undefined }>((res) =>
+          setTimeout(() => res({ done: true, value: undefined }), 300),
+        ),
+      ])) as IteratorResult<{ type: string; reason?: string }>;
+      if (next.done) break;
+      out.push(next.value);
+    }
+    return out;
+  }
+
+  test("安全 S1③：同源链接 302 跳到未批准域 → 违规事件 + 回滚", async () => {
+    fixture = await startFixtureServer();
+    mgr = createSessionManager({ sessionTtlMs: 30_000, confirmationTimeoutMs: 1000 });
+    const s = await mgr.create(fixture.origin);
+
+    const bounce = /\[(\d+)\] link "Bounce"/.exec(mgr.snapshot(s.id));
+    expect(bounce).toBeTruthy();
+
+    const r = await mgr.executeTool(s.id, "click", { index: bounce?.[1] ?? "" });
+    expect(r.ok).toBe(true); // 同源链接本体放行（预检看不到 302 目标）
+
+    // onNavigated(example.com) → settled 复检 → 违规事件 + 回滚
+    const events = await collectEvents(mgr, s.id, 10_000);
+    expect(
+      events.some(
+        (e) => e.type === "confirmation_required" && (e.reason ?? "").includes("VIOLATION"),
+      ),
+    ).toBe(true);
+
+    // 回滚后仍在 fixture 域
+    await new Promise((res) => setTimeout(res, 1000));
+    expect(mgr.get(s.id)?.url ?? "").toContain("127.0.0.1");
+
+    mgr.close(s.id);
+  }, 45_000);
+
+  test("新工具：console/errors/cookies/storage/eval（默认禁用→opt-in）", async () => {
+    fixture = await startFixtureServer();
+    mgr = createSessionManager({ sessionTtlMs: 60_000, confirmationTimeoutMs: 1000 });
+
+    // eval 默认禁用
+    const s2 = await mgr.create(`${fixture.origin}/devtools`);
+    const denied = await mgr.executeTool(s2.id, "eval", { expression: "1" });
+    expect(denied.ok).toBe(false);
+    if (!denied.ok) expect(denied.code).toBe("EVAL_DISABLED");
+    mgr.close(s2.id);
+
+    // eval opt-in
+    const s = await mgr.create(`${fixture.origin}/devtools`, { allowEval: true });
+    let r = await mgr.executeTool(s.id, "eval", { expression: "2+3" });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.text).toBe("5");
+
+    // console 捕获
+    const logBtn = /\[(\d+)\] button "Log"/.exec(mgr.snapshot(s.id))?.[1];
+    await mgr.executeTool(s.id, "click", { index: logBtn ?? "" });
+    r = await mgr.executeTool(s.id, "console", {});
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.text).toContain("hello-from-page");
+
+    // errors 捕获（window.onerror）
+    const boomBtn = /\[(\d+)\] button "Boom"/.exec(mgr.snapshot(s.id))?.[1];
+    await mgr.executeTool(s.id, "click", { index: boomBtn ?? "" });
+    r = await mgr.executeTool(s.id, "errors", {});
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.text).toContain("nullRef");
+
+    // cookies set/get/clear
+    r = await mgr.executeTool(s.id, "cookies_set", { key: "bwtest", value: "v1" });
+    expect(r.ok).toBe(true);
+    r = await mgr.executeTool(s.id, "cookies", {});
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.text).toContain("bwtest");
+    r = await mgr.executeTool(s.id, "cookies_clear", {});
+    expect(r.ok).toBe(true);
+
+    // storage set/get/clear
+    r = await mgr.executeTool(s.id, "storage_set", { key: "k", value: "vv" });
+    expect(r.ok).toBe(true);
+    r = await mgr.executeTool(s.id, "storage", { key: "k" });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.text).toBe("vv");
+    r = await mgr.executeTool(s.id, "storage_clear", {});
+    expect(r.ok).toBe(true);
+
+    mgr.close(s.id);
+  }, 90_000);
+
+  test("会话 ID 随机（无时间戳/序号模式）", async () => {
+    fixture = await startFixtureServer();
+    mgr = createSessionManager({ sessionTtlMs: 30_000, confirmationTimeoutMs: 1000 });
+    const a = await mgr.create(fixture.origin);
+    const b = await mgr.create(fixture.origin);
+    expect(a.id).not.toBe(b.id);
+    expect(a.id).toMatch(/^sess-[a-f0-9-]{13}$/);
+    expect(b.id).toMatch(/^sess-[a-f0-9-]{13}$/);
+    mgr.close(a.id);
+    mgr.close(b.id);
   }, 30_000);
 });
 

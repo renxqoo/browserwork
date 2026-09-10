@@ -5,9 +5,9 @@
  * 共用同一套安全基线（S1-S6）与感知层。
  */
 
-import { type ActionEngine, createActionEngine } from "@bw/actions";
+import { type ActionEngine, createActionEngine, type InspectKind } from "@bw/actions";
 import { type BrowserAction, BWError, type TaskEvent, type TrajectorySink } from "@bw/core";
-import { createWebViewDriver, type Driver } from "@bw/driver";
+import { createWebViewDriver, type Driver, type Page } from "@bw/driver";
 import { renderSnapshot, type Snapshot } from "@bw/perception";
 import {
   createPolicyEngine,
@@ -72,6 +72,10 @@ interface ManagedSession {
   createdAt: number;
   lastUsed: number;
   steps: number;
+  /** eval 工具开关（默认关——显式 opt-in，B11） */
+  allowEval: boolean;
+  /** S1③：最近一次通过 onNavigationSettled 的 URL（违规回滚目标） */
+  lastAllowedUrl: string;
   /** 事件流（外部 agent 可选订阅） */
   events: TaskEvent[];
   eventWaiters: Array<() => void>;
@@ -96,7 +100,7 @@ const DEFAULT_CONFIRM_TIMEOUT = 120_000;
 const DEFAULT_MAX_SESSIONS = 16;
 
 export interface SessionManager {
-  create(startUrl?: string): Promise<SessionInfo>;
+  create(startUrl?: string, opts?: { allowEval?: boolean }): Promise<SessionInfo>;
   get(id: string): SessionInfo | undefined;
   list(): SessionInfo[];
   close(id: string): void;
@@ -111,12 +115,23 @@ export interface SessionManager {
   ): Promise<SessionToolResult>;
 }
 
+/** inspect 类工具名 → 引擎类目（B11） */
+const INSPECT_TOOLS: Record<string, InspectKind> = {
+  console: "console",
+  errors: "errors",
+  cookies: "cookies",
+  cookies_set: "cookies_set",
+  cookies_clear: "cookies_clear",
+  storage: "storage",
+  storage_set: "storage_set",
+  storage_clear: "storage_clear",
+};
+
 export function createSessionManager(opts?: SessionManagerOptions): SessionManager {
   const ttl = opts?.sessionTtlMs ?? DEFAULT_TTL;
   const confirmTimeout = opts?.confirmationTimeoutMs ?? DEFAULT_CONFIRM_TIMEOUT;
   const maxSessions = opts?.maxSessions ?? DEFAULT_MAX_SESSIONS;
   const sessions = new Map<string, ManagedSession>();
-  let seq = 0;
 
   // TTL 清理定时器
   const cleaner = setInterval(() => {
@@ -155,6 +170,40 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
     if (s.events.length > 500) s.events.splice(0, s.events.length - 500);
     for (const w of s.eventWaiters) w();
     s.eventWaiters.length = 0;
+  };
+
+  /**
+   * S1③ 事后复检（B11 安全补齐——此前仅 agent 模式有）：
+   * 每次 URL 落定即查 onNavigationSettled；违规（同源链接 302/meta-refresh/JS
+   * 跳到未批准域）→ 回滚到最近放行 URL + 发事件。每 page 只接一次线。
+   */
+  const wiredPages = new WeakSet<object>();
+  const wireSettledCheck = (s: ManagedSession, page: Page): void => {
+    if (wiredPages.has(page)) return;
+    wiredPages.add(page);
+    page.onNavigated(async (url) => {
+      if (s.closed) return;
+      try {
+        const verdict = await s.policy.onNavigationSettled(url);
+        if (verdict.ok) {
+          s.lastAllowedUrl = url;
+          return;
+        }
+        emit(s, {
+          type: "confirmation_required",
+          cid: `violation-${Date.now()}`,
+          reason: `NAVIGATION VIOLATION (rolling back): ${verdict.violation ?? "unapproved origin"}`,
+          action: { kind: "navigate", url },
+        });
+        try {
+          await page.navigate(s.lastAllowedUrl);
+        } catch {
+          /* 回滚失败留给会话关闭 */
+        }
+      } catch {
+        /* 复检自身异常不阻断 */
+      }
+    });
   };
 
   const info = (s: ManagedSession): SessionInfo => ({
@@ -273,12 +322,12 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
   };
 
   return {
-    async create(startUrl) {
+    async create(startUrl, createOpts) {
       if (sessions.size >= maxSessions) {
         throw new BWError("DRIVER_ERROR", `max sessions reached (${maxSessions})`);
       }
-      seq += 1;
-      const id = `sess-${Date.now().toString(36)}-${seq}`;
+      // P1-8：随机 ID——时间戳+序号可预测
+      const id = `sess-${crypto.randomUUID().slice(0, 13)}`;
 
       const policyConfig =
         opts?.policyConfig ??
@@ -331,6 +380,8 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
         createdAt: Date.now(),
         lastUsed: Date.now(),
         steps: 0,
+        allowEval: createOpts?.allowEval === true,
+        lastAllowedUrl: startUrl ?? "about:blank",
         events: [],
         eventWaiters: [],
         closed: false,
@@ -345,14 +396,18 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
         destroySession(session);
         sessions.delete(id);
         if (navGate.ok === false && "error" in navGate) {
-          destroySession(session);
-          sessions.delete(id);
           return Promise.reject(new BWError(navGate.code as "POLICY_BLOCKED", navGate.error));
         }
         return Promise.reject(new BWError("DRIVER_ERROR", "unexpected session gate result"));
       }
       const r = await engine.act({ kind: "open_tab", url: targetUrl });
       session.snapshot = r.snapshot;
+      // S1③ 接线：起始页（后续 open_tab/switch_tab 的新页在 executeTool 里接线）
+      try {
+        wireSettledCheck(session, engine.activePage());
+      } catch {
+        /* 无活动页 */
+      }
 
       return info(session);
     },
@@ -430,6 +485,47 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
       s.steps += 1;
 
       try {
+        // S1③ 接线：open_tab/switch_tab 产生的新页在此补接（幂等）
+        try {
+          wireSettledCheck(s, s.engine.activePage());
+        } catch {
+          /* 无活动页（close_tab 后） */
+        }
+
+        // ---- inspect 类工具（B11：console/errors/cookies/storage——无导航语义，锁内直读）
+        const inspectKind = INSPECT_TOOLS[toolName];
+        if (inspectKind !== undefined) {
+          const text = await s.engine.inspect(
+            inspectKind,
+            params as { key?: string; value?: string },
+          );
+          s.policy.budget.consume("steps", 1);
+          try {
+            s.policy.budget.assert();
+          } catch {
+            destroySession(s);
+            sessions.delete(id);
+            return { ok: false, code: "BUDGET_EXCEEDED", error: "budget exceeded" };
+          }
+          return { ok: true, text, snapshot: "" };
+        }
+
+        // ---- eval（B11：默认禁用——create 时显式 allowEval 才可用）
+        if (toolName === "eval") {
+          if (!s.allowEval) {
+            return {
+              ok: false,
+              code: "EVAL_DISABLED",
+              error: "eval is disabled for this session (create with allowEval)",
+            };
+          }
+          if (typeof params.expression !== "string") {
+            return { ok: false, code: "INVALID_TOOL_ARGS", error: "eval requires expression" };
+          }
+          const text = await s.engine.runExpression(params.expression);
+          return { ok: true, text, snapshot: "" };
+        }
+
         const action = buildAction(toolName, params);
 
         // 导航类工具 → S1① 前检

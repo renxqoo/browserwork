@@ -22,6 +22,12 @@
  *   bw s confirm sess-xxx cid --yes          → {"ok":true}
  *   bw s close sess-xxx                      → {"ok":true}
  *   bw s list                                → {"ok":true,"sessions":[...]}
+ *   bw s console sess-xxx                    → {"ok":true,"result":"[{t,level,text}...]"}
+ *   bw s errors sess-xxx                     → {"ok":true,"result":"[...error entries]"}
+ *   bw s cookies sess-xxx                    → {"ok":true,"result":"a=1; b=2"}
+ *   bw s cookies-set sess-xxx a 1            → {"ok":true,...}
+ *   bw s storage sess-xxx [key]              → {"ok":true,"result":"{...}"}
+ *   bw s eval sess-xxx "1+1"                 → {"ok":true,"result":"2"}（create --allow-eval）
  */
 
 export interface SessionCliConfig {
@@ -72,7 +78,7 @@ async function api(
           ok: false,
           code: "SERVER_NOT_RUNNING",
           error: `bw serve is not running on ${cfg.serverUrl}`,
-          hint: `start it first:\n  bw serve --port ${new URL(cfg.serverUrl).port || "3456"}${cfg.token !== undefined ? ` --token ${cfg.token}` : ""}\nthen retry this command`,
+          hint: "run 'bw s stop' then retry (daemon will auto-start), or start manually: bw serve",
         }),
       );
       process.exit(1);
@@ -119,7 +125,21 @@ function mapToolArgs(
     case "extract":
     case "look":
     case "closetab":
+    case "console":
+    case "errors":
+    case "cookies":
+    case "cookies_clear":
+    case "storage_clear":
       return { params: {}, hint: "" };
+    case "cookies_set":
+    case "storage_set":
+      if (args.length < 2) return { error: `usage: bw s ${tool} <sessionId> <key> <value>` };
+      return { params: { key: args[0], value: args[1] }, hint: "" };
+    case "storage":
+      return { params: args.length >= 1 ? { key: args[0] } : {}, hint: "" };
+    case "eval":
+      if (args.length < 1) return { error: "usage: bw s eval <sessionId> <expression>" };
+      return { params: { expression: args.join(" ") }, hint: "" };
     case "wait":
       if (args.length < 1) return { error: "usage: bw s wait <sessionId> <seconds>" };
       return { params: { seconds: Number(args[0]) }, hint: "" };
@@ -145,7 +165,10 @@ export async function runSessionCli(argv: string[]): Promise<number> {
   // 其余命令需要服务——自动拉起后台守护
   const { ensureServer } = await import("./daemon.ts");
   const daemon = await ensureServer(token);
-  const cfg: SessionCliConfig = { serverUrl: daemon.url, token: daemon.token };
+  const cfg: SessionCliConfig = {
+    serverUrl: daemon.url,
+    ...(daemon.token !== undefined ? { token: daemon.token } : {}),
+  };
 
   if (cmd === undefined || cmd === "--help" || cmd === "-h") {
     console.log(`bw s — session-based browser tools for external agents
@@ -153,7 +176,7 @@ export async function runSessionCli(argv: string[]): Promise<number> {
 Server auto-starts on first use. Use 'bw s stop' to shut it down.
 
 Usage:
-  bw s create [--url <url>]              create session, returns sessionId
+  bw s create [--url <url>] [--allow-eval]  create session, returns sessionId
   bw s list                              list active sessions
   bw s snap <id>                         get current snapshot
   bw s extract <id>                      extract page text
@@ -169,6 +192,15 @@ Usage:
   bw s opentab <id> <url>                open new tab
   bw s switchtab <id> <n>                switch tab
   bw s closetab <id>                     close current tab
+  bw s console <id>                      page console messages (new since last call)
+  bw s errors <id>                       page errors (onerror/unhandledrejection)
+  bw s cookies <id>                      get cookies (document.cookie; httpOnly invisible)
+  bw s cookies-set <id> <name> <value>   set cookie (path=/, SameSite=Lax)
+  bw s cookies-clear <id>                clear visible cookies
+  bw s storage <id> [key]                localStorage all or by key
+  bw s storage-set <id> <key> <value>    set localStorage entry
+  bw s storage-clear <id>                clear localStorage
+  bw s eval <id> <js-expression>         run JS (requires create --allow-eval)
   bw s confirm <id> <cid> --yes|--no     approve/deny confirmation
   bw s close <id>                        close session
   bw s stop                              stop background server
@@ -183,8 +215,10 @@ Env:
   if (cmd === "create") {
     const urlIdx = rest.indexOf("--url");
     const startUrl = urlIdx !== -1 ? rest[urlIdx + 1] : undefined;
+    const allowEval = rest.includes("--allow-eval");
     const { status, data } = await api(cfg, "POST", "/sessions", {
       ...(startUrl !== undefined ? { startUrl } : {}),
+      ...(allowEval ? { allowEval: true } : {}),
     });
     if (status === 201) {
       const p: Record<string, unknown> = { sessionId: String(data.id) };
@@ -314,6 +348,8 @@ Env:
     CONFIRMATION_DENIED: "confirmation was denied or timed out",
     INVALID_TOOL_ARGS: "check argument order — run 'bw s --help'",
     DRIVER_ERROR: "session may have expired — run 'bw s list' to check",
+    EVAL_DISABLED: "re-create the session with: bw s create --url <url> --allow-eval",
+    TIMEOUT: "page JS may be stuck in a loop — navigate again or close the session",
   };
   const hint = hints[code];
   fail(sessionId, code, error, hint);

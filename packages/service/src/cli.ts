@@ -82,10 +82,17 @@ export async function main(argv?: string[]): Promise<number> {
   }
   if (cmd === "serve") {
     const { createServer } = await import("./server.ts");
+    const explicit = args.token ?? process.env.BW_TOKEN;
     const server = createServer({
       port: args.port ?? 3456,
-      ...(args.token !== undefined ? { authToken: args.token } : {}),
+      ...(explicit !== undefined ? { authToken: explicit } : {}),
     });
+    // P0-1：未显式给 token → 服务端已自动生成（永不裸奔）；落盘 0600 供 bw s 复用
+    if (explicit === undefined) {
+      const { persistServeToken } = await import("./daemon.ts");
+      const file = persistServeToken(server.token);
+      console.log(`auth token: ${server.token} (saved to ${file})`);
+    }
     console.log(`bw serve listening on ${server.url}`);
     console.log("Press Ctrl+C to stop");
     setInterval(() => {}, 60_000); // 活跃定时器——Bun 事件循环保持进程

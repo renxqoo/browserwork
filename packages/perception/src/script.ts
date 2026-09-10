@@ -176,6 +176,42 @@ export const EXTRACT_EXPRESSION = `(() => {
   walk(document, null);
   attach();
 
+  // ---- console/error 捕获（B11）：幂等安装环形缓冲（bw s console/errors 数据源）
+  // 每次提取时确保已装——导航后新 document 自动重装；已知限制：装载前的消息不可见
+  if (!window.__bwLogHooked) {
+    try {
+      window.__bwLogHooked = true;
+      const buf = (window.__bwLog = []);
+      const push = (level, parts) => {
+        try {
+          buf.push({
+            t: Date.now(),
+            level,
+            text: parts
+              .map((a) => {
+                try {
+                  return typeof a === "string" ? a : JSON.stringify(a);
+                } catch {
+                  return String(a);
+                }
+              })
+              .join(" ")
+              .slice(0, 500),
+          });
+          if (buf.length > 200) buf.splice(0, buf.length - 200);
+        } catch {}
+      };
+      for (const m of ["log", "info", "warn", "error", "debug"]) {
+        const orig = console[m] && console[m].bind(console);
+        if (orig) console[m] = (...args) => { push(m, args); orig(...args); };
+      }
+      window.addEventListener("error", (e) =>
+        push("error", [e.message + (e.filename ? " @" + e.filename + ":" + e.lineno : "")]));
+      window.addEventListener("unhandledrejection", (e) =>
+        push("error", ["UnhandledRejection: " + ((e.reason && e.reason.message) || e.reason)]));
+    } catch {}
+  }
+
   const headings = [];
   const walkHeadings = (root) => {
     for (const h of root.querySelectorAll("h1, h2, h3")) {
@@ -212,4 +248,19 @@ export const EXTRACT_EXPRESSION = `(() => {
     viewportH: vh,
     viewportW: vw,
   };
+})()`;
+
+/** console/error 缓冲条目（页面侧 __bwLog 元素形状） */
+export interface PageLogEntry {
+  t: number;
+  level: string;
+  text: string;
+}
+
+/** 光标式读取 console 缓冲（非破坏性——环形裁剪后光标自动钳回，B11） */
+export const DRAIN_LOGS_EXPRESSION = `(() => {
+  const buf = window.__bwLog || [];
+  const from = Math.min(window.__bwLogCursor || 0, buf.length);
+  window.__bwLogCursor = buf.length;
+  return buf.slice(from);
 })()`;

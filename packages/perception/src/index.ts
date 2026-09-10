@@ -5,7 +5,8 @@ export {
   scrollToBwIdExpression,
   selectBwIdExpression,
 } from "./locate.ts";
-export { EXTRACT_EXPRESSION } from "./script.ts";
+export type { PageLogEntry } from "./script.ts";
+export { DRAIN_LOGS_EXPRESSION, EXTRACT_EXPRESSION } from "./script.ts";
 export type {
   ExtractOptions,
   SnapHeading,

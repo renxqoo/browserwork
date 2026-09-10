@@ -304,11 +304,11 @@ export function runTask(req: TaskRequest, opts?: RunTaskOptions): TaskHandle {
 
   // ---- S1③ 事后复检（P0-3 处置）：最终 URL 落定即查，违规 → 回滚 + 终止
   let settledViolation: string | null = null;
-  let lastSettledUrl = req.startUrl ?? "about:blank";
+  let _lastSettledUrl = req.startUrl ?? "about:blank";
   const wireSettledCheck = (page: import("@bw/driver").Page): void => {
     page.onNavigated(async (url) => {
       if (settledViolation !== null || finished) return;
-      lastSettledUrl = url;
+      _lastSettledUrl = url;
       try {
         const verdict = await policy.onNavigationSettled(url);
         if (!verdict.ok) {

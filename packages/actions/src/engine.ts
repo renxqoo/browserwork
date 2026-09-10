@@ -6,10 +6,12 @@
 import { type BrowserAction, BWError, type NavigationIntent } from "@bw/core";
 import type { Driver, Page } from "@bw/driver";
 import {
+  DRAIN_LOGS_EXPRESSION,
   ENTER_SUBMIT_INTENT_EXPRESSION,
   extractSnapshot,
   type LocateResult,
   locateExpression,
+  type PageLogEntry,
   type SnapNode,
   type Snapshot,
   scrollToBwIdExpression,
@@ -46,11 +48,33 @@ export interface ActionResult {
 export interface ActionEngine {
   act(action: BrowserAction, snapshot?: Snapshot | null): Promise<ActionResult>;
   activePage(): Page;
+  /** 页面状态读取/写入（锁内，B11）：console/errors 缓冲、cookies、localStorage */
+  inspect(kind: InspectKind, params?: InspectParams): Promise<string>;
+  /** 受控 eval（锁内 + 超时 + 结果截断，B11）——会话模式须显式 opt-in */
+  runExpression(expression: string): Promise<string>;
+}
+
+/** inspect 类目（B11：对齐 agent-browser 的 get/debug 面，只取安全子集） */
+export type InspectKind =
+  | "console"
+  | "errors"
+  | "cookies"
+  | "cookies_set"
+  | "cookies_clear"
+  | "storage"
+  | "storage_set"
+  | "storage_clear";
+
+export interface InspectParams {
+  key?: string;
+  value?: string;
 }
 
 const EXTRACT_TEXT_MAX = 4000;
 const WAIT_MAX_SECONDS = 30;
 const SCROLL_STEP_PX = 600;
+const EVAL_TIMEOUT_MS = 10_000;
+const EVAL_MAX_RESULT = 8000;
 
 /** 每 page 互斥锁：串行化引擎发起的一切驱动调用 + settle 轮询（01 §6.1） */
 const pageLocks = new WeakMap<object, Promise<unknown>>();
@@ -238,8 +262,95 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
     return extractSnapshot(page);
   };
 
+  /** JSON 参数安全内嵌（引号/换行转义后拼入页面表达式） */
+  const lit = (s: string): string => JSON.stringify(s);
+
+  const inspect = async (kind: InspectKind, params?: InspectParams): Promise<string> => {
+    const page = ensureActive();
+    return runExclusive(page, async () => {
+      switch (kind) {
+        case "console":
+        case "errors": {
+          const logs = (await page.evaluate<PageLogEntry[]>(DRAIN_LOGS_EXPRESSION)) ?? [];
+          const out = kind === "errors" ? logs.filter((l) => l.level === "error") : logs;
+          return JSON.stringify(out);
+        }
+        case "cookies":
+          return (await page.evaluate<string>("document.cookie")) ?? "";
+        case "cookies_set": {
+          if (params?.key === undefined || params?.value === undefined) {
+            throw new BWError("INVALID_TOOL_ARGS", "cookies_set requires name and value");
+          }
+          await page.evaluate(
+            `document.cookie = encodeURIComponent(${lit(params.key)}) + "=" + encodeURIComponent(${lit(params.value)}) + "; path=/; SameSite=Lax", "ok"`,
+          );
+          return `cookie ${params.key} set`;
+        }
+        case "cookies_clear": {
+          const n = await page.evaluate<number>(
+            `(() => { let n = 0; for (const c of document.cookie.split(";")) { const name = c.split("=")[0].trim(); if (name) { document.cookie = name + "=; path=/; max-age=0"; n += 1; } } return n; })()`,
+          );
+          return `cleared ${n ?? 0} cookie(s)`;
+        }
+        case "storage": {
+          if (params?.key !== undefined) {
+            return (
+              (await page.evaluate<string | null>(`localStorage.getItem(${lit(params.key)})`)) ?? ""
+            );
+          }
+          const all = await page.evaluate<Record<string, string>>(
+            `(() => { const o = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); o[k] = localStorage.getItem(k); } return o; })()`,
+          );
+          return JSON.stringify(all ?? {});
+        }
+        case "storage_set": {
+          if (params?.key === undefined || params?.value === undefined) {
+            throw new BWError("INVALID_TOOL_ARGS", "storage_set requires key and value");
+          }
+          await page.evaluate(
+            `localStorage.setItem(${lit(params.key)}, ${lit(params.value)}), "ok"`,
+          );
+          return `storage ${params.key} set`;
+        }
+        case "storage_clear": {
+          await page.evaluate(`localStorage.clear(), "ok"`);
+          return "localStorage cleared";
+        }
+      }
+    });
+  };
+
+  const runExpression = async (expression: string): Promise<string> => {
+    const page = ensureActive();
+    return runExclusive(page, async () => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const result = await Promise.race([
+          page.evaluate(expression),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(
+              () => reject(new BWError("TIMEOUT", `eval timed out after ${EVAL_TIMEOUT_MS}ms`)),
+              EVAL_TIMEOUT_MS,
+            );
+          }),
+        ]);
+        let text: string;
+        try {
+          text = JSON.stringify(result ?? null) ?? "undefined";
+        } catch {
+          text = String(result);
+        }
+        return text.slice(0, EVAL_MAX_RESULT);
+      } finally {
+        if (timer !== undefined) clearTimeout(timer);
+      }
+    });
+  };
+
   return {
     activePage: ensureActive,
+    inspect,
+    runExpression,
 
     async act(action: BrowserAction, snapshot?: Snapshot | null): Promise<ActionResult> {
       // open_tab 在锁外创建新页（自身无竞态面）
