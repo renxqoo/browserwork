@@ -13,6 +13,11 @@
     "packages/actions": {
       "name": "@bw/actions",
       "version": "0.0.1",
+      "dependencies": {
+        "@bw/core": "workspace:*",
+        "@bw/driver": "workspace:*",
+        "@bw/perception": "workspace:*",
+      },
     },
     "packages/agent": {
       "name": "@bw/agent",

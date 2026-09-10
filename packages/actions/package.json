@@ -4,5 +4,10 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@bw/core": "workspace:*",
+    "@bw/driver": "workspace:*",
+    "@bw/perception": "workspace:*"
   }
 }

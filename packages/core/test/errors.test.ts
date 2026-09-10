@@ -13,6 +13,8 @@ describe("ERROR_CODES 词表封闭", () => {
       "BUDGET_EXCEEDED",
       "DRIVER_ERROR",
       "TIMEOUT",
+      "SECRET_UNRESOLVED",
+      "INVALID_TOOL_ARGS",
     ]);
   });
 

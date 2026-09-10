@@ -11,6 +11,7 @@ export type {
   NavigationListener,
   Page,
   PageOptions,
+  PressModifier,
   ScreenshotFormat,
   ScreenshotOptions,
 } from "./types.ts";

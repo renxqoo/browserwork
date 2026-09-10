@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <title>BW Fixture Late Nav</title>
+  </head>
+  <body>
+    <h1>Late nav</h1>
+    <a id="late" href="/links.html">late navigation</a>
+    <a id="now" href="/links.html">now navigation</a>
+    <script>
+      document.getElementById("late").addEventListener("click", (e) => {
+        e.preventDefault(); // 阻断原生跳转，只测延迟 JS 导航
+        setTimeout(() => {
+          location.href = "/links.html";
+        }, 400);
+      });
+      document.getElementById("now").addEventListener("click", (e) => {
+        e.preventDefault();
+        location.href = "/links.html";
+      });
+    </script>
+  </body>
+</html>

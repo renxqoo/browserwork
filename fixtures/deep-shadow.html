@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <title>BW Fixture Deep Shadow</title>
+  </head>
+  <body>
+    <h1>Deep shadow</h1>
+    <div style="height: 2000px"></div>
+    <div id="host"></div>
+    <span id="hit">no</span>
+    <script>
+      const root = document.getElementById("host").attachShadow({ mode: "open" });
+      root.innerHTML = '<button type="button" id="sb">shadow-deep</button>';
+      root.getElementById("sb").addEventListener("click", () => {
+        document.getElementById("hit").textContent = "HIT";
+      });
+    </script>
+  </body>
+</html>

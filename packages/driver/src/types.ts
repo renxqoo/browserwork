@@ -29,6 +29,8 @@ export interface ClickOptions {
 
 export type ScreenshotFormat = "png" | "jpeg";
 
+export type PressModifier = "Shift" | "Control" | "Alt" | "Meta";
+
 export interface ScreenshotOptions {
   format?: ScreenshotFormat;
   /** jpeg 质量 0-100，默认 80 */
@@ -49,6 +51,17 @@ export interface Page {
   click(selector: string, opts?: ClickOptions): Promise<void>;
   /** 坐标轨：视口坐标原生点击（shadow DOM / iframe 目标） */
   clickAt(x: number, y: number, opts?: Omit<ClickOptions, "timeoutMs">): Promise<void>;
+  /** 向焦点元素插入文本（InsertText；不触发 keydown/keyup——需要时跟 press） */
+  type(text: string): Promise<void>;
+  /** 命名键/单字符 + 修饰键 */
+  press(key: string, modifiers?: PressModifier[]): Promise<void>;
+  /** 视口中心滚轮（dx/dy 像素） */
+  scroll(dx: number, dy: number): Promise<void>;
+  /** 主文档选择器元素 scrollIntoView */
+  scrollTo(
+    selector: string,
+    opts?: { block?: "start" | "center" | "end" | "nearest"; timeoutMs?: number },
+  ): Promise<void>;
   screenshot(opts?: ScreenshotOptions): Promise<Uint8Array>;
   /** 返回取消订阅函数 */
   onNavigated(listener: NavigationListener): () => void;

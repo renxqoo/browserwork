@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <title>BW Fixture React-ish</title>
+  </head>
+  <body>
+    <h1>Controlled input</h1>
+    <!-- 模拟受控组件：input 事件驱动重渲染（真实 React 行为的 InsertText 等价面；
+         真 React 验证归 real 门） -->
+    <input id="controlled" type="text" placeholder="controlled" />
+    <p id="mirror">value: (empty)</p>
+    <span id="change-log">changes: </span>
+    <select id="picker">
+      <option value="a">a</option>
+      <option value="b">b</option>
+    </select>
+    <script>
+      const input = document.getElementById("controlled");
+      const mirror = document.getElementById("mirror");
+      const log = document.getElementById("change-log");
+      input.addEventListener("input", () => {
+        mirror.textContent = `value: ${input.value}`;
+        // 模拟框架重渲染：替换兄弟节点（DOM 变化触发 settle）
+        const clone = mirror.cloneNode(true);
+        mirror.replaceWith(clone);
+      });
+      document.getElementById("picker").addEventListener("change", (e) => {
+        log.textContent = `changes: ${e.target.value}`;
+      });
+    </script>
+  </body>
+</html>

@@ -46,6 +46,7 @@ export interface SnapshotScroll {
   x: number;
   docHeight: number;
   viewportH: number;
+  viewportW?: number;
 }
 
 export interface Snapshot {
@@ -74,6 +75,7 @@ interface RawExtract {
   scrollX?: number;
   docHeight: number;
   viewportH: number;
+  viewportW?: number;
 }
 
 /** FNV-1a 32bit——结构哈希用，不追求密码学强度 */
@@ -221,6 +223,7 @@ function normalize(raw: RawExtract, budgetWarnings: string[]): Snapshot {
       x: raw.scrollX ?? 0,
       docHeight: raw.docHeight,
       viewportH: raw.viewportH,
+      ...(raw.viewportW !== undefined ? { viewportW: raw.viewportW } : {}),
     },
     domHash: domHashOf(raw.nodes),
     truncated: false,

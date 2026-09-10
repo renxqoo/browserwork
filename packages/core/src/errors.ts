@@ -11,6 +11,8 @@ export const ERROR_CODES = [
   "BUDGET_EXCEEDED",
   "DRIVER_ERROR",
   "TIMEOUT",
+  "SECRET_UNRESOLVED",
+  "INVALID_TOOL_ARGS",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

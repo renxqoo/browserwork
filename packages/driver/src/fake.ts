@@ -13,6 +13,7 @@ import type {
   NavigationListener,
   Page,
   PageOptions,
+  PressModifier,
   ScreenshotOptions,
 } from "./types.ts";
 
@@ -51,6 +52,10 @@ export class FakePage implements Page {
   #closedListeners = new Set<() => void>();
   readonly clicks: Array<{ selector?: string; x?: number; y?: number; opts?: unknown }> = [];
   readonly navHistory: string[] = [];
+  readonly typed: string[] = [];
+  readonly presses: Array<{ key: string; modifiers: PressModifier[] | undefined }> = [];
+  readonly scrolls: Array<{ dx: number; dy: number }> = [];
+  readonly scrollToCalls: string[] = [];
 
   constructor(opts: FakePageOptions = {}) {
     this.#opts = opts;
@@ -170,6 +175,32 @@ export class FakePage implements Page {
     this.clicks.push({ x, y, opts });
   }
 
+  async type(text: string): Promise<void> {
+    this.#assertOpen();
+    this.typed.push(text);
+  }
+
+  async press(key: string, modifiers?: PressModifier[]): Promise<void> {
+    this.#assertOpen();
+    this.presses.push({ key, modifiers });
+  }
+
+  async scroll(dx: number, dy: number): Promise<void> {
+    this.#assertOpen();
+    this.scrolls.push({ dx, dy });
+  }
+
+  async scrollTo(
+    selector: string,
+    _opts?: { block?: "start" | "center" | "end" | "nearest"; timeoutMs?: number },
+  ): Promise<void> {
+    this.#assertOpen();
+    if (!this.#opts.selectors?.includes(selector)) {
+      throw new BWError("TIMEOUT", `scrollTo timeout: ${selector}`);
+    }
+    this.scrollToCalls.push(selector);
+  }
+
   async screenshot(_opts?: ScreenshotOptions): Promise<Uint8Array> {
     this.#assertOpen();
     return TINY_PNG.slice();
@@ -243,9 +274,14 @@ export class FakeDriver implements Driver {
       const i = this.#pages.indexOf(page);
       if (i !== -1) this.#pages.splice(i, 1);
     });
-    // 与真驱动对齐：opts.url 走 navigate（B2 审查 P1-3）
+    // 与真驱动对齐：opts.url 走 navigate；失败关闭并注销（B2 P1-3 / B4 P2-4）
     if (opts?.url !== undefined) {
-      await page.navigate(opts.url, { timeoutMs: 30_000 });
+      try {
+        await page.navigate(opts.url, { timeoutMs: 30_000 });
+      } catch (e) {
+        page.close();
+        throw e;
+      }
     }
     return page;
   }

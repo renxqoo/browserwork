@@ -10,6 +10,7 @@ import type {
   NavigationFailedListener,
   NavigationListener,
   Page,
+  PressModifier,
   ScreenshotOptions,
 } from "./types.ts";
 import { classifyClickError } from "./types.ts";
@@ -180,6 +181,47 @@ export class WebViewPage implements Page {
       await view.click(x, y, normalizeClickOpts(opts));
     } catch (cause) {
       throw new BWError(classifyClickError(cause), `clickAt failed: (${x},${y})`, { cause });
+    }
+  }
+
+  async type(text: string): Promise<void> {
+    const view = this.#require();
+    try {
+      await view.type(text);
+    } catch (cause) {
+      throw new BWError("DRIVER_ERROR", `type failed: ${text.slice(0, 40)}`, { cause });
+    }
+  }
+
+  async press(key: string, modifiers?: PressModifier[]): Promise<void> {
+    const view = this.#require();
+    try {
+      const opts =
+        modifiers !== undefined && modifiers.length > 0 ? { modifiers: [...modifiers] } : {};
+      await view.press(key, opts);
+    } catch (cause) {
+      throw new BWError("DRIVER_ERROR", `press failed: ${key}`, { cause });
+    }
+  }
+
+  async scroll(dx: number, dy: number): Promise<void> {
+    const view = this.#require();
+    try {
+      await view.scroll(dx, dy);
+    } catch (cause) {
+      throw new BWError("DRIVER_ERROR", `scroll failed: (${dx},${dy})`, { cause });
+    }
+  }
+
+  async scrollTo(
+    selector: string,
+    opts?: { block?: "start" | "center" | "end" | "nearest"; timeoutMs?: number },
+  ): Promise<void> {
+    const view = this.#require();
+    try {
+      await view.scrollTo(selector, opts ?? {});
+    } catch (cause) {
+      throw new BWError(classifyClickError(cause), `scrollTo failed: ${selector}`, { cause });
     }
   }
 

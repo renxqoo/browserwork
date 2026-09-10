@@ -1,5 +1,10 @@
 export type { LocateResult } from "./locate.ts";
-export { locateExpression } from "./locate.ts";
+export {
+  ENTER_SUBMIT_INTENT_EXPRESSION,
+  locateExpression,
+  scrollToBwIdExpression,
+  selectBwIdExpression,
+} from "./locate.ts";
 export { EXTRACT_EXPRESSION } from "./script.ts";
 export type {
   ExtractOptions,
