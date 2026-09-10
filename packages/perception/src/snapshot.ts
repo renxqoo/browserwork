@@ -24,11 +24,15 @@ export interface SnapNode {
   type?: string;
   placeholder?: string;
   value?: string;
+  /** 主视口坐标系（同源 iframe 内元素含递归 frame 偏移 + frame 盒裁剪） */
   x: number;
   y: number;
   w: number;
   h: number;
+  /** 完全在视口下方（top > viewportH；纵跨视口的容器不算） */
   below: boolean;
+  /** 完全在视口上方（bottom ≤ 0） */
+  above: boolean;
 }
 
 export interface SnapHeading {
@@ -38,6 +42,8 @@ export interface SnapHeading {
 
 export interface SnapshotScroll {
   y: number;
+  /** 主文档横向滚动（isSameView 参与；iframe 内部滚动是已登记限制） */
+  x: number;
   docHeight: number;
   viewportH: number;
 }
@@ -61,9 +67,11 @@ export interface ExtractOptions {
 interface RawExtract {
   nodes: SnapNode[];
   headings: SnapHeading[];
+  warnings?: string[];
   title: string;
   url: string;
   scrollY: number;
+  scrollX?: number;
   docHeight: number;
   viewportH: number;
 }
@@ -112,7 +120,12 @@ export function isSameView(
   a: Pick<Snapshot, "domHash" | "scroll" | "url">,
   b: Pick<Snapshot, "domHash" | "scroll" | "url">,
 ): boolean {
-  return a.domHash === b.domHash && a.scroll.y === b.scroll.y && a.url === b.url;
+  return (
+    a.domHash === b.domHash &&
+    a.scroll.y === b.scroll.y &&
+    (a.scroll.x ?? 0) === (b.scroll.x ?? 0) &&
+    a.url === b.url
+  );
 }
 
 function renderNode(n: SnapNode): string {
@@ -124,6 +137,7 @@ function renderNode(n: SnapNode): string {
   if (n.value !== undefined) parts.push(`[value: ${n.value}]`);
   if (n.href !== undefined) parts.push(`-> ${n.href}`);
   if (n.below) parts.push("↓below-viewport");
+  if (n.above) parts.push("↑above-viewport");
   return `[${n.id}] ${label}${parts.length > 0 ? ` ${parts.join(" ")}` : ""}`;
 }
 
@@ -133,6 +147,11 @@ function renderNode(n: SnapNode): string {
  * 元素行给页脚留位。唯一豁免：预算小于有界头部本身（退化预算，如 budget=50）。
  * 返回值同时给出结构化的 truncated/renderedCount（P2-5：不靠字符串匹配判定）。
  */
+/** 元素到视口的纵向距离（below 为正距离，above 为负距离取绝对值） */
+function distance(n: SnapNode, viewportH: number): number {
+  return n.below ? n.y - viewportH : -(n.y + n.h);
+}
+
 export function renderPlan(
   s: Snapshot,
   budgetChars = SNAPSHOT_BUDGET_DEFAULT,
@@ -144,11 +163,19 @@ export function renderPlan(
       ? `# Headings: ${s.headings.map((h) => `${h.tag} "${h.text}"`).join(", ")}\n`
       : "");
   const footer = (omitted: number): string =>
-    `# …下方还有 ${omitted} 个元素未显示（可 scroll 后重新提取）\n`;
+    `# …${omitted} 个元素未显示（视口优先排序，可 scroll 后重新提取）\n`;
+  const footerShort = "# …truncated\n";
+  // 视口优先 + 距离次序（P0-3「视口内与附近优先」，B3 审查 P2-3）：
+  // 视口内先渲染（组内保持文档序）；视口外按「距视口的纵向距离」升序
+  const inViewport = s.nodes.filter((n) => !n.below && !n.above);
+  const outViewport = s.nodes
+    .filter((n) => n.below || n.above)
+    .sort((a, b) => distance(a, s.scroll.viewportH) - distance(b, s.scroll.viewportH));
+  const ordered = [...inViewport, ...outViewport];
   const lines: string[] = [head];
   let used = head.length;
   let rendered = 0;
-  for (const n of s.nodes) {
+  for (const n of ordered) {
     const line = `${renderNode(n)}\n`;
     if (used + line.length > budgetChars) break;
     lines.push(line);
@@ -157,16 +184,20 @@ export function renderPlan(
   }
   const truncated = rendered < s.nodes.length;
   if (truncated) {
-    for (;;) {
-      const f = footer(s.nodes.length - rendered);
-      if (used + f.length <= budgetChars || lines.length === 1) {
-        lines.push(f);
-        break;
-      }
+    let f = footer(s.nodes.length - rendered);
+    // 回退元素行给页脚留位（保留至少头部）
+    while (used + f.length > budgetChars && lines.length > 1) {
       const last = lines.pop();
       if (last === undefined) break;
       used -= last.length;
-      rendered--;
+      rendered++;
+      f = footer(s.nodes.length - rendered);
+    }
+    // 全页脚放不下 → 短页脚；连短页脚都放不下 → 无页脚（truncated 由结构化标志承载）
+    if (used + f.length <= budgetChars) {
+      lines.push(f);
+    } else if (used + footerShort.length <= budgetChars) {
+      lines.push(footerShort);
     }
   }
   return { text: lines.join(""), truncated, renderedCount: rendered };
@@ -180,14 +211,20 @@ export function renderSnapshot(s: Snapshot, budgetChars = SNAPSHOT_BUDGET_DEFAUL
 function normalize(raw: RawExtract, budgetWarnings: string[]): Snapshot {
   return {
     formatVersion: 1,
-    url: raw.url,
-    title: raw.title,
+    // 空标题/空 URL 是合法形态（document.write 的新文档）——头部字段防御归一
+    url: raw.url ?? "",
+    title: raw.title ?? "",
     nodes: raw.nodes,
     headings: raw.headings,
-    scroll: { y: raw.scrollY, docHeight: raw.docHeight, viewportH: raw.viewportH },
+    scroll: {
+      y: raw.scrollY,
+      x: raw.scrollX ?? 0,
+      docHeight: raw.docHeight,
+      viewportH: raw.viewportH,
+    },
     domHash: domHashOf(raw.nodes),
     truncated: false,
-    warnings: budgetWarnings,
+    warnings: [...(raw.warnings ?? []), ...budgetWarnings],
   };
 }
 

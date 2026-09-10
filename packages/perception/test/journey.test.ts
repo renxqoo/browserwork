@@ -74,7 +74,7 @@ describe.skipIf(process.platform !== "darwin")("B1 de-risk 旅程", () => {
           expect(snap.truncated).toBe(true);
           const rendered = renderSnapshot(snap, 900);
           expect(rendered.length).toBeLessThanOrEqual(900);
-          expect(rendered).toMatch(/下方还有 \d+ 个元素未显示/);
+          expect(rendered).toMatch(/\d+ 个元素未显示（视口优先排序/);
           expect(snap.nodes.filter((n) => n.below).length).toBeGreaterThan(0);
         });
       } finally {

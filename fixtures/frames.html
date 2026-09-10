@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <title>BW Fixture Frames</title>
+  </head>
+  <body>
+    <h1>Frames page</h1>
+    <button type="button" id="outer">outer button</button>
+    <div style="margin-top: 20px">
+      <iframe
+        id="same-origin"
+        src="/iframe-inner.html"
+        title="same-origin inner frame"
+        width="600"
+        height="300"
+      ></iframe>
+    </div>
+    <div id="cross-slot" style="margin-top: 20px"></div>
+  </body>
+</html>

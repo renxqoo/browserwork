@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <title>BW Fixture Shadow</title>
+  </head>
+  <body>
+    <h1>Shadow page</h1>
+    <button type="button" id="main-btn">main light button</button>
+    <div id="host"></div>
+    <span id="hit">no</span>
+    <script>
+      const root = document.getElementById("host").attachShadow({ mode: "open" });
+      root.innerHTML =
+        '<button type="button" id="shadow-btn">shadow button</button><a href="/links.html">shadow link</a>';
+      root.getElementById("shadow-btn").addEventListener("click", () => {
+        document.getElementById("hit").textContent = "shadow-hit";
+      });
+    </script>
+  </body>
+</html>
