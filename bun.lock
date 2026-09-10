@@ -45,6 +45,9 @@
     "packages/policies": {
       "name": "@bw/policies",
       "version": "0.0.1",
+      "dependencies": {
+        "@bw/core": "workspace:*",
+      },
     },
     "packages/service": {
       "name": "@bw/service",

@@ -15,6 +15,7 @@
 | p8 | 重定向链 onNavigated 上报 | **只报最终 URL**（单跳/三跳链都只见终点；中间 302 不可见）；事件发生时 title 可能为空 | S1③ 事后复检数据源成立且简单（单事件即终态）；复检只看 URL，title 用 `view.title` 另读 |
 | p9 | chrome 后端 `url:false` 独立拉起 | 本机 Chrome 存在，navigate+evaluate 成功 | P1-11 铁律可实施；B2 契约测试双后端可行 |
 | p10 | evaluate undefined 归一 | 单元测试覆盖：返回 `null`（driver 归一层） | 无额外影响 |
+| p11 | GLM 真实端点（B6 前置，2026-09-10 补） | `open.bigmodel.cn/api/paas/v4/chat/completions` + `glm-5.3-flash`：文本 200、**tools 200 且正确返回 `click({"index":"3"})`**；注意：① `.env` 的 GLM_BASE_URL 是**完整端点**（已含 /chat/completions，勿再拼）② glm-5.3-flash 为推理模型，reasoning_tokens 计入 completion_tokens（max_tokens 过小会吃光推理预算导致空回复——实测 20 tokens 全被推理吃掉） | B6 可用 OpenAI 兼容接入；max_tokens/预算按推理模型留余量 |
 
 ## 附带平台事实（切片旅程中发现）
 

@@ -128,7 +128,7 @@ driver 归一化：`evaluate` 结果 `undefined` 归一为 `null`（JSON 语义�
 |---|---|---|
 | S1 | origin 白名单（host 精确或子域匹配：`host === allowed \|\| host.endsWith("." + allowed)`，URL 解析比对，**禁止子串**，P2-5 处置）。startUrl 域自动入列；**三处挂钩**：① navigate 动作前检 ② click/press 的导航意图前检（U4 解析目标元素最近 `a[href]`/`button[formaction]`/所在 form 的 action）③ **onNavigated 最终 URL 事后复检**（覆盖重定向/JS 跳转/表单 GET；违规 → 回滚 + 终止，P0-1 处置） | policies.onNavigate / onNavigationIntent / onNavigationSettled |
 | S2 | 写闸：命中敏感词表（封闭+可配）或提交意图（submit 类按钮、`press Enter` 且焦点在表单内，P1-4 处置）→ 确认门。页面 JS 自行提交的同源导航视为已授权 origin 内行为（记录轨迹）；跨域则被 S1③ 捕获 | policies.onAction |
-| S3 | `type_secret` 的目标元素经深度定位器取**实际文档 origin**（同源 iframe 可读；跨源 iframe 不可读 → 一律 `POLICY_BLOCKED`，P1-5 处置）；origin 必须 ∉ 白名单且 ∈ `allowSecrets` 集合 | policies.resolveSecret + U4 目标解析 |
+| S3 | `type_secret` 的目标元素经深度定位器取**实际文档 origin**（同源 iframe 可读；跨源 iframe 不可读 → 一律 `POLICY_BLOCKED`，P1-5 处置）；origin 必须 ∈ 白名单且 ∈ `allowSecrets` 集合（B5 审查 P2-16：原文「∉」为笔误） | policies.resolveSecret + U4 目标解析 |
 | S4 | URL 归一化后封锁：字面特殊主机（localhost、*.localhost、*.local）、IP 全记法（点分/十进制整数/十六进制/八进制/混合、IPv6 含 `::ffff:` 映射）∈ {v4: 0/8,10/8,100.64/10,127/8,169.254/16,172.16/12,192.168/16,198.18/15,224/4,240/4; v6: ::,::1,fc00::/7,fe80::/10}；非字面主机名经**注入的 DnsResolver** 解析后按 IP 规则复查（严格档：解析命中内网 = block；按主机名缓存，TOCTOU 残余风险文档化）（P1-3 处置） | policies（sync 字面检查 + async 解析路径） |
 | S5 | 外发审查：导航 URL（含 S1② 解析出的目标 href）的 query/fragment 命中敏感模式（≥24 位 token、邮箱、手机号、已知 secret 值子串）→ 拦截 | policies.onNavigationIntent |
 | S6 | 脱敏链：提取脚本对 `type=password` 永远输出 `***`；U6 维护 secret 值集合（含其 base64/URL 编码变体），**事件出域前**（SSE/SDK 迭代器）与**轨迹落盘前**统一过 redact；`look` 截图在「本页已输入过 secret」期间默认 `POLICY_BLOCKED`（可确认放行，P1-2 处置） | U3 密码框 + U6 redact 阶段 |
