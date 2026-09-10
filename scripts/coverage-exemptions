@@ -5,3 +5,4 @@ packages/service/src/cli.ts	CLI 入口（process.exit 副作用；CLI 冒烟已�
 packages/service/src/cli-run.ts	真实 LLM 路径（loadEnvFile/printEvent 需真 GLM key+浏览器）	min=75
 packages/service/src/server.ts	SSE overflow/catch/running 分支需网络故障注入；session SSE 新增分支	min=50
 packages/service/src/sessions.ts	会话 TTL 清理/intentSink/destroySession 边界需故障注入	min=75
+packages/service/src/cli-session.ts	CLI session 子命令（HTTP client 包装——底层已覆盖）	min=0

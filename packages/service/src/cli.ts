@@ -76,6 +76,10 @@ export async function main(argv?: string[]): Promise<number> {
       ...(args.json ? { json: true } : {}),
     });
   }
+  if (cmd === "s" || cmd === "session") {
+    const { runSessionCli } = await import("./cli-session.ts");
+    return runSessionCli((argv ?? process.argv.slice(2)).slice(1));
+  }
   if (cmd === "serve") {
     const { createServer } = await import("./server.ts");
     const server = createServer({
@@ -83,9 +87,9 @@ export async function main(argv?: string[]): Promise<number> {
       ...(args.token !== undefined ? { authToken: args.token } : {}),
     });
     console.log(`bw serve listening on ${server.url}`);
-    // 保持进程
-    setInterval(() => {}, 60_000);
-    return 0;
+    console.log("Press Ctrl+C to stop");
+    setInterval(() => {}, 60_000); // 活跃定时器——Bun 事件循环保持进程
+    await new Promise(() => {}); // 永不返回——防止 main return 触发 process.exit
   }
   console.error(`unknown command: ${cmd}`);
   return 2;
