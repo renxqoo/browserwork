@@ -266,7 +266,7 @@ describe("press / scroll / select / 文本与视觉", () => {
 
     const look = await engine.act({ kind: "look" });
     expect(look.image?.base64).toBeDefined();
-    expect(look.image?.mimeType).toBe("png");
+    expect(look.image?.mimeType).toBe("image/png");
 
     const waited = await engine.act({ kind: "wait", seconds: 0.1 });
     expect(waited.text).toContain("waited");

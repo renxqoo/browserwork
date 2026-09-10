@@ -1,3 +1,2 @@
 # 豁免清单：路径<TAB>理由。随批次清空，B8 收口必须为空。
-packages/agent/src/index.ts	B0 占位 stub，B6 agent 批次落地
 packages/service/src/index.ts	B0 占位 stub，B7 service 批次落地（cli.ts/version.ts 为真实入口不在豁免）

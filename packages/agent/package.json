@@ -4,5 +4,15 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@bw/core": "workspace:*",
+    "@bw/driver": "workspace:*",
+    "@bw/perception": "workspace:*",
+    "@bw/actions": "workspace:*",
+    "@bw/policies": "workspace:*",
+    "@mariozechner/pi-agent-core": "0.73.1",
+    "@mariozechner/pi-ai": "0.73.1",
+    "@sinclair/typebox": "0.34.52"
   }
 }

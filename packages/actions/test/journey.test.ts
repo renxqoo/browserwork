@@ -63,7 +63,7 @@ describe.skipIf(process.platform !== "darwin")("动作引擎真 view 旅程", ()
         });
         const opened = await engine.act({ kind: "open_tab", url: `${origin}/form.html` });
 
-        const q = opened.snapshot?.nodes.find((n) => n.type === "text");
+        void opened.snapshot?.nodes.find((n) => n.type === "text");
         const sel = opened.snapshot?.nodes.find((n) => n.tag === "select");
         expect(sel).toBeDefined();
 

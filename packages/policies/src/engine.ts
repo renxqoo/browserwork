@@ -207,12 +207,6 @@ function actionSignatureOf(action: BrowserAction): string {
   return parts.join("|");
 }
 
-/** reason 里只保留 URL 的 origin+path（query/fragment 可能含 secret） */
-function stripQuery(url: string): string {
-  const cut = url.split(/[?#]/)[0] ?? url;
-  return cut.slice(0, 120);
-}
-
 /** S2 词面归一化：NFC + 剥离零宽字符与分隔符（B5 审查 P1-5——页面内容不可信） */
 const WORD_STRIP_RE = /[\s\u200b-\u200d\u2060\ufeff\u2028\u2029|\\/_+\x2d\u30fb\u2027\u00b7]/g;
 function normalizeWordSurface(text: string): string {
@@ -375,16 +369,12 @@ export function createPolicyEngine(config: PolicyConfig, deps: PolicyDeps): Poli
     },
 
     onAction(action, target, intent) {
-      const signature = actionSignatureOf(action);
-      // 已批准的同签名动作：一次性放行后消费（U6「批准 → LLM 重发 → 放行」闭环）
-      if (approvedActionSignatures.has(signature)) {
-        approvedActionSignatures.delete(signature);
-        return { kind: "allow" };
-      }
+      // B6 审查 P1-4 处置：工具内挂起式确认（批准即在 gate 内放行执行）不需要
+      // 令牌重发放行——approvedActionSignatures 机制废除，同签名动作始终重新确认
       // 提交意图 → 写闸
       if (intent !== undefined && (intent.kind === "submit" || intent.kind === "enter_submit")) {
         const cid = deps.newCid();
-        confirmations.set(cid, { kind: "action", cid, actionSignature: signature });
+        confirmations.set(cid, { kind: "action", cid });
         return { kind: "confirm", cid, reason: "form submission" };
       }
       if (action.kind === "type_text_secret") {
@@ -401,8 +391,12 @@ export function createPolicyEngine(config: PolicyConfig, deps: PolicyDeps): Poli
         })
       ) {
         const cid = deps.newCid();
-        confirmations.set(cid, { kind: "action", cid, actionSignature: signature });
-        return { kind: "confirm", cid, reason: `sensitive action: ${surface.slice(0, 60)}` };
+        confirmations.set(cid, { kind: "action", cid });
+        return {
+          kind: "confirm",
+          cid,
+          reason: `sensitive action: ${`${target?.text ?? ""} ${target?.href ?? ""}`.trim().slice(0, 60)}`,
+        };
       }
       return { kind: "allow" };
     },

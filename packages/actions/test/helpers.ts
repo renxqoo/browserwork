@@ -24,6 +24,8 @@ export interface FakeWorldOptions {
 export interface FakeWorld {
   driver: FakeDriver;
   pageOf(index: number): FakePage;
+  /** 记录一切被创建的 page（driver.close 后注册表清空，实例引用仍可用） */
+  createdPages: import("@bw/driver").FakePage[];
   setLocate(id: string, result: LocateResult): void;
   setRawNodes(nodes: Array<Record<string, unknown>>): void;
 }
@@ -33,7 +35,9 @@ export function makeFakeWorld(opts: FakeWorldOptions): FakeWorld {
   // FakePage.click 命中表（可变数组，与 locate 结果保持同步）
   const selectors: string[] = Object.keys(locateResults).map((id) => `[data-bw-id="${id}"]`);
   let rawNodes: Array<Record<string, unknown>> = [...opts.rawExtract.nodes];
+  const createdPages: import("@bw/driver").FakePage[] = [];
   const world: FakeWorld = {
+    createdPages,
     driver: new FakeDriver(
       {
         cdp: false,
@@ -69,9 +73,7 @@ export function makeFakeWorld(opts: FakeWorldOptions): FakeWorld {
           if (wanted !== undefined) {
             if (expr.includes("scrollIntoView")) {
               const r = locateResults[wanted];
-              return r !== undefined && r.found
-                ? { found: true, scrolled: true }
-                : { found: false };
+              return r?.found === true ? { found: true, scrolled: true } : { found: false };
             }
             if (expr.includes("HTMLSelectElement")) {
               if (!locateResults[wanted]) return { found: false };
@@ -97,6 +99,12 @@ export function makeFakeWorld(opts: FakeWorldOptions): FakeWorld {
     setRawNodes(nodes) {
       rawNodes = nodes;
     },
+  };
+  const origCreate = world.driver.createPage.bind(world.driver);
+  world.driver.createPage = async (opts?: never) => {
+    const page = (await origCreate(opts)) as import("@bw/driver").FakePage;
+    createdPages.push(page);
+    return page;
   };
   return world;
 }

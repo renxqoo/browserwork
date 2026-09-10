@@ -320,7 +320,7 @@ describe("B5 审查回归", () => {
     if (d.kind === "block") expect(d.reason).toContain("egress");
   });
 
-  test("action 确认闭环：approve 后同签名动作一次性放行，再发再确认", () => {
+  test("action 确认闭环（B6 处置后）：同签名动作始终重新确认（内部挂起架构无令牌重放）", () => {
     const engine = makeEngine();
     const action: BrowserAction = { kind: "click", index: "9" };
     const d1 = engine.onAction(action, { text: "立即支付" });
@@ -328,8 +328,8 @@ describe("B5 审查回归", () => {
     if (d1.kind === "confirm") {
       engine.resolveConfirmation(d1.cid, true);
     }
-    expect(engine.onAction(action, { text: "立即支付" }).kind).toBe("allow"); // 批准 → 放行
-    expect(engine.onAction(action, { text: "立即支付" }).kind).toBe("confirm"); // 一次性消费
+    // 工具内挂起式确认：批准后在 gate 内直接放行执行——策略层不做令牌重放
+    expect(engine.onAction(action, { text: "立即支付" }).kind).toBe("confirm");
   });
 
   test("S2 零宽字符/分隔符/大小写不构成绕过", () => {

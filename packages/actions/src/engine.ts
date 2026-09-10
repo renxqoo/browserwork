@@ -36,7 +36,7 @@ export interface ActionResult {
   /** 复合步后的新快照（DOM 类动作必有；look/wait/done 可为 null） */
   snapshot: Snapshot | null;
   /** look 的截图（base64，供 U6 组多模态消息） */
-  image?: { base64: string; mimeType: "png" };
+  image?: { base64: string; mimeType: "image/png" };
   /** done 动作标记（U6 终止协议消费） */
   done?: boolean;
   /** 本次动作解析出的导航意图（同时经 intentSink 上报） */
@@ -138,7 +138,7 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
   /** 动作前校验：深度定位 + rect 漂移比对（P1-17 处置：主键 = bw-id） */
   const locateAndValidate = async (page: Page, node: SnapNode): Promise<LocateResult> => {
     const located = await page.evaluate<LocateResult>(locateExpression(node.id));
-    if (!located || !located.found) {
+    if (located?.found !== true) {
       throw new BWError("ELEMENT_NOT_FOUND", `element ${node.id} no longer in page`);
     }
     const drift =
@@ -190,11 +190,11 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
         const scrolled = await page.evaluate<{ found: boolean; scrolled?: boolean }>(
           scrollToBwIdExpression(node.id),
         );
-        if (!scrolled || !scrolled.found) {
+        if (scrolled?.found !== true) {
           throw new BWError("ELEMENT_NOT_FOUND", `element ${node.id} not scrollable`);
         }
         const fresh = await page.evaluate<LocateResult>(locateExpression(node.id));
-        if (!fresh || !fresh.found) {
+        if (fresh?.found !== true) {
           throw new BWError("ELEMENT_NOT_FOUND", `element ${node.id} lost after scroll`);
         }
         located = fresh;
@@ -359,7 +359,7 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
                   intentInfo.action !== undefined && intentInfo.method !== undefined
                     ? { kind: "enter_submit", href: intentInfo.action, method: intentInfo.method }
                     : { kind: "enter_submit" };
-                opts?.intentSink?.(intent, action);
+                await opts?.intentSink?.(intent, action);
               }
             }
             await page.press(action.key);
@@ -388,7 +388,7 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
             const scrolled = await page.evaluate<{ found: boolean; scrolled?: boolean }>(
               scrollToBwIdExpression(node.id),
             );
-            if (!scrolled || !scrolled.found) {
+            if (scrolled?.found !== true) {
               throw new BWError("ELEMENT_NOT_FOUND", `element ${node.id} no longer in page`);
             }
             const snap = await settleAndExtract(page);
@@ -405,7 +405,7 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
             const result = await page.evaluate<{ found: boolean; set?: boolean; error?: string }>(
               selectBwIdExpression(node.id, action.value),
             );
-            if (!result || !result.found) {
+            if (result?.found !== true) {
               throw new BWError("ELEMENT_NOT_FOUND", `element ${node.id} no longer in page`);
             }
             if (result.error === "not_select") {
@@ -438,7 +438,7 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
             return {
               text: "[screenshot captured]",
               snapshot: null,
-              image: { base64: Buffer.from(png).toString("base64"), mimeType: "png" },
+              image: { base64: Buffer.from(png).toString("base64"), mimeType: "image/png" },
             };
           }
           case "wait": {
