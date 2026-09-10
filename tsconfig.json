@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ESNext"],
+    "types": ["bun"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "baseUrl": ".",
+    "paths": {
+      "@bw/core": ["packages/core/src/index.ts"],
+      "@bw/driver": ["packages/driver/src/index.ts"],
+      "@bw/perception": ["packages/perception/src/index.ts"],
+      "@bw/actions": ["packages/actions/src/index.ts"],
+      "@bw/policies": ["packages/policies/src/index.ts"],
+      "@bw/agent": ["packages/agent/src/index.ts"],
+      "@bw/service": ["packages/service/src/index.ts"],
+      "@bw/testing": ["packages/testing/src/index.ts"]
+    }
+  },
+  "include": ["packages/**/*.ts", "probes/**/*.ts"]
+}

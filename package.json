@@ -1,0 +1,20 @@
+{
+  "name": "bun-webview",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "build": "bun build packages/service/src/cli.ts --target=bun --outdir=dist/cli",
+    "test": "bun test && bun scripts/coverage-gate.ts",
+    "doors": "bun run typecheck && bun run lint && bun run build && bun run test"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.4",
+    "@types/bun": "^1.2.25",
+    "typescript": "^5.9.3"
+  }
+}
