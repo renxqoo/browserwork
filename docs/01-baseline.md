@@ -102,9 +102,10 @@ driver 归一化：`evaluate` 结果 `undefined` 归一为 `null`（JSON 语义�
 | `cdp` | ✗ | ✓ | 高级逃生舱（B8 前不用） |
 | `upload` | ✗ | ✓（CDP） | `upload` 工具仅 chrome 注册 |
 | `download` | ✗ | ✓ | 下载类动作仅 chrome |
-| `dialogEvents` | B1 探针定 | ✓ | 若 webkit 无上报且 dialog 会挂死操作槽 → `dialogsUnsafe` 能力：onclick 源码含 alert/confirm/prompt 的元素动作过确认门（启发式，尽力而为） |
+| `dialogEvents` | ✗（自动处理、不可观测——B1 探针 p1：dialog 不挂死操作） | ✓ | 无需 `dialogsUnsafe` 预案（已作废） |
 | `userAgentOverride` | ✗ | ✓ | UA 定制仅 chrome |
-| `pierceClick`（选择器穿透 shadow/iframe） | B1 探针定（预期 ✗） | 同 | 设计不依赖：非主文档元素一律坐标轨 |
+| `pierceClick`（选择器穿透 shadow/iframe） | ✗（探针 p7 实证） | 同 | 设计不依赖：非主文档元素一律坐标轨（坐标轨命中已实证） |
+| `popups` | dropped（探针 p2：window.open 静默丢弃） | 待 B2 实测 | 弹窗类任务在 webkit 上不支持，提取层标注 target=_blank |
 
 **chrome 后端铁律**：默认 `url:false` 强制独立拉起（防自动连上正在运行的 Chrome 串会话，P1-11 处置）；「连接本机 Chrome」是显式 opt-in 的高级功能。
 
@@ -115,7 +116,7 @@ driver 归一化：`evaluate` 结果 `undefined` 归一为 `null`（JSON 语义�
 3. 快照 ≤ 12,000 字符（硬性；超出：视口内与附近优先，尾部「下方还有 N 个元素」）；**视口外元素照常入快照并标注 below-viewport**——不可见过滤与视口位置是两件事（P0-3 处置）
 4. 预算默认 `{ maxSteps: 50; maxTokensInput: 2_000_000; maxTokensOutput: 100_000; wallClockMs: 15min; costUsd: 5; contextWindow: 按模型注入 }`；**wallClock 计时不含 PendingConfirmation 挂起时段**；确认等待总额另设上限 10min。计量归属 U6（订阅 pi message usage → budget.consume；beforeToolCall 与 turn_end 双点断言）；costUsd 来自注入价目表（未知价模型的 cost 维度停用并警告）（P1-9 处置）
 5. 等待：settle 静默 500ms、**上限 10s 到点照常继续（超限不是错误）**；动作超时 30s。settle 观察者：提取脚本用 guarded global 安装一次（`window.__bwSettle`），重注入先 disconnect 旧的；导航销毁 JS 状态自然清亡（P1-15 处置）
-6. 服务并发：单 Bun 进程 ≤ 8 活跃任务（U7 强制，超出 429）；webkit host 崩溃 = 进程内全部任务 `failed(DRIVER_ERROR)` 快速终止（不触发模型升级，P2-2 处置）；**服务器模式 supervisor 每 Bun 进程配一个独立 Chrome（进程级租户隔离，「8 tab 共享」废除，P1-11 处置）**
+6. 服务并发：单 Bun 进程 ≤ 8 活跃任务（U7 强制，超出 429）；webkit host 崩溃 = 进程内全部任务 `failed(DRIVER_ERROR)` 快速终止（不触发模型升级，P2-2 处置）；**服务器模式 supervisor 每 Bun 进程配一个独立 Chrome（进程级租户隔离，「8 tab 共享」废除，P1-11 处置）**。多 view 并发度实测 ≈2×（探针 p4），≤8 任务下 host 非瓶颈
 7. 轨迹：每步一条 JSONL + 一张截图，单任务 50MB 滚动淘汰最旧；service 层 janitor 清理已完成任务（默认 7 天，全局磁盘上限可配）（P2-15 处置）
 8. 上下文压缩（U6）：transformContext 保留最近 K=2 个完整快照，更早的替换为单行 `[snapshot N removed, domHash=…]`；估算 token > 模型窗口×0.6 时追加对旧 assistant 文本的动作-结果摘要；contextWindow 触顶 → `BUDGET_EXCEEDED(contextWindow)`（P1-8 处置）
 

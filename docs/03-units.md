@@ -18,9 +18,10 @@
 **处理**：`Driver`（createPage/close/capabilities）、`Page`（navigate/evaluate/click(selector|坐标)/type/press/scroll/scrollTo/resize/screenshot/goBack/goForward/reload/close + 只读 url/title/loading + onNavigated/onNavigationFailed 注册 + tabs 注册表）；webkit / chrome 双实现；**chrome 默认 `url:false` 独立拉起**（基线 §5 铁律）；`FakePage/FakeDriver` 测试替身（click 必须模拟「选择器只查主文档、不穿 shadow/iframe」的真实语义，防 P0-2 类问题在假驱动上测不出来）。
 **不处理**：串行化互斥（U4 持锁，driver 只在单调用内护栏）；弹窗语义决策（探针后按能力声明上报）；stable 等待（U4）。
 **契约要点**：
-- `evaluate<T>(expr)`：表达式形式；结果 `undefined` 归一 `null`；同 view 并发第二个 evaluate → 包装 `DRIVER_ERROR(ERR_INVALID_STATE)`（护栏仅限 evaluate 自身）
-- click 双轨透传：selector 版透传 Bun actionable 等待与 timeout；坐标版原生点击。异常归一：message 含 `actionable` → `ELEMENT_NOT_ACTIONABLE`，其余超时 → `TIMEOUT`（基线 §4.3）
-- 生命周期：close 幂等；close 后一切方法 `DRIVER_ERROR`；宿主死亡 → pending reject `DRIVER_ERROR("host process died")`
+- `evaluate<T>(expr)`：表达式形式；结果 `undefined` 归一 `null`；**并发 evaluate 被互斥链串行化排队**，`ERR_INVALID_STATE` 不外泄（B1 审查 P2-12 裁决：串行化优于报错，文档随实现）
+- `navigate(url, {timeoutMs})`：超时抛 `TIMEOUT`（弃等；底层导航由 B2 互斥队列收束）；导航在途二次导航等驱动态错误（`ERR_INVALID_STATE`）→ `DRIVER_ERROR`，非 `NAVIGATION_FAILED`（B1 审查 P2-3/P2-4 处置）
+- click 双轨透传：selector 版透传 Bun actionable 等待与 timeout；坐标版原生点击；`timeoutMs/button/clickCount` 任意组合不丢失（P2-1）。异常归一：message 含 `actionable` → `ELEMENT_NOT_ACTIONABLE`，等待类超时 → `TIMEOUT`（基线 §4.3）
+- 生命周期：close 幂等；**page 与 driver close 后一切方法（含 createPage）`DRIVER_ERROR`**（P2-2）；导航监听器彼此异常隔离（P2-7）；宿主死亡 → pending reject `DRIVER_ERROR("host process died")`
 **测试口径**：接口契约套件同一套跑 webkit 真 view / chrome 真 view / FakePage（fixture 站）；navigate 失败矩阵；异常归一表驱动；close 后全方法矩阵；onNavigated 重定向链最终 URL 断言（探针同步）。
 
 ## U3 `@bw/perception` — 感知层
@@ -29,7 +30,9 @@
 **不处理**：截图（U4）；跨源 iframe 内容（坐标兜底归 U4）；等待（U4）。
 **契约要点**：
 - 索引 = `data-bw-id`，全局唯一（每次提取重编）；**交互与校验的主键是 bw-id 属性本身**，tag/text 仅咨询性（P1-17 处置：页面重渲染移除旧节点 → 旧 bw-id 消失 → ELEMENT_NOT_FOUND → 自纠，而非误点同名孪生按钮）
-- domHash = 树结构哈希（tag+role+可见文本前 64 字符+href origin+控件类型；**不含 class**）；复用条件 = domHash 且滚动位置且 url 未变（P0-3 处置）
+- domHash = 树结构哈希（tag+role+可见文本前 64 字符+href origin+控件类型；**不含 class、不含 value、不含 below**——滚动不变性是 U3 显式契约）；复用条件 = domHash 且滚动位置且 url 未变（P0-3 处置）
+- 页面可控内容（title/url/placeholder/text）单行化 + 钳长（title ≤200、url ≤500、text ≤80、placeholder ≤80、value ≤40；密码框任意大小写 type 恒 `***`）——头部有界是 12K 硬预算成立的前提，换行归一防伪造快照行（B1 审查 P1-1/P1-2 处置）
+- `below` 语义 v0 = 仅「视口下方」（`rect.bottom > vh`）；上方外露与部分可见的完整坐标标注在 B3 坐标表实装（B1 审查 P2-13 登记为 B3 范围）
 - 卡死检测口径（U6 消费）：同 (url, domHash) 连续出现且期间工具结果全为 no-op/错误（DOM 含时钟/广告文本导致 hash 恒变时不会误判为「有进展」，P2-14 处置为启发式并文档化）
 **测试口径**：fixture 页矩阵（静态/表单/shadow DOM/同源 iframe/跨源 iframe/长列表/隐藏文本对抗/React 受控页/懒加载）；坐标换算断言（iframe 偏移）；预算截断两侧；domHash 稳定性（同页两次同、内容变则变、滚动不变）；对抗样例不进快照（越权矩阵项）；密码框恒 `***`；locate 穿透/跨源不可达。
 
