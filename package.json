@@ -8,7 +8,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "build": "bun build packages/service/src/cli.ts --target=bun --outdir=dist/cli",
+    "build": "bun build packages/service/src/cli.ts --target=bun --outdir=dist/cli --minify --sourcemap=linked",
     "test": "bun test && bun scripts/coverage-gate.ts",
     "doors": "bun run typecheck && bun run lint && bun run build && bun run test"
   },
