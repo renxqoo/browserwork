@@ -41,6 +41,16 @@ describe("fixture server 路由（装置自证）", () => {
     });
   });
 
+  test("/slow：按 sleep 延迟响应", async () => {
+    await withFixtureServer(async (origin) => {
+      const t0 = Date.now();
+      const res = await fetch(`${origin}/slow?sleep=300`);
+      expect(res.status).toBe(200);
+      expect(Date.now() - t0).toBeGreaterThanOrEqual(250);
+      expect(await res.text()).toContain("BW Slow");
+    });
+  });
+
   test("未知路径与越界路径 404", async () => {
     await withFixtureServer(async (origin) => {
       expect((await fetch(`${origin}/nope.html`)).status).toBe(404);

@@ -65,7 +65,9 @@ export interface PageOptions {
 export interface Driver {
   createPage(opts?: PageOptions): Promise<Page>;
   capabilities(): DriverCapabilities;
-  /** 幂等；关闭后一切方法抛 DRIVER_ERROR */
+  /** 当前打开的 page 列表（view=tab 注册表；「活动 tab」是 agent 层状态，不归驱动） */
+  pages(): Page[];
+  /** 幂等；关闭后一切方法（含 createPage）抛 DRIVER_ERROR */
   close(): void;
 }
 

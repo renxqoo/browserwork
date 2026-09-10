@@ -15,7 +15,7 @@
 
 ## U2 `@bw/driver` — 浏览器驱动抽象
 
-**处理**：`Driver`（createPage/close/capabilities）、`Page`（navigate/evaluate/click(selector|坐标)/type/press/scroll/scrollTo/resize/screenshot/goBack/goForward/reload/close + 只读 url/title/loading + onNavigated/onNavigationFailed 注册 + tabs 注册表）；webkit / chrome 双实现；**chrome 默认 `url:false` 独立拉起**（基线 §5 铁律）；`FakePage/FakeDriver` 测试替身（click 必须模拟「选择器只查主文档、不穿 shadow/iframe」的真实语义，防 P0-2 类问题在假驱动上测不出来）。
+**处理**：`Driver`（createPage/close/capabilities/pages() 注册表）、`Page`（navigate/evaluate/click(selector|坐标)/type/press/scroll/scrollTo/resize/screenshot/goBack/goForward/reload/close + 只读 url/title/loading + onNavigated/onNavigationFailed 注册）；webkit / chrome 双实现；**chrome 默认 `url:false` 独立拉起**（基线 §5 铁律，Chrome 探测含 `BUN_CHROME_PATH`）；`FakePage/FakeDriver` 测试替身——click 命中表 = 可配置的主文档 DOM（作用域真实性由真 view 契约套件保证，B2 审查 P2-11 裁决），navigate/evaluate/close/事件/错误码语义与真驱动同形。
 **不处理**：串行化互斥（U4 持锁，driver 只在单调用内护栏）；弹窗语义决策（探针后按能力声明上报）；stable 等待（U4）。
 **契约要点**：
 - `evaluate<T>(expr)`：表达式形式；结果 `undefined` 归一 `null`；**并发 evaluate 被互斥链串行化排队**，`ERR_INVALID_STATE` 不外泄（B1 审查 P2-12 裁决：串行化优于报错，文档随实现）

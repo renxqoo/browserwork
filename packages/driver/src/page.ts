@@ -1,33 +1,20 @@
 /**
- * webkit 后端实现（docs/03-units.md U2；01 §5）。
- * chrome 后端在 B2 批次落地（默认 url:false 铁律在彼处实现）。
+ * Bun.WebView 的 Page 包装（后端无关——webkit/chrome 对上层 API 同构）。
+ * 契约见 docs/03-units.md U2。navigate/evaluate 均有互斥链：
+ * 平台各操作槽的跨槽并发由上层（U4 每 page 互斥锁）吸收，这里先消除
+ * 同类操作自身的并发错误（ERR_INVALID_STATE 不外泄）。
  */
 import { BWError } from "@bw/core";
 import type {
   ClickOptions,
-  Driver,
-  DriverCapabilities,
   NavigationFailedListener,
   NavigationListener,
   Page,
-  PageOptions,
   ScreenshotOptions,
 } from "./types.ts";
 import { classifyClickError } from "./types.ts";
 
-const WEBKIT_CAPABILITIES: DriverCapabilities = {
-  cdp: false,
-  upload: false,
-  download: false,
-  dialogEvents: false, // 探针 p1：dialog 自动处理、不可观测
-  userAgentOverride: false,
-  pierceClick: false, // 探针 p7：选择器不穿 shadow DOM
-};
-
-export interface WebViewDriverOptions {
-  /** B1 仅 webkit；chrome 于 B2 落地 */
-  backend?: "webkit";
-}
+const noop = (): void => {};
 
 interface NormalizedClickOpts {
   timeout?: number;
@@ -43,12 +30,13 @@ function normalizeClickOpts(opts?: ClickOptions): NormalizedClickOpts {
   return out;
 }
 
-class WebViewPage implements Page {
+export class WebViewPage implements Page {
   #view: Bun.WebView | null;
-  /** evaluate 互斥链：串行化一切本包装层发起的 evaluate（Bun 并发第二个同步抛错） */
   #evalChain: Promise<unknown> = Promise.resolve();
+  #navChain: Promise<unknown> = Promise.resolve();
   #navListeners = new Set<NavigationListener>();
   #navFailListeners = new Set<NavigationFailedListener>();
+  #closedListeners = new Set<() => void>();
 
   constructor(view: Bun.WebView) {
     this.#view = view;
@@ -72,6 +60,12 @@ class WebViewPage implements Page {
     };
   }
 
+  /** driver 注册表用：page 关闭时回调（内部 API，不在 Page 契约上） */
+  onClosed(listener: () => void): () => void {
+    this.#closedListeners.add(listener);
+    return () => this.#closedListeners.delete(listener);
+  }
+
   #require(): Bun.WebView {
     if (this.#view === null) {
       throw new BWError("DRIVER_ERROR", "page is closed");
@@ -91,45 +85,67 @@ class WebViewPage implements Page {
     return this.#require().loading;
   }
 
-  async navigate(url: string, opts?: { timeoutMs?: number }): Promise<void> {
-    const view = this.#require();
-    const doNavigate = (async () => {
-      try {
-        await view.navigate(url);
-      } catch (cause) {
-        const message = cause instanceof Error ? cause.message : String(cause);
-        // ERR_INVALID_STATE = 导航在途时二次导航/close 中止等驱动态错误，不是页面加载失败
-        const code = message.includes("ERR_INVALID_STATE") ? "DRIVER_ERROR" : "NAVIGATION_FAILED";
-        throw new BWError(code, `navigation failed: ${url}`, { cause });
+  /**
+   * navigate 互斥队列：串行化**本包装层发起的**同类导航（并发 navigate 排队，
+   * 不外泄 ERR_INVALID_STATE）。click 触发的页面自导航不经此队列——其异步
+   * 结算由 U4 settle 吸收（B2 审查 P2-5：注释如实收窄承诺）。
+   * timeoutMs 语义 = 调用方提前收到 TIMEOUT（弃等），但导航槽位仍等底层
+   * 导航真正结算后才放行下一个——平台只允许一个在途导航，槽位提前释放
+   * 会让下一次 navigate 撞 "navigation is already pending"。
+   */
+  navigate(url: string, opts?: { timeoutMs?: number }): Promise<void> {
+    this.#require(); // closed 同步抛（与其余方法形态一致，B2 审查 P2-10）
+    const execute = (): { reported: Promise<void>; slot: Promise<void> } => {
+      const view = this.#require();
+      const underlying = (async () => {
+        try {
+          await view.navigate(url);
+        } catch (cause) {
+          const message = cause instanceof Error ? cause.message : String(cause);
+          const codeProp = (cause as { code?: string } | null)?.code;
+          const isDriverState =
+            codeProp === "ERR_INVALID_STATE" ||
+            message.includes("ERR_INVALID_STATE") ||
+            message.includes("navigation is already pending") ||
+            message.includes("WebView closed") ||
+            message.includes("host process") ||
+            message.includes("killed by signal");
+          throw new BWError(
+            isDriverState ? "DRIVER_ERROR" : "NAVIGATION_FAILED",
+            `navigation failed: ${url}`,
+            { cause },
+          );
+        }
+      })();
+      if (opts?.timeoutMs === undefined) {
+        return { reported: underlying, slot: underlying.then(noop, noop) };
       }
-    })();
-    if (opts?.timeoutMs === undefined) {
-      return doNavigate;
-    }
-    // 超时即弃等（底层导航无法取消，由 B2 互斥队列收束）；语义 = 等待超时
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(
-        () =>
-          reject(
-            new BWError("TIMEOUT", `navigation timeout: ${url}`, {
-              detail: { timeoutMs: opts.timeoutMs },
-            }),
-          ),
-        opts.timeoutMs,
-      );
-    });
-    try {
-      await Promise.race([doNavigate, timeout]);
-    } finally {
-      if (timer !== undefined) clearTimeout(timer);
-    }
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () =>
+            reject(
+              new BWError("TIMEOUT", `navigation timeout: ${url}`, {
+                detail: { timeoutMs: opts.timeoutMs },
+              }),
+            ),
+          opts.timeoutMs,
+        );
+      });
+      const reported = Promise.race([underlying, timeout]);
+      const slot = underlying.then(noop, noop).finally(() => {
+        if (timer !== undefined) clearTimeout(timer);
+      });
+      return { reported, slot };
+    };
+    const turn = this.#navChain.then(execute, execute);
+    this.#navChain = turn.then((r) => r.slot, noop);
+    return turn.then((r) => r.reported);
   }
 
   /**
    * 互斥链护栏：串行化本包装层发起的一切 evaluate（Bun 并发第二个同步抛
    * ERR_INVALID_STATE）；结果 undefined 归一为 null（01 §4.3）。
-   * 链式排队无检查间隙——并发调用方全部安全排队（U2 契约：不外泄 ERR_INVALID_STATE）。
    */
   evaluate<T>(expression: string): Promise<T> {
     this.#require();
@@ -145,7 +161,7 @@ class WebViewPage implements Page {
       }
     };
     const p = this.#evalChain.then(run, run);
-    this.#evalChain = p.catch(() => {});
+    this.#evalChain = p.catch(noop);
     return p;
   }
 
@@ -197,32 +213,14 @@ class WebViewPage implements Page {
       this.#view = null;
       this.#navListeners.clear();
       this.#navFailListeners.clear();
+      for (const l of this.#closedListeners) {
+        try {
+          l();
+        } catch {
+          // 隔离
+        }
+      }
+      this.#closedListeners.clear();
     }
   }
-}
-
-export function createWebViewDriver(_opts?: WebViewDriverOptions): Driver {
-  const pages = new Set<WebViewPage>();
-  let closed = false;
-  return {
-    capabilities: () => WEBKIT_CAPABILITIES,
-    async createPage(opts?: PageOptions): Promise<Page> {
-      if (closed) {
-        throw new BWError("DRIVER_ERROR", "driver is closed");
-      }
-      const view = new Bun.WebView({
-        width: opts?.width ?? 1280,
-        height: opts?.height ?? 720,
-        ...(opts?.url !== undefined ? { url: opts.url } : {}),
-      });
-      const page = new WebViewPage(view);
-      pages.add(page);
-      return page;
-    },
-    close(): void {
-      closed = true;
-      for (const p of pages) p.close();
-      pages.clear();
-    },
-  };
 }

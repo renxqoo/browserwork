@@ -53,6 +53,14 @@ export async function withFixtureServer<T>(fn: (origin: string) => Promise<T>): 
             headers: { "content-type": "text/html; charset=utf-8" },
           });
         }
+        case "/slow": {
+          // navigate 超时测试用：sleep 毫秒后才响应
+          const sleep = Math.min(Number(url.searchParams.get("sleep") ?? "1000"), 10_000);
+          await new Promise((r) => setTimeout(r, sleep));
+          return new Response("<!doctype html><title>BW Slow</title><p>slow</p>", {
+            headers: { "content-type": "text/html; charset=utf-8" },
+          });
+        }
         default: {
           const path = join(FIXTURES_DIR, url.pathname);
           // isFile 防目录请求（根路径 / join 出目录，readFileSync 会 EISDIR）
