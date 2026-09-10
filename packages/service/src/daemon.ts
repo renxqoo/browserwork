@@ -102,8 +102,8 @@ export function readServeToken(): string | undefined {
 
 /** 获取或创建后台服务——`bw s` 每次调用前用这个 */
 export async function ensureServer(token?: string): Promise<DaemonInfo> {
-  // 1. 环境变量指定了地址 → 直接用（不管理生命周期）
-  const envUrl = process.env.BW_SERVER_URL;
+  // 1. 环境变量指定了地址 → 直接用（不管理生命周期；空串视为未设置）
+  const envUrl = process.env.BW_SERVER_URL?.trim() || undefined;
   if (envUrl !== undefined) {
     const running = await isServerRunning(envUrl, token ?? process.env.BW_TOKEN);
     if (running) {
@@ -121,19 +121,24 @@ export async function ensureServer(token?: string): Promise<DaemonInfo> {
   }
 
   // 2.5 用户手动 `bw serve`（无 PID 文件）→ 探测默认端口（须 token 验证通过，非仅活着）
-  {
-    const url = `http://127.0.0.1:${DEFAULT_PORT}`;
-    for (const candidate of [token, readServeToken()]) {
-      if (candidate === undefined) continue;
-      if (await probeAuthorized(url, candidate)) {
-        return { url, pid: 0, port: DEFAULT_PORT, token: candidate };
-      }
+  const port = DEFAULT_PORT;
+  const url = `http://127.0.0.1:${port}`;
+  for (const candidate of [token, readServeToken()]) {
+    if (candidate === undefined) continue;
+    if (await probeAuthorized(url, candidate)) {
+      return { url, pid: 0, port, token: candidate };
     }
   }
 
+  // 端口已被占用但候选 token 都不认 → 明确报错（不误收养拿错 token）
+  if (await isServerRunning(url)) {
+    throw new Error(
+      `port ${port} is occupied by a bw serve we cannot authenticate (token mismatch) — ` +
+        `stop it with its own 'bw s stop', or export BW_TOKEN with the correct token`,
+    );
+  }
+
   // 3. 没有服务 → 后台拉起
-  const port = DEFAULT_PORT;
-  const url = `http://127.0.0.1:${port}`;
   const autoToken = token ?? crypto.randomUUID();
   // P0-2：token 只走 env（BW_TOKEN）——argv 会暴露在 ps 里
   const child = spawn("bun", serveSpawnArgs(port), {
@@ -142,12 +147,17 @@ export async function ensureServer(token?: string): Promise<DaemonInfo> {
     env: { ...process.env, BW_DAEMON: "1", BW_TOKEN: autoToken },
   });
   child.unref();
+  let childDied = false;
+  child.on("exit", () => {
+    childDied = true;
+  });
 
-  // 等服务就绪
+  // 等服务就绪（probeAuthorized——防误收养同端口的其它实例）
   const start = Date.now();
   while (Date.now() - start < STARTUP_TIMEOUT_MS) {
+    if (childDied) break; // 常见因：端口占用 EADDRINUSE
     await new Promise((r) => setTimeout(r, 200));
-    if (await isServerRunning(url, autoToken)) {
+    if (await probeAuthorized(url, autoToken)) {
       const info: DaemonInfo = { url, pid: child.pid ?? 0, port, token: autoToken };
       writePidFile(info);
       return info;
@@ -162,7 +172,7 @@ export async function stopServer(): Promise<boolean> {
   const info = readPidFile();
   if (info === undefined) {
     // 没有 PID 文件——尝试环境变量地址
-    const envUrl = process.env.BW_SERVER_URL;
+    const envUrl = process.env.BW_SERVER_URL?.trim() || undefined;
     if (envUrl !== undefined && (await isServerRunning(envUrl))) {
       // 无法杀远程服务
       return false;

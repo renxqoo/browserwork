@@ -126,6 +126,32 @@ describe("token 文件（P0-4：0600 权限）", () => {
     srv.stop(true);
   });
 
+  test("ensureServer：默认端口被陌生 token 的服务占用 → 明确报错（不误收养）", async () => {
+    const { ensureServer } = await import("../src/daemon.ts");
+    // 占住默认端口（占用失败 = 端口被真实 daemon 使用 → 跳过本用例）；
+    // 模拟真 bw serve 的鉴权行为——错 token 一律 401
+    let blocker: ReturnType<typeof Bun.serve> | undefined;
+    try {
+      blocker = Bun.serve({
+        port: 3456,
+        fetch: (req) =>
+          req.headers.get("authorization") === "Bearer real-token"
+            ? new Response("[]")
+            : new Response("nope", { status: 401 }),
+      });
+    } catch {
+      return;
+    }
+    try {
+      await ensureServer("wrong-token");
+      expect.unreachable();
+    } catch (e) {
+      expect((e as Error).message).toContain("cannot authenticate");
+    } finally {
+      blocker?.stop(true);
+    }
+  });
+
   test("stopServer：无 PID 文件 → false；PID 指向活进程 → SIGTERM → true", async () => {
     const { stopServer } = await import("../src/daemon.ts");
     expect(await stopServer()).toBe(false);

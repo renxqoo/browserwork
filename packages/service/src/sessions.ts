@@ -526,6 +526,12 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
           return { ok: true, text, snapshot: "" };
         }
 
+        // ---- tabs：标签页清单（driver.pages() 只读快照）
+        if (toolName === "tabs") {
+          const tabs = s.driver.pages().map((p, i) => ({ tab: i, url: p.url, title: p.title }));
+          return { ok: true, text: JSON.stringify(tabs), snapshot: "" };
+        }
+
         const action = buildAction(toolName, params);
 
         // 导航类工具 → S1① 前检
@@ -555,9 +561,9 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
           if (g !== null) return g;
         }
 
-        // 执行
+        // 执行（extract_text/look/wait 返回 null 快照——保留缓存供后续索引动作用）
         const r = await s.engine.act(action, s.snapshot);
-        s.snapshot = r.snapshot;
+        if (r.snapshot !== null) s.snapshot = r.snapshot;
 
         // 构造响应
         const response: SessionToolResponse = {

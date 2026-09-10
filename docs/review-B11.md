@@ -43,5 +43,18 @@
 
 ## 四、测试与门禁
 
-新增：`service/test/security.test.ts`（16）、`actions/test/inspect.test.ts`（8）、sessions 集成 3 项（S1③ 回滚 / 新工具矩阵 / ID 随机）。
-四门禁：typecheck ✓ · lint ✓（97 文件 0 违规，含 HEAD 既有 7 处清零）· test 382/0 ✓ · coverage ✓（daemon.ts 部分豁免 min=55：真实 spawn/空闲退出归 E2E）。
+新增：`service/test/security.test.ts`（17）、`actions/test/inspect.test.ts`（8）、sessions 集成 4 项（S1③ 回滚 / 新工具矩阵 / ID 随机 / tabs+快照缓存）。
+四门禁：typecheck ✓ · lint ✓（97 文件 0 违规，含 HEAD 既有 7 处清零）· test 384/0 ✓ · coverage ✓（daemon.ts 部分豁免 min=55：真实 spawn/空闲退出归 E2E）。
+
+## 五、真机冒烟追加修复（dist 构建 + 自动 daemon + bun.com 实站）
+
+| 问题 | 处置 |
+|---|---|
+| **存量 bug：5 个 CLI 命令在 HTTP 层全断** —— CLI 发 `scrollto/opentab/switchtab/closetab/extract`，服务端 buildAction 只认 `scroll_to/open_tab/switch_tab/close_tab/extract_text`（此前 E2E 级联失败根源之一） | `WIRE_NAMES` 规范名映射；连字符命令（cookies-set 等）同映射 |
+| extract_text 把会话缓存快照清成 null → 后续 scroll_to 报 requires a snapshot | 快照只在 `r.snapshot !== null` 时覆盖（look/wait 同理） |
+| `tabs` 在文档注释承诺但从未实现 | 服务端 tabs 工具（driver.pages() 只读清单）+ CLI 子命令 |
+| 端口被陌生 token 的 bw serve 占用 → spawn 超时 5s 且误收养（后续全 401） | spawn 前 `isServerRunning` 预检 → 占用即明确报错（token mismatch 提示）；等待环改 probeAuthorized + 子进程退出快败 |
+| `BW_SERVER_URL=`（空串）被当作已设置 | trim 后空串视为未设置（stopServer 同） |
+| daemon 路径模块加载时固化 → 测试污染真实 ~/.bw | `pidDir()` 惰性解析（BW_HOME 可覆写），已清理污染文件 |
+
+冒烟结论（bun.com 实站，全部通过）：create --allow-eval → eval 读 title → storage/cookies 读写 → console 捕获真实 Script error → extract（wire 修复）→ snap/scrollto/look（299KB 截图）/tabs/list/close/stop；`ps` 中无 token 泄漏。

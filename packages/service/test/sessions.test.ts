@@ -453,6 +453,31 @@ describe.skipIf(process.platform !== "darwin")("外部会话模式", () => {
     mgr.close(a.id);
     mgr.close(b.id);
   }, 30_000);
+
+  test("tabs 清单 + extract 不清空快照缓存（B11 冒烟修复回归）", async () => {
+    fixture = await startFixtureServer();
+    mgr = createSessionManager({ sessionTtlMs: 30_000, confirmationTimeoutMs: 1000 });
+    const s = await mgr.create(fixture.origin);
+
+    // tabs：单页清单
+    let r = await mgr.executeTool(s.id, "tabs", {});
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const tabs = JSON.parse(r.text) as Array<{ tab: number; url: string }>;
+      expect(tabs.length).toBe(1);
+      expect(tabs[0]?.url).toContain("127.0.0.1");
+    }
+
+    // extract_text 返回 null 快照——缓存保留，scroll_to 仍可用
+    r = await mgr.executeTool(s.id, "extract_text", {});
+    expect(r.ok).toBe(true);
+    const idx = /\[(\d+)\] link/.exec(mgr.snapshot(s.id))?.[1];
+    expect(idx).toBeTruthy();
+    r = await mgr.executeTool(s.id, "scroll_to", { index: idx ?? "" });
+    expect(r.ok).toBe(true);
+
+    mgr.close(s.id);
+  }, 45_000);
 });
 
 /** HTTP 层会话端点（外部 agent REST API） */

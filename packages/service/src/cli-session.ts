@@ -89,6 +89,19 @@ async function api(
   return { status: res.status, data };
 }
 
+/** CLI 命令名 → REST 工具名（服务端 buildAction 的规范名；B11 修复 5 个失配命令） */
+const WIRE_NAMES: Record<string, string> = {
+  scrollto: "scroll_to",
+  opentab: "open_tab",
+  switchtab: "switch_tab",
+  closetab: "close_tab",
+  extract: "extract_text",
+  "cookies-set": "cookies_set",
+  "cookies-clear": "cookies_clear",
+  "storage-set": "storage_set",
+  "storage-clear": "storage_clear",
+};
+
 /** 工具名 → 参数映射（位置参数 → JSON 参数） */
 function mapToolArgs(
   tool: string,
@@ -127,12 +140,17 @@ function mapToolArgs(
     case "closetab":
     case "console":
     case "errors":
+    case "tabs":
     case "cookies":
     case "cookies_clear":
+    case "cookies-clear":
     case "storage_clear":
+    case "storage-clear":
       return { params: {}, hint: "" };
     case "cookies_set":
+    case "cookies-set":
     case "storage_set":
+    case "storage-set":
       if (args.length < 2) return { error: `usage: bw s ${tool} <sessionId> <key> <value>` };
       return { params: { key: args[0], value: args[1] }, hint: "" };
     case "storage":
@@ -192,6 +210,7 @@ Usage:
   bw s opentab <id> <url>                open new tab
   bw s switchtab <id> <n>                switch tab
   bw s closetab <id>                     close current tab
+  bw s tabs <id>                         list tabs (index + url + title)
   bw s console <id>                      page console messages (new since last call)
   bw s errors <id>                       page errors (onerror/unhandledrejection)
   bw s cookies <id>                      get cookies (document.cookie; httpOnly invisible)
@@ -308,10 +327,11 @@ Env:
     fail(sessionId, "INVALID_ARGS", mapped.error);
   }
 
+  const wire = WIRE_NAMES[cmd] ?? cmd; // REST 规范名（scrollto → scroll_to 等）
   const { status, data } = await api(
     cfg,
     "POST",
-    `/sessions/${sessionId}/tools/${cmd}`,
+    `/sessions/${sessionId}/tools/${wire}`,
     mapped.params,
   );
 
