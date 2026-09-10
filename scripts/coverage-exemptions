@@ -1,2 +1,7 @@
-# 豁免清单：路径<TAB>理由。随批次清空，B8 收口必须为空。
-packages/service/src/index.ts	B0 占位 stub，B7 service 批次落地（cli.ts/version.ts 为真实入口不在豁免）
+# 豁免清单：路径<TAB>理由[<TAB>min=N]。
+# 不带 min=N = 完全豁免（文件不应出现在 lcov）；带 min=N = 阈值豁免（在 lcov 但允许低于 90）。
+# 随批次清空，B8 收口必须为空。
+packages/service/src/cli.ts	B7 CLI 入口（process.exit 副作用；B8 以 CLI 冒烟替代）
+packages/service/src/index.ts	B7 barrel（只含 re-export，测试经动态 import 消费不进 lcov）
+packages/service/src/cli-run.ts	B7 真实 LLM 路径（loadEnvFile/printEvent 需真 GLM key+浏览器）	min=70
+packages/service/src/server.ts	B7 SSE 运行中 error 分支需真实并发/SSE 断连	min=45

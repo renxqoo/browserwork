@@ -42,18 +42,30 @@ function parseLcov(text: string): Map<string, FileCov> {
   return map;
 }
 
-function loadExemptions(): Map<string, string> {
-  const map = new Map<string, string>();
+interface Exemption {
+  reason: string;
+  /** 阈值豁免：允许的最低覆盖率（默认 = 完全豁免——文件不应出现在 lcov） */
+  minPct?: number;
+}
+
+function loadExemptions(): Map<string, Exemption> {
+  const map = new Map<string, Exemption>();
   if (!existsSync(EXEMPT_PATH)) return map;
   for (const line of readFileSync(EXEMPT_PATH, "utf8").split("\n")) {
     const trimmed = line.trim();
     if (trimmed === "" || trimmed.startsWith("#")) continue;
     const tab = trimmed.indexOf("\t");
     if (tab === -1) {
-      console.error(`coverage-gate: 豁免行缺理由（格式：路径<TAB>理由）：${trimmed}`);
+      console.error(`coverage-gate: 豁免行缺理由（格式：路径<TAB>理由[<TAB>min=N]）：${trimmed}`);
       process.exit(2);
     }
-    map.set(trimmed.slice(0, tab), trimmed.slice(tab + 1));
+    const rest = trimmed.slice(tab + 1);
+    const minMatch = /\tmin=(\d+)$/.exec(rest);
+    const reason = minMatch !== null ? rest.slice(0, minMatch.index) : rest;
+    map.set(trimmed.slice(0, tab), {
+      reason,
+      ...(minMatch !== null ? { minPct: Number(minMatch[1]) } : {}),
+    });
   }
   return map;
 }
@@ -70,28 +82,28 @@ function main(): number {
   const srcFiles = [...new Glob("packages/*/src/**/*.ts").scanSync({ dot: false })].sort();
   for (const file of srcFiles) {
     const fc = cov.get(file);
+    const exemption = exemptions.get(file);
     if (!fc) {
-      if (exemptions.has(file)) continue;
+      if (exemption !== undefined) continue;
       failures.push(`未测文件（不在 lcov 中，未豁免）: ${file}`);
       continue;
     }
-    if (exemptions.has(file)) {
-      failures.push(`豁免失效：${file} 已在 lcov 中，请从豁免清单移除`);
+    if (exemption !== undefined && exemption.minPct === undefined) {
+      failures.push(`豁免失效：${file} 已在 lcov 中（若为部分覆盖改用 min=N 格式）`);
       continue;
     }
+    const threshold = exemption?.minPct ?? THRESHOLD_PCT;
     if (fc.lf > 0) {
       const linePct = (fc.lh / fc.lf) * 100;
-      if (linePct < THRESHOLD_PCT) {
-        failures.push(
-          `行覆盖 ${linePct.toFixed(1)}% < ${THRESHOLD_PCT}%: ${file} (${fc.lh}/${fc.lf})`,
-        );
+      if (linePct < threshold) {
+        failures.push(`行覆盖 ${linePct.toFixed(1)}% < ${threshold}%: ${file} (${fc.lh}/${fc.lf})`);
       }
     }
     if (fc.fnf > 0) {
       const fnPct = (fc.fnh / fc.fnf) * 100;
-      if (fnPct < THRESHOLD_PCT) {
+      if (fnPct < threshold) {
         failures.push(
-          `函数覆盖 ${fnPct.toFixed(1)}% < ${THRESHOLD_PCT}%: ${file} (${fc.fnh}/${fc.fnf})`,
+          `函数覆盖 ${fnPct.toFixed(1)}% < ${threshold}%: ${file} (${fc.fnh}/${fc.fnf})`,
         );
       }
     }
