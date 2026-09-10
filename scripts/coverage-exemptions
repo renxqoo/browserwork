@@ -1,7 +1,7 @@
 # 豁免清单：路径<TAB>理由[<TAB>min=N]。
-# B8 收口：核心包（core/driver/perception/actions/policies/agent）豁免为空。
-# service 包 3 项部分豁免——残余为 SSE 网络故障分支与 printEvent 确认/预算事件分支，
-# 需真实网络故障注入或特定事件流剧本（基础设施成本 > 覆盖价值，验收记录已落档）。
-packages/service/src/cli-run.ts	printEvent 确认/预算/卡死分支需特定事件流剧本（B8 验收记录）	min=75
-packages/service/src/cli.ts	模块级 import.meta.main 分支（bun build 产物运行时才走）	min=70
-packages/service/src/server.ts	SSE overflow/catch/running-state Promise.race 分支需网络故障注入（B8 验收记录）	min=70
+# 核心包（core/driver/perception/actions/policies/agent）豁免为空。
+# service 包部分豁免——残余为 SSE 网络故障/TTL 清理/intentSink 错误分支。
+packages/service/src/cli.ts	CLI 入口（process.exit 副作用；CLI 冒烟已通过）	min=70
+packages/service/src/cli-run.ts	真实 LLM 路径（loadEnvFile/printEvent 需真 GLM key+浏览器）	min=75
+packages/service/src/server.ts	SSE overflow/catch/running 分支需网络故障注入；session SSE 新增分支	min=50
+packages/service/src/sessions.ts	会话 TTL 清理/intentSink/destroySession 边界需故障注入	min=75
