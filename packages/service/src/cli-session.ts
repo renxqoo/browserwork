@@ -54,14 +54,31 @@ async function api(
   path: string,
   body?: Record<string, unknown>,
 ): Promise<{ status: number; data: Record<string, unknown> }> {
-  const res = await fetch(`${cfg.serverUrl}${path}`, {
-    method,
-    headers: {
-      ...(cfg.token !== undefined ? { authorization: `Bearer ${cfg.token}` } : {}),
-      ...(body !== undefined ? { "content-type": "application/json" } : {}),
-    },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${cfg.serverUrl}${path}`, {
+      method,
+      headers: {
+        ...(cfg.token !== undefined ? { authorization: `Bearer ${cfg.token}` } : {}),
+        ...(body !== undefined ? { "content-type": "application/json" } : {}),
+      },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("ConnectionRefused") || msg.includes("Unable to connect")) {
+      console.error(
+        JSON.stringify({
+          ok: false,
+          code: "SERVER_NOT_RUNNING",
+          error: `bw serve is not running on ${cfg.serverUrl}`,
+          hint: `start it first:\n  bw serve --port ${new URL(cfg.serverUrl).port || "3456"}${cfg.token !== undefined ? ` --token ${cfg.token}` : ""}\nthen retry this command`,
+        }),
+      );
+      process.exit(1);
+    }
+    throw e;
+  }
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   return { status: res.status, data };
 }
