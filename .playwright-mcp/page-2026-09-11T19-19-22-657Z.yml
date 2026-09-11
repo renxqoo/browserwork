@@ -1,0 +1,417 @@
+- generic [ref=e3]:
+  - link "Skip to content" [ref=e4] [cursor=pointer]:
+    - /url: "#main"
+  - banner [ref=e5]:
+    - generic [ref=e6]:
+      - link "Bun — home" [ref=e7] [cursor=pointer]:
+        - /url: /
+      - navigation "Primary" [ref=e10]:
+        - link "Docs" [ref=e11] [cursor=pointer]:
+          - /url: /docs
+        - link "Guides" [ref=e12] [cursor=pointer]:
+          - /url: /guides
+        - link "Reference" [ref=e13] [cursor=pointer]:
+          - /url: /reference
+        - link "Blog" [ref=e14] [cursor=pointer]:
+          - /url: /blog
+      - button "Search" [ref=e16] [cursor=pointer]:
+        - generic [ref=e20]: Search docs, APIs, guides…
+        - generic "Slash" [ref=e21]: /
+      - generic [ref=e23]:
+        - link "GitHub" [ref=e24] [cursor=pointer]:
+          - /url: https://github.com/oven-sh/bun
+        - link "Discord" [ref=e30] [cursor=pointer]:
+          - /url: /discord
+        - link "Install" [ref=e36] [cursor=pointer]:
+          - /url: /get
+  - main [active] [ref=e37]:
+    - article [ref=e1730]:
+      - generic [ref=e1732]:
+        - link "Blog" [ref=e1733] [cursor=pointer]:
+          - /url: /blog
+        - heading "Bun v1.4.2" [level=1] [ref=e1736]
+        - generic [ref=e1737]:
+          - link "Dylan Conway" [ref=e1742] [cursor=pointer]:
+            - /url: https://github.com/dylan-conway
+          - generic [aria-hidden] [ref=e1743]: ·
+          - generic [ref=e1744]:
+            - time [ref=e1745]: September 5, 2026
+            - link "RSS feed" [ref=e1746] [cursor=pointer]:
+              - /url: /rss.xml
+      - generic [ref=e1751]:
+        - generic [ref=e1752]:
+          - article [ref=e1754]:
+            - paragraph [ref=e1755]:
+              - text: This release fixes two regressions impacting Elysia and
+              - code [ref=e1756]: AsyncLocalStorage
+              - text: ", a hang in"
+              - code [ref=e1757]: "@discordjs/ws"
+              - text: ", CMYK JPEG decoding in"
+              - code [ref=e1758]: Bun.Image
+              - text: ", a rare JIT crash, and a GC crash on musl."
+            - heading "To install Bun" [level=4] [ref=e1759]
+            - generic [ref=e1760]:
+              - tablist [ref=e1761]:
+                - tab "curl" [selected] [ref=e1762] [cursor=pointer]
+                - tab "npm" [ref=e1763] [cursor=pointer]
+                - tab "powershell" [ref=e1764] [cursor=pointer]
+                - tab "scoop" [ref=e1765] [cursor=pointer]
+                - tab "brew" [ref=e1766] [cursor=pointer]
+                - tab "docker" [ref=e1767] [cursor=pointer]
+              - tabpanel "curl" [ref=e1768]:
+                - generic [ref=e1770]:
+                  - code [ref=e1774]:
+                    - generic [ref=e1775]: $ curl -fsSL https://bun.sh/install | bash
+                  - button "Copy to clipboard" [ref=e1776] [cursor=pointer]
+              - text: $ $ $ $ $ $ $
+            - heading "To upgrade Bun" [level=4] [ref=e1783]
+            - generic [ref=e1785]:
+              - code [ref=e1789]:
+                - generic [ref=e1790]: $ bun upgrade
+              - button "Copy to clipboard" [ref=e1791] [cursor=pointer]
+            - heading [level=2] [ref=e1798]:
+              - text: "Fixed:"
+              - code [ref=e1799]: bun build
+              - text: variable name collision
+              - link "Permalink" [ref=e1800] [cursor=pointer]:
+                - /url: "#fixed-bun-build-variable-name-collision"
+                - text: "#"
+            - paragraph [ref=e1801]:
+              - text: A regression introduced in Bun v1.4.1 impacting Elysia caused
+              - code [ref=e1802]: bun build
+              - text: to rename a nested
+              - code [ref=e1803]: var
+              - text: to the same name as a
+              - code [ref=e1804]: let
+              - text: in the same block. Builds importing Elysia would fail to load with
+              - code [ref=e1805]: "SyntaxError: Cannot declare a var variable that shadows a let/const/class variable"
+              - text: . This has been fixed and a regression test has been added.
+            - generic [ref=e1806]:
+              - paragraph [ref=e1808]: index.js
+              - generic [ref=e1809]:
+                - code [ref=e1813]:
+                  - generic [ref=e1814]: "function foo () {"
+                  - generic [ref=e1815]: "{"
+                  - generic [ref=e1816]: "let exports2 = {};"
+                  - generic [ref=e1817]: var exports = exports2;
+                  - generic [ref=e1818]: "}"
+                  - generic [ref=e1819]: return exports;
+                  - generic [ref=e1820]: "}"
+                  - generic [ref=e1821]: module.exports = foo();
+                - button "Copy to clipboard" [ref=e1822] [cursor=pointer]
+            - paragraph [ref=e1829]:
+              - code [ref=e1830]: bun build index.js --outfile out.js
+              - text: "would output code containing:"
+            - generic [ref=e1831]:
+              - paragraph [ref=e1833]: out.js
+              - generic [ref=e1834]:
+                - code [ref=e1838]:
+                  - generic [ref=e1839]: // inside CJS module wrapper
+                  - generic [ref=e1840]: "function foo() {"
+                  - generic [ref=e1841]: "{"
+                  - generic [ref=e1842]: "let exports2 = {};"
+                  - generic [ref=e1843]: var exports2 = exports2; // SyntaxError
+                  - generic [ref=e1844]: "}"
+                  - generic [ref=e1845]: return exports2;
+                  - generic [ref=e1846]: "}"
+                  - generic [ref=e1847]: module.exports = foo();
+                - button "Copy to clipboard" [ref=e1848] [cursor=pointer]
+            - paragraph [ref=e1855]:
+              - text: The same bug could also give a
+              - code [ref=e1856]: let
+              - text: the name of a function parameter or
+              - code [ref=e1857]: catch
+              - text: binding, producing code that evaluates but computes incorrect values.
+            - heading [level=2] [ref=e1858]:
+              - text: "Fixed:"
+              - code [ref=e1859]: AsyncLocalStorage
+              - text: memory leak
+              - link "Permalink" [ref=e1860] [cursor=pointer]:
+                - /url: "#fixed-asynclocalstorage-memory-leak"
+                - text: "#"
+            - paragraph [ref=e1861]:
+              - text: A regression introduced in Bun v1.4.1 caused a timer, immediate, or pending promise created inside
+              - code [ref=e1862]: store.exit()
+              - text: or a nested
+              - code [ref=e1863]: store.run()
+              - text: to keep the outer store value alive for as long as that timer or promise existed.
+              - code [ref=e1864]: getStore()
+              - text: still returned the correct value, so only memory usage was affected. This has been fixed.
+            - generic [ref=e1866]:
+              - code [ref=e1870]:
+                - generic [ref=e1871]: const store = new AsyncLocalStorage();
+                - generic [ref=e1872]: "store.run(bigPerRequestContext, () => {"
+                - generic [ref=e1873]: "store.exit(() => setTimeout(() => {}, 3_600_000));"
+                - generic [ref=e1874]: // kept bigPerRequestContext alive for an hour
+                - generic [ref=e1875]: "});"
+              - button "Copy to clipboard" [ref=e1876] [cursor=pointer]
+            - heading [level=2] [ref=e1883]:
+              - text: "Fixed:"
+              - code [ref=e1884]: worker_threads
+              - code [ref=e1885]: "'online'"
+              - text: event order
+              - link "Permalink" [ref=e1886] [cursor=pointer]:
+                - /url: "#fixed-worker-threads-online-event-order"
+                - text: "#"
+            - paragraph [ref=e1887]:
+              - text: A
+              - code [ref=e1888]: Worker
+              - text: from
+              - code [ref=e1889]: node:worker_threads
+              - text: didn't emit
+              - code [ref=e1890]: "'online'"
+              - text: first, causing
+              - code [ref=e1891]: "@discordjs/ws"
+              - text: to hang due to missing a worker's first message. The order now matches Node.js.
+            - generic [ref=e1893]:
+              - code [ref=e1897]:
+                - generic [ref=e1898]: "import { Worker, isMainThread, parentPort } from \"worker_threads\";"
+                - generic [ref=e1899]: "import { once } from \"events\";"
+                - generic [ref=e1900]: "if (isMainThread) {"
+                - generic [ref=e1901]: const worker = new Worker(new URL(import.meta.url));
+                - generic [ref=e1902]: await once(worker, "online");
+                - generic [ref=e1903]: "worker.on(\"message\", (msg) => {"
+                - generic [ref=e1904]: console.log(msg); // never received in v1.4.1
+                - generic [ref=e1905]: "});"
+                - generic [ref=e1906]: "} else {"
+                - generic [ref=e1907]: parentPort.postMessage("hi");
+                - generic [ref=e1908]: "}"
+              - button "Copy to clipboard" [ref=e1909] [cursor=pointer]
+            - heading [level=2] [ref=e1916]:
+              - text: "Fixed:"
+              - code [ref=e1917]: Bun.Image
+              - text: decodes CMYK and YCCK JPEGs
+              - link "Permalink" [ref=e1918] [cursor=pointer]:
+                - /url: "#fixed-bun-image-decodes-cmyk-and-ycck-jpegs"
+                - text: "#"
+            - paragraph [ref=e1919]:
+              - code [ref=e1920]: Bun.Image
+              - text: now decodes 4-component CMYK and YCCK JPEGs. Previously these failed with
+              - code [ref=e1921]: "Image: decode failed"
+              - text: . They are converted to RGB on decode, so every transform and output format works.
+            - generic [ref=e1923]:
+              - code [ref=e1927]:
+                - generic [ref=e1928]: await new Bun.Image("photo-cmyk.jpg").resize(400, 400).webp().bytes();
+              - button "Copy to clipboard" [ref=e1929] [cursor=pointer]
+            - heading [level=2] [ref=e1936]:
+              - text: Upgraded JavaScriptCore
+              - link "Permalink" [ref=e1937] [cursor=pointer]:
+                - /url: "#upgraded-javascriptcore"
+                - text: "#"
+            - paragraph [ref=e1938]:
+              - text: Bun v1.4.2 pulls in about 350 more upstream WebKit commits. They include
+              - code [ref=e1939]: Intl
+              - text: and TypedArray correctness fixes, a fix for a
+              - code [ref=e1940]: Proxy
+              - text: crash, and cheaper
+              - code [ref=e1941]: Date
+              - text: objects.
+            - generic [ref=e1943]:
+              - code [ref=e1947]:
+                - generic [ref=e1948]: new Intl.PluralRules("en").select(1n); // => "one" (was TypeError)
+              - button "Copy to clipboard" [ref=e1949] [cursor=pointer]
+            - list [ref=e1956]:
+              - listitem [ref=e1957]:
+                - code [ref=e1958]: new Int32Array(array)
+                - text: (and the other TypedArray constructors) read a stale or missing element when an element's
+                - code [ref=e1959]: valueOf
+                - text: mutated
+                - code [ref=e1960]: array
+                - text: during conversion.
+              - listitem [ref=e1961]:
+                - code [ref=e1962]: TypedArray.prototype.slice
+                - text: into a
+                - code [ref=e1963]: Symbol.species
+                - text: view that overlaps its source on the same buffer now copies in spec order.
+              - listitem [ref=e1964]:
+                - code [ref=e1965]: Intl.DurationFormat
+                - text: with
+                - code [ref=e1966]: "style: \"digital\""
+                - text: no longer prints a stray
+                - code [ref=e1967]: ":"
+                - text: when
+                - code [ref=e1968]: minutes
+                - text: is
+                - code [ref=e1969]: "0"
+                - text: and hidden.
+              - listitem [ref=e1970]:
+                - code [ref=e1971]: Object.setPrototypeOf(handler, null)
+                - text: on a
+                - code [ref=e1972]: Proxy
+                - text: handler that had already served a trap could crash when the handler came from a class defined inside a function called many times.
+            - heading [level=2] [ref=e1973]:
+              - text: Bugfixes
+              - link "Permalink" [ref=e1974] [cursor=pointer]:
+                - /url: "#bugfixes"
+                - text: "#"
+            - list [ref=e1975]:
+              - listitem [ref=e1976]: "Fixed: a rare crash in long-running processes after a prototype that JIT-optimized code had cached property lookups through was garbage-collected."
+            - list [ref=e1977]:
+              - listitem [ref=e1978]:
+                - text: "Fixed: on musl (Alpine),"
+                - code [ref=e1979]: Array.prototype.splice
+                - text: ","
+                - code [ref=e1980]: shift
+                - text: ", or shrinking"
+                - code [ref=e1981]: array.length
+                - text: on an array of objects could crash on a GC thread or hang if it ran while the GC was marking.
+            - list [ref=e1982]:
+              - listitem [ref=e1983]:
+                - text: "Fixed:"
+                - code [ref=e1984]: .json()
+                - text: on a
+                - code [ref=e1985]: Response
+                - text: ","
+                - code [ref=e1986]: Blob
+                - text: ","
+                - code [ref=e1987]: Bun.file()
+                - text: ", or"
+                - code [ref=e1988]: proc.stdout
+                - text: rejected invalid JSON with a generic
+                - code [ref=e1989]: Failed to parse JSON
+                - text: instead of the
+                - code [ref=e1990]: SyntaxError
+                - text: message
+                - code [ref=e1991]: JSON.parse
+                - text: gives, such as
+                - code [ref=e1992]: "JSON Parse error: Expected '}'"
+                - text: .
+            - list [ref=e1993]:
+              - listitem [ref=e1994]:
+                - text: "Fixed:"
+                - code [ref=e1995]: bun install
+                - text: and
+                - code [ref=e1996]: bun add
+                - text: could panic with
+                - code [ref=e1997]: range end index out of range
+                - text: when
+                - code [ref=e1998]: bun.lockb
+                - text: or a cached registry manifest stored a package-name hash that didn't match the name.
+            - list [ref=e1999]:
+              - listitem [ref=e2000]:
+                - text: "Fixed: on Linux, if registering a"
+                - code [ref=e2001]: Bun.file().writer()
+                - code [ref=e2002]: FileSink
+                - text: with epoll failed (for example
+                - code [ref=e2003]: fs.epoll.max_user_watches
+                - text: exhausted), its file descriptor was closed twice, which could close an unrelated descriptor that reused the number.
+            - heading [level=3] [ref=e2004]:
+              - text: Thanks to 3 contributors!
+              - link "Permalink" [ref=e2005] [cursor=pointer]:
+                - /url: "#thanks-to-3-contributors"
+                - text: "#"
+            - list [ref=e2006]:
+              - listitem [ref=e2007]:
+                - link "@dylan-conway" [ref=e2008] [cursor=pointer]:
+                  - /url: https://github.com/dylan-conway
+              - listitem [ref=e2009]:
+                - link "@jarred-sumner" [ref=e2010] [cursor=pointer]:
+                  - /url: https://github.com/jarred-sumner
+              - listitem [ref=e2011]:
+                - link "@robobun" [ref=e2012] [cursor=pointer]:
+                  - /url: https://github.com/robobun
+          - navigation "More posts" [ref=e2013]:
+            - link "Previous Bun v1.4.1" [ref=e2014] [cursor=pointer]:
+              - /url: /blog/bun-v1.4.1
+              - generic [ref=e2015]: Previous
+              - generic [ref=e2016]: Bun v1.4.1
+        - complementary [ref=e2020]:
+          - navigation "On this page" [ref=e2022]:
+            - paragraph [ref=e2023]: On this page
+            - list [ref=e2024]:
+              - listitem [ref=e2025]:
+                - link [ref=e2026] [cursor=pointer]:
+                  - /url: "#fixed-bun-build-variable-name-collision"
+                  - text: "Fixed:"
+                  - code [ref=e2027]: bun build
+                  - text: variable name collision
+              - listitem [ref=e2028]:
+                - link [ref=e2029] [cursor=pointer]:
+                  - /url: "#fixed-asynclocalstorage-memory-leak"
+                  - text: "Fixed:"
+                  - code [ref=e2030]: AsyncLocalStorage
+                  - text: memory leak
+              - listitem [ref=e2031]:
+                - link [ref=e2032] [cursor=pointer]:
+                  - /url: "#fixed-worker-threads-online-event-order"
+                  - text: "Fixed:"
+                  - code [ref=e2033]: worker_threads
+                  - code [ref=e2034]: "'online'"
+                  - text: event order
+              - listitem [ref=e2035]:
+                - link [ref=e2036] [cursor=pointer]:
+                  - /url: "#fixed-bun-image-decodes-cmyk-and-ycck-jpegs"
+                  - text: "Fixed:"
+                  - code [ref=e2037]: Bun.Image
+                  - text: decodes CMYK and YCCK JPEGs
+              - listitem [ref=e2038]:
+                - link "Upgraded JavaScriptCore" [ref=e2039] [cursor=pointer]:
+                  - /url: "#upgraded-javascriptcore"
+              - listitem [ref=e2040]:
+                - link "Bugfixes" [ref=e2041] [cursor=pointer]:
+                  - /url: "#bugfixes"
+                - list [ref=e2042]:
+                  - listitem [ref=e2043]:
+                    - link "Thanks to 3 contributors!" [ref=e2044] [cursor=pointer]:
+                      - /url: "#thanks-to-3-contributors"
+  - contentinfo [ref=e1667]:
+    - generic [ref=e1668]:
+      - generic [ref=e1669]:
+        - link "Bun — home" [ref=e1670] [cursor=pointer]:
+          - /url: /
+        - paragraph [ref=e1673]:
+          - text: The fast all-in-one JavaScript runtime & toolkit. Now part of
+          - link "Anthropic" [ref=e1674] [cursor=pointer]:
+            - /url: /blog/bun-joins-anthropic
+          - text: .
+        - generic [ref=e1675]:
+          - link "GitHub" [ref=e1676] [cursor=pointer]:
+            - /url: https://github.com/oven-sh/bun
+          - link "Discord" [ref=e1682] [cursor=pointer]:
+            - /url: /discord
+          - link "X (Twitter)" [ref=e1688] [cursor=pointer]:
+            - /url: https://x.com/bunjavascript
+          - link "RSS feed" [ref=e1693] [cursor=pointer]:
+            - /url: /rss.xml
+      - navigation "Product" [ref=e1698]:
+        - paragraph [ref=e1699]: Product
+        - link "Documentation" [ref=e1700] [cursor=pointer]:
+          - /url: /docs
+        - link "Guides" [ref=e1701] [cursor=pointer]:
+          - /url: /guides
+        - link "API Reference" [ref=e1702] [cursor=pointer]:
+          - /url: /reference
+        - link "Blog" [ref=e1703] [cursor=pointer]:
+          - /url: /blog
+        - link "Install" [ref=e1704] [cursor=pointer]:
+          - /url: /get
+      - navigation "Toolkit" [ref=e1705]:
+        - paragraph [ref=e1706]: Toolkit
+        - link "Runtime" [ref=e1707] [cursor=pointer]:
+          - /url: /docs/cli/run
+        - link "Package manager" [ref=e1708] [cursor=pointer]:
+          - /url: /package-manager
+        - link "Test runner" [ref=e1709] [cursor=pointer]:
+          - /url: /docs/cli/test
+        - link "Bundler" [ref=e1710] [cursor=pointer]:
+          - /url: /docs/bundler
+      - navigation "Community" [ref=e1711]:
+        - paragraph [ref=e1712]: Community
+        - link "GitHub" [ref=e1713] [cursor=pointer]:
+          - /url: https://github.com/oven-sh/bun
+        - link "Discord" [ref=e1714] [cursor=pointer]:
+          - /url: /discord
+        - link "X (Twitter)" [ref=e1715] [cursor=pointer]:
+          - /url: https://x.com/bunjavascript
+        - link "Merch" [ref=e1716] [cursor=pointer]:
+          - /url: https://shop.bun.com
+      - navigation "Company" [ref=e1717]:
+        - paragraph [ref=e1718]: Company
+        - link "Bun × Anthropic" [ref=e1719] [cursor=pointer]:
+          - /url: /blog/bun-joins-anthropic
+        - link "Press kit" [ref=e1720] [cursor=pointer]:
+          - /url: /press-kit
+        - link "License" [ref=e1721] [cursor=pointer]:
+          - /url: /docs/project/licensing
+    - paragraph [ref=e1723]: Baked with ♥ in San Francisco · © 2026 Anthropic, PBC
+  - button "Ask AI about Bun" [ref=e1724] [cursor=pointer]: Ask AI

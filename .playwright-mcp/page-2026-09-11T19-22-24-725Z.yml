@@ -1,0 +1,549 @@
+- generic [ref=e3]:
+  - link "Skip to content" [ref=e4] [cursor=pointer]:
+    - /url: "#main"
+  - banner [ref=e5]:
+    - generic [ref=e6]:
+      - link "Bun — home" [ref=e7] [cursor=pointer]:
+        - /url: /
+      - navigation "Primary" [ref=e10]:
+        - link "Docs" [ref=e11] [cursor=pointer]:
+          - /url: /docs
+        - link "Guides" [ref=e12] [cursor=pointer]:
+          - /url: /guides
+        - link "Reference" [ref=e13] [cursor=pointer]:
+          - /url: /reference
+        - link "Blog" [ref=e14] [cursor=pointer]:
+          - /url: /blog
+      - button "Search" [ref=e16] [cursor=pointer]:
+        - generic [ref=e20]: Search docs, APIs, guides…
+        - generic "Slash" [ref=e21]: /
+      - generic [ref=e23]:
+        - link "GitHub" [ref=e24] [cursor=pointer]:
+          - /url: https://github.com/oven-sh/bun
+        - link "Discord" [ref=e30] [cursor=pointer]:
+          - /url: /discord
+        - link "Install" [ref=e36] [cursor=pointer]:
+          - /url: /get
+  - main [ref=e37]:
+    - navigation "Documentation sections" [ref=e38]:
+      - generic [ref=e39]:
+        - link "Runtime" [ref=e40] [cursor=pointer]:
+          - /url: /docs
+        - link "Package Manager" [ref=e45] [cursor=pointer]:
+          - /url: /docs/pm/cli/install
+        - link "Bundler" [ref=e51] [cursor=pointer]:
+          - /url: /docs/bundler
+        - link "Test Runner" [ref=e58] [cursor=pointer]:
+          - /url: /docs/test
+        - link "Guides" [ref=e63] [cursor=pointer]:
+          - /url: /guides
+        - link "Reference" [ref=e69] [cursor=pointer]:
+          - /url: /reference
+        - link "Blog" [ref=e75] [cursor=pointer]:
+          - /url: /blog
+        - link "Feedback" [ref=e82] [cursor=pointer]:
+          - /url: /docs/feedback
+    - generic [ref=e87]:
+      - complementary [ref=e88]:
+        - navigation "Runtime navigation" [ref=e89]:
+          - list [ref=e90]:
+            - listitem [ref=e91]:
+              - paragraph [ref=e92]: Get Started
+              - list [ref=e97]:
+                - listitem [ref=e98]:
+                  - link "Welcome to Bun" [ref=e99] [cursor=pointer]:
+                    - /url: /docs
+                - listitem [ref=e100]:
+                  - link "Installation" [ref=e101] [cursor=pointer]:
+                    - /url: /docs/installation
+                - listitem [ref=e102]:
+                  - link "Quickstart" [ref=e103] [cursor=pointer]:
+                    - /url: /docs/quickstart
+                - listitem [ref=e104]:
+                  - link "TypeScript" [ref=e105] [cursor=pointer]:
+                    - /url: /docs/typescript
+                - listitem [ref=e106]:
+                  - link "TypeScript 6 and 7" [ref=e107] [cursor=pointer]:
+                    - /url: /docs/typescript-6
+                - listitem [ref=e108]:
+                  - link "bun init" [ref=e109] [cursor=pointer]:
+                    - /url: /docs/runtime/templating/init
+                - listitem [ref=e110]:
+                  - link "bun create" [ref=e111] [cursor=pointer]:
+                    - /url: /docs/runtime/templating/create
+            - listitem [ref=e112]:
+              - paragraph [ref=e113]: Core Runtime
+              - list [ref=e118]:
+                - listitem [ref=e119]:
+                  - link "Bun Runtime" [ref=e120] [cursor=pointer]:
+                    - /url: /docs/runtime
+                - listitem [ref=e121]:
+                  - link "Watch Mode" [ref=e122] [cursor=pointer]:
+                    - /url: /docs/runtime/watch-mode
+                - listitem [ref=e123]:
+                  - link "Debugging" [ref=e124] [cursor=pointer]:
+                    - /url: /docs/runtime/debugger
+                - listitem [ref=e125]:
+                  - link "REPL" [ref=e126] [cursor=pointer]:
+                    - /url: /docs/runtime/repl
+                - listitem [ref=e127]:
+                  - link "bunfig.toml" [ref=e128] [cursor=pointer]:
+                    - /url: /docs/runtime/bunfig
+            - listitem [ref=e129]:
+              - paragraph [ref=e130]: File & Module System
+              - list [ref=e135]:
+                - listitem [ref=e136]:
+                  - link "File Types" [ref=e137] [cursor=pointer]:
+                    - /url: /docs/runtime/file-types
+                - listitem [ref=e138]:
+                  - link "Module Resolution" [ref=e139] [cursor=pointer]:
+                    - /url: /docs/runtime/module-resolution
+                - listitem [ref=e140]:
+                  - link "JSX" [ref=e141] [cursor=pointer]:
+                    - /url: /docs/runtime/jsx
+                - listitem [ref=e142]:
+                  - link "Auto-install" [ref=e143] [cursor=pointer]:
+                    - /url: /docs/runtime/auto-install
+                - listitem [ref=e144]:
+                  - link "Plugins" [ref=e145] [cursor=pointer]:
+                    - /url: /docs/runtime/plugins
+                - listitem [ref=e146]:
+                  - link "File System Router" [ref=e147] [cursor=pointer]:
+                    - /url: /docs/runtime/file-system-router
+            - listitem [ref=e148]:
+              - paragraph [ref=e149]: HTTP server
+              - list [ref=e157]:
+                - listitem [ref=e158]:
+                  - link "Server" [ref=e159] [cursor=pointer]:
+                    - /url: /docs/runtime/http/server
+                - listitem [ref=e160]:
+                  - link "Routing" [ref=e161] [cursor=pointer]:
+                    - /url: /docs/runtime/http/routing
+                - listitem [ref=e162]:
+                  - link "Cookies" [ref=e163] [cursor=pointer]:
+                    - /url: /docs/runtime/http/cookies
+                - listitem [ref=e164]:
+                  - link "TLS" [ref=e165] [cursor=pointer]:
+                    - /url: /docs/runtime/http/tls
+                - listitem [ref=e166]:
+                  - link "Error Handling" [ref=e167] [cursor=pointer]:
+                    - /url: /docs/runtime/http/error-handling
+                - listitem [ref=e168]:
+                  - link "Metrics" [ref=e169] [cursor=pointer]:
+                    - /url: /docs/runtime/http/metrics
+            - listitem [ref=e170]:
+              - paragraph [ref=e171]: Networking
+              - list [ref=e176]:
+                - listitem [ref=e177]:
+                  - link "Fetch" [ref=e178] [cursor=pointer]:
+                    - /url: /docs/runtime/networking/fetch
+                - listitem [ref=e179]:
+                  - link "WebSockets" [ref=e180] [cursor=pointer]:
+                    - /url: /docs/runtime/http/websockets
+                - listitem [ref=e181]:
+                  - link "TCP" [ref=e182] [cursor=pointer]:
+                    - /url: /docs/runtime/networking/tcp
+                - listitem [ref=e183]:
+                  - link "UDP" [ref=e184] [cursor=pointer]:
+                    - /url: /docs/runtime/networking/udp
+                - listitem [ref=e185]:
+                  - link "DNS" [ref=e186] [cursor=pointer]:
+                    - /url: /docs/runtime/networking/dns
+            - listitem [ref=e187]:
+              - paragraph [ref=e188]: Data & Storage
+              - list [ref=e195]:
+                - listitem [ref=e196]:
+                  - link "Cookies" [ref=e197] [cursor=pointer]:
+                    - /url: /docs/runtime/cookies
+                - listitem [ref=e198]:
+                  - link "File I/O" [ref=e199] [cursor=pointer]:
+                    - /url: /docs/runtime/file-io
+                - listitem [ref=e200]:
+                  - link "Streams" [ref=e201] [cursor=pointer]:
+                    - /url: /docs/runtime/streams
+                - listitem [ref=e202]:
+                  - link "Binary Data" [ref=e203] [cursor=pointer]:
+                    - /url: /docs/runtime/binary-data
+                - listitem [ref=e204]:
+                  - link "Archive" [ref=e205] [cursor=pointer]:
+                    - /url: /docs/runtime/archive
+                - listitem [ref=e206]:
+                  - link "SQL" [ref=e207] [cursor=pointer]:
+                    - /url: /docs/runtime/sql
+                - listitem [ref=e208]:
+                  - link "SQLite" [ref=e209] [cursor=pointer]:
+                    - /url: /docs/runtime/sqlite
+                - listitem [ref=e210]:
+                  - link "S3" [ref=e211] [cursor=pointer]:
+                    - /url: /docs/runtime/s3
+                - listitem [ref=e212]:
+                  - link "Redis" [ref=e213] [cursor=pointer]:
+                    - /url: /docs/runtime/redis
+            - listitem [ref=e214]:
+              - paragraph [ref=e215]: Concurrency
+              - list [ref=e222]:
+                - listitem [ref=e223]:
+                  - link "Workers" [ref=e224] [cursor=pointer]:
+                    - /url: /docs/runtime/workers
+            - listitem [ref=e225]:
+              - paragraph [ref=e226]: Process & System
+              - list [ref=e232]:
+                - listitem [ref=e233]:
+                  - link "Environment Variables" [ref=e234] [cursor=pointer]:
+                    - /url: /docs/runtime/environment-variables
+                - listitem [ref=e235]:
+                  - link "Shell" [ref=e236] [cursor=pointer]:
+                    - /url: /docs/runtime/shell
+                - listitem [ref=e237]:
+                  - link "Spawn" [ref=e238] [cursor=pointer]:
+                    - /url: /docs/runtime/child-process
+                - listitem [ref=e239]:
+                  - link "WebView" [ref=e240] [cursor=pointer]:
+                    - /url: /docs/runtime/webview
+                - listitem [ref=e241]:
+                  - link "Cron" [ref=e242] [cursor=pointer]:
+                    - /url: /docs/runtime/cron
+            - listitem [ref=e243]:
+              - paragraph [ref=e244]: Interop & Tooling
+              - list [ref=e248]:
+                - listitem [ref=e249]:
+                  - link "Node-API" [ref=e250] [cursor=pointer]:
+                    - /url: /docs/runtime/node-api
+                - listitem [ref=e251]:
+                  - link "FFI" [ref=e252] [cursor=pointer]:
+                    - /url: /docs/runtime/ffi
+                - listitem [ref=e253]:
+                  - link "C Compiler" [ref=e254] [cursor=pointer]:
+                    - /url: /docs/runtime/c-compiler
+                - listitem [ref=e255]:
+                  - link "Transpiler" [ref=e256] [cursor=pointer]:
+                    - /url: /docs/runtime/transpiler
+            - listitem [ref=e257]:
+              - paragraph [ref=e258]: Utilities
+              - list [ref=e262]:
+                - listitem [ref=e263]:
+                  - link "CSRF Protection" [ref=e264] [cursor=pointer]:
+                    - /url: /docs/runtime/csrf
+                - listitem [ref=e265]:
+                  - link "Secrets" [ref=e266] [cursor=pointer]:
+                    - /url: /docs/runtime/secrets
+                - listitem [ref=e267]:
+                  - link "Console" [ref=e268] [cursor=pointer]:
+                    - /url: /docs/runtime/console
+                - listitem [ref=e269]:
+                  - link "TOML" [ref=e270] [cursor=pointer]:
+                    - /url: /docs/runtime/toml
+                - listitem [ref=e271]:
+                  - link "YAML" [ref=e272] [cursor=pointer]:
+                    - /url: /docs/runtime/yaml
+                - listitem [ref=e273]:
+                  - link "Markdown" [ref=e274] [cursor=pointer]:
+                    - /url: /docs/runtime/markdown
+                - listitem [ref=e275]:
+                  - link "JSON5" [ref=e276] [cursor=pointer]:
+                    - /url: /docs/runtime/json5
+                - listitem [ref=e277]:
+                  - link "XML" [ref=e278] [cursor=pointer]:
+                    - /url: /docs/runtime/xml
+                - listitem [ref=e279]:
+                  - link "JSONL" [ref=e280] [cursor=pointer]:
+                    - /url: /docs/runtime/jsonl
+                - listitem [ref=e281]:
+                  - link "HTMLRewriter" [ref=e282] [cursor=pointer]:
+                    - /url: /docs/runtime/html-rewriter
+                - listitem [ref=e283]:
+                  - link "Image" [ref=e284] [cursor=pointer]:
+                    - /url: /docs/runtime/image
+                - listitem [ref=e285]:
+                  - link "Hashing" [ref=e286] [cursor=pointer]:
+                    - /url: /docs/runtime/hashing
+                - listitem [ref=e287]:
+                  - link "Glob" [ref=e288] [cursor=pointer]:
+                    - /url: /docs/runtime/glob
+                - listitem [ref=e289]:
+                  - link "Semver" [ref=e290] [cursor=pointer]:
+                    - /url: /docs/runtime/semver
+                - listitem [ref=e291]:
+                  - link "Color" [ref=e292] [cursor=pointer]:
+                    - /url: /docs/runtime/color
+                - listitem [ref=e293]:
+                  - link "Utils" [ref=e294] [cursor=pointer]:
+                    - /url: /docs/runtime/utils
+            - listitem [ref=e295]:
+              - paragraph [ref=e296]: Standards & Compatibility
+              - list [ref=e301]:
+                - listitem [ref=e302]:
+                  - link "Globals" [ref=e303] [cursor=pointer]:
+                    - /url: /docs/runtime/globals
+                - listitem [ref=e304]:
+                  - link "Bun APIs" [ref=e305] [cursor=pointer]:
+                    - /url: /docs/runtime/bun-apis
+                - listitem [ref=e306]:
+                  - link "Web APIs" [ref=e307] [cursor=pointer]:
+                    - /url: /docs/runtime/web-apis
+                - listitem [ref=e308]:
+                  - link "Node.js Compatibility" [ref=e309] [cursor=pointer]:
+                    - /url: /docs/runtime/nodejs-compat
+            - listitem [ref=e310]:
+              - paragraph [ref=e311]: Contributing
+              - list [ref=e315]:
+                - listitem [ref=e316]:
+                  - link "Roadmap" [ref=e317] [cursor=pointer]:
+                    - /url: /docs/project/roadmap
+                - listitem [ref=e318]:
+                  - link "Benchmarking" [ref=e319] [cursor=pointer]:
+                    - /url: /docs/project/benchmarking
+                - listitem [ref=e320]:
+                  - link "Contributing" [ref=e321] [cursor=pointer]:
+                    - /url: /docs/project/contributing
+                - listitem [ref=e322]:
+                  - link "Building Windows" [ref=e323] [cursor=pointer]:
+                    - /url: /docs/project/building-windows
+                - listitem [ref=e324]:
+                  - link "Bindgen" [ref=e325] [cursor=pointer]:
+                    - /url: /docs/project/bindgen
+                - listitem [ref=e326]:
+                  - link "License" [ref=e327] [cursor=pointer]:
+                    - /url: /docs/project/license
+      - article [ref=e330]:
+        - generic [ref=e331]:
+          - generic [ref=e332]:
+            - navigation "Breadcrumb" [ref=e333]:
+              - list [ref=e334]:
+                - listitem [ref=e335]:
+                  - link "Runtime" [ref=e336] [cursor=pointer]:
+                    - /url: /docs
+                - listitem [ref=e337]:
+                  - generic [aria-hidden] [ref=e338]: ›
+                  - generic [ref=e339]: Get Started
+            - generic [ref=e340]:
+              - button "Copy page" [ref=e341] [cursor=pointer]
+              - button "More page actions" [ref=e346] [cursor=pointer]
+          - heading "Welcome to Bun" [level=1] [ref=e350]
+          - paragraph [ref=e351]: Bun is an all-in-one toolkit for developing modern JavaScript/TypeScript applications.
+        - generic [ref=e352]:
+          - generic [ref=e353]:
+            - link [ref=e355] [cursor=pointer]:
+              - /url: /docs/runtime
+              - generic [ref=e362]:
+                - paragraph [ref=e363]: Bun Runtime
+                - paragraph [ref=e365]: A fast JavaScript runtime designed as a drop-in replacement for Node.js
+                - generic [ref=e368]:
+                  - text: Get started with
+                  - code [ref=e369]: bun run
+            - link [ref=e374] [cursor=pointer]:
+              - /url: /docs/pm/cli/install
+              - generic [ref=e382]:
+                - paragraph [ref=e383]: Bun Package Manager
+                - paragraph [ref=e385]: Install packages up to 30x faster than npm with a global cache and workspaces
+                - generic [ref=e388]:
+                  - text: Get started with
+                  - code [ref=e389]: bun install
+            - link [ref=e394] [cursor=pointer]:
+              - /url: /docs/test
+              - generic [ref=e401]:
+                - paragraph [ref=e402]: Bun Test Runner
+                - paragraph [ref=e404]: Jest-compatible, TypeScript-first tests with snapshots, DOM, and watch mode
+                - generic [ref=e407]:
+                  - text: Get started with
+                  - code [ref=e408]: bun test
+            - link [ref=e413] [cursor=pointer]:
+              - /url: /docs/bundler
+              - generic [ref=e422]:
+                - paragraph [ref=e423]: Bun Bundler
+                - paragraph [ref=e425]: Bundle TypeScript, JSX, React & CSS for both browsers and servers
+                - generic [ref=e428]:
+                  - text: Get started with
+                  - code [ref=e429]: bun build
+          - separator [ref=e433]
+          - heading [level=2] [ref=e434]:
+            - text: Get Started
+            - link "Permalink" [ref=e435] [cursor=pointer]:
+              - /url: "#get-started"
+              - text: "#"
+          - paragraph [ref=e436]: Bun ships as a single, dependency-free binary and includes a runtime, package manager, test runner, and bundler. New to Bun?
+          - generic [ref=e437]:
+            - link [ref=e439] [cursor=pointer]:
+              - /url: /docs/installation
+              - generic [ref=e446]:
+                - paragraph [ref=e447]: Install Bun
+                - paragraph [ref=e449]: Supported platforms and all install methods.
+            - link [ref=e451] [cursor=pointer]:
+              - /url: /docs/quickstart
+              - generic [ref=e457]:
+                - paragraph [ref=e458]: Quickstart
+                - paragraph [ref=e460]: Hello world in minutes with Bun.serve.
+          - separator [ref=e461]
+          - heading [level=2] [ref=e462]:
+            - text: What's Inside
+            - link "Permalink" [ref=e463] [cursor=pointer]:
+              - /url: "#what-s-inside"
+              - text: "#"
+          - list [ref=e464]:
+            - listitem [ref=e465]: "Runtime: Execute JavaScript/TypeScript files and package scripts with near-zero overhead."
+            - listitem [ref=e466]:
+              - text: "Package Manager: Fast installs, workspaces, overrides, and audits with"
+              - code [ref=e467]: bun install
+              - text: .
+            - listitem [ref=e468]: "Test Runner: Jest-compatible, TypeScript-first tests with snapshots, DOM, and watch mode."
+            - listitem [ref=e469]: "Bundler: Native bundling for JS/TS/JSX with splitting, plugins, and HTML imports."
+          - paragraph [ref=e470]: Explore each area using the cards above. Each section is structured with an overview, short examples, reference, and best practices for fast scanning and deep dives.
+          - separator [ref=e471]
+          - heading [level=2] [ref=e472]:
+            - text: What is Bun?
+            - link "Permalink" [ref=e473] [cursor=pointer]:
+              - /url: "#what-is-bun"
+              - text: "#"
+          - paragraph [ref=e474]:
+            - text: Bun is an all-in-one toolkit for JavaScript and TypeScript apps. It ships as a single executable called
+            - code [ref=e475]: bun
+            - text: .
+          - paragraph [ref=e476]:
+            - text: At its core is the
+            - emphasis [ref=e477]: Bun runtime
+            - text: ", a fast JavaScript runtime designed as"
+            - strong [ref=e478]: a drop-in replacement for Node.js
+            - text: . It's written in Rust and powered by JavaScriptCore, reducing startup time and memory usage.
+          - generic [ref=e479]:
+            - generic [ref=e480]: terminal
+            - generic [ref=e488]:
+              - code [ref=e492]:
+                - generic [ref=e493]: "$ bun run index.tsx # TS and JSX supported by default"
+              - button "Copy to clipboard" [ref=e494] [cursor=pointer]
+          - paragraph [ref=e501]:
+            - text: The
+            - code [ref=e502]: bun
+            - text: command-line tool also implements a test runner, script runner, and Node.js-compatible package manager. All three are significantly faster than existing tools, and you can use them in existing Node.js projects with little to no changes.
+          - generic [ref=e503]:
+            - generic [ref=e504]: terminal
+            - generic [ref=e512]:
+              - code [ref=e516]:
+                - generic [ref=e517]: "$ bun run start # run the `start` script"
+                - generic [ref=e518]: "$ bun install <pkg> # install a package"
+                - generic [ref=e519]: "$ bun build ./index.tsx # bundle a project for browsers"
+                - generic [ref=e520]: "$ bun test # run tests"
+                - generic [ref=e521]: "$ bunx cowsay 'Hello, world!' # execute a package"
+              - button "Copy to clipboard" [ref=e522] [cursor=pointer]
+          - heading [level=2] [ref=e529]:
+            - text: What is a runtime?
+            - link "Permalink" [ref=e530] [cursor=pointer]:
+              - /url: "#what-is-a-runtime"
+              - text: "#"
+          - paragraph [ref=e531]:
+            - text: JavaScript (or, more formally, ECMAScript) is only a
+            - emphasis [ref=e532]: specification
+            - text: for a programming language. Anyone can write a JavaScript
+            - emphasis [ref=e533]: engine
+            - text: that ingests a valid JavaScript program and executes it. The two most popular engines in use today are V8 (developed by Google) and JavaScriptCore (developed by Apple). Both are open source.
+          - paragraph [ref=e534]:
+            - text: But most JavaScript programs don't run in a vacuum. They need a way to access the outside world to perform useful tasks. This is where
+            - emphasis [ref=e535]: runtimes
+            - text: come in. They implement additional APIs and make them available to the JavaScript programs they execute.
+          - heading [level=3] [ref=e536]:
+            - text: Browsers
+            - link "Permalink" [ref=e537] [cursor=pointer]:
+              - /url: "#browsers"
+              - text: "#"
+          - paragraph [ref=e538]:
+            - text: Browsers ship with JavaScript runtimes that implement a set of Web-specific APIs, exposed on the global
+            - code [ref=e539]: window
+            - text: object. Any JavaScript code executed by the browser can use these APIs to add interactive or dynamic behavior to the current webpage.
+          - heading [level=3] [ref=e540]:
+            - text: Node.js
+            - link "Permalink" [ref=e541] [cursor=pointer]:
+              - /url: "#node-js"
+              - text: "#"
+          - paragraph [ref=e542]:
+            - text: Node.js is a JavaScript runtime for non-browser environments, like servers. JavaScript programs executed by Node.js have access to a set of Node.js-specific
+            - link "globals" [ref=e543] [cursor=pointer]:
+              - /url: https://nodejs.org/api/globals.html
+            - text: like
+            - code [ref=e544]: Buffer
+            - text: ","
+            - code [ref=e545]: process
+            - text: ", and"
+            - code [ref=e546]: __dirname
+            - text: in addition to built-in modules for OS-level tasks like reading/writing files (
+            - code [ref=e547]: node:fs
+            - text: ) and networking (
+            - code [ref=e548]: node:net
+            - text: ","
+            - code [ref=e549]: node:http
+            - text: ). Node.js also implements a CommonJS-based module system and resolution algorithm that pre-dates JavaScript's native module system.
+          - paragraph [ref=e550]: Bun is designed as a faster, leaner, more modern replacement for Node.js.
+          - heading [level=2] [ref=e551]:
+            - text: Design goals
+            - link "Permalink" [ref=e552] [cursor=pointer]:
+              - /url: "#design-goals"
+              - text: "#"
+          - paragraph [ref=e553]: Bun is designed from the ground-up with today's JavaScript ecosystem in mind.
+          - list [ref=e554]:
+            - listitem [ref=e555]:
+              - strong [ref=e556]: Speed
+              - text: . Bun processes start
+              - link "4x faster than Node.js" [ref=e557] [cursor=pointer]:
+                - /url: https://twitter.com/jarredsumner/status/1499225725492076544
+              - text: .
+            - listitem [ref=e558]:
+              - strong [ref=e559]: TypeScript & JSX support
+              - text: . You can directly execute
+              - code [ref=e560]: .jsx
+              - text: ","
+              - code [ref=e561]: .ts
+              - text: ", and"
+              - code [ref=e562]: .tsx
+              - text: files; Bun's transpiler converts these to vanilla JavaScript before execution.
+            - listitem [ref=e563]:
+              - strong [ref=e564]: ESM & CommonJS compatibility
+              - text: . The world is moving towards ES modules (ESM), but millions of packages on npm still require CommonJS. Bun recommends ES modules, but supports CommonJS.
+            - listitem [ref=e565]:
+              - strong [ref=e566]: Web-standard APIs
+              - text: . Bun implements standard Web APIs like
+              - code [ref=e567]: fetch
+              - text: ","
+              - code [ref=e568]: WebSocket
+              - text: ", and"
+              - code [ref=e569]: ReadableStream
+              - text: . Bun is powered by the JavaScriptCore engine, which is developed by Apple for Safari, so some APIs like
+              - link [ref=e570] [cursor=pointer]:
+                - /url: https://developer.mozilla.org/en-US/docs/Web/API/Headers
+                - code [ref=e571]: Headers
+              - text: and
+              - link [ref=e572] [cursor=pointer]:
+                - /url: https://developer.mozilla.org/en-US/docs/Web/API/URL
+                - code [ref=e573]: URL
+              - text: directly use
+              - link "Safari's implementation" [ref=e574] [cursor=pointer]:
+                - /url: https://github.com/oven-sh/bun/blob/HEAD/src/jsc/bindings/webcore/JSFetchHeaders.cpp
+              - text: .
+            - listitem [ref=e575]:
+              - strong [ref=e576]: Node.js compatibility
+              - text: . In addition to supporting Node-style module resolution, Bun aims for full compatibility with built-in Node.js globals (
+              - code [ref=e577]: process
+              - text: ","
+              - code [ref=e578]: Buffer
+              - text: ) and modules (
+              - code [ref=e579]: path
+              - text: ","
+              - code [ref=e580]: fs
+              - text: ","
+              - code [ref=e581]: http
+              - text: ).
+              - emphasis [ref=e582]: This is an ongoing effort.
+              - text: See
+              - link "Node.js compatibility" [ref=e583] [cursor=pointer]:
+                - /url: /docs/runtime/nodejs-compat
+              - text: for the current status.
+          - paragraph [ref=e584]: "Bun is more than a runtime. The long-term goal is a cohesive, infrastructural toolkit for building apps with JavaScript/TypeScript: a package manager, transpiler, bundler, script runner, and test runner."
+        - generic [ref=e585]:
+          - navigation "Pagination" [ref=e586]:
+            - link "Next Installation" [ref=e588] [cursor=pointer]:
+              - /url: /docs/installation
+              - generic [ref=e589]: Next
+              - generic [ref=e590]: Installation
+          - generic [ref=e594]:
+            - link "Edit this page on GitHub" [ref=e595] [cursor=pointer]:
+              - /url: https://github.com/oven-sh/bun/blob/main/docs/index.mdx
+            - link "View as Markdown" [ref=e601] [cursor=pointer]:
+              - /url: /docs.md
+  - button "Ask AI about Bun" [ref=e602] [cursor=pointer]: Ask AI

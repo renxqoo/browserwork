@@ -1,0 +1,1918 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - link "Skip to content" [ref=e4] [cursor=pointer]:
+        - /url: "#start-of-content"
+      - banner [ref=e9]:
+        - heading "Navigation Menu" [level=2] [ref=e10]
+        - generic [ref=e11]:
+          - link "Homepage" [ref=e13] [cursor=pointer]:
+            - /url: /
+          - generic [ref=e16]:
+            - navigation "Global" [ref=e17]:
+              - list [ref=e18]:
+                - listitem [ref=e19]:
+                  - button "Platform" [ref=e21] [cursor=pointer]
+                - listitem [ref=e24]:
+                  - button "Solutions" [ref=e26] [cursor=pointer]
+                - listitem [ref=e29]:
+                  - button "Resources" [ref=e31] [cursor=pointer]
+                - listitem [ref=e34]:
+                  - button "Open Source" [ref=e36] [cursor=pointer]
+                - listitem [ref=e39]:
+                  - button "Enterprise" [ref=e41] [cursor=pointer]
+                - listitem [ref=e44]:
+                  - link "Pricing" [ref=e45] [cursor=pointer]:
+                    - /url: https://github.com/pricing
+            - generic [ref=e46]:
+              - button "Search or jump to, type / to search" [ref=e48] [cursor=pointer]
+              - link "Sign in" [ref=e55] [cursor=pointer]:
+                - /url: /login?return_to=https%3A%2F%2Fgithub.com%2Foven-sh%2Fbun
+              - link "Sign up" [ref=e58] [cursor=pointer]:
+                - /url: /signup?ref_cta=Sign+up&ref_loc=header+logged+out&ref_page=%2F%3Cuser-name%3E%2F%3Crepo-name%3E&source=header-repo&source_repo=oven-sh%2Fbun
+              - button "Appearance settings" [ref=e61] [cursor=pointer]
+    - main [ref=e68]:
+      - generic [ref=e69]:
+        - generic [ref=e70]:
+          - generic [ref=e72]:
+            - link "oven-sh" [ref=e76] [cursor=pointer]:
+              - /url: /oven-sh
+            - generic [ref=e77]: /
+            - strong [ref=e78]:
+              - link "bun" [ref=e79] [cursor=pointer]:
+                - /url: /oven-sh/bun
+            - generic [ref=e80]: Public
+          - generic [ref=e81]:
+            - list:
+              - listitem [ref=e82]:
+                - link "You must be signed in to change notification settings" [ref=e83] [cursor=pointer]:
+                  - /url: /login?return_to=%2Foven-sh%2Fbun
+                  - text: Notifications
+              - listitem [ref=e86]:
+                - link "Fork 5k" [ref=e87] [cursor=pointer]:
+                  - /url: /login?return_to=%2Foven-sh%2Fbun
+                  - text: Fork
+                  - generic "5,034" [ref=e90]: 5k
+              - listitem [ref=e91]:
+                - link "You must be signed in to star a repository" [ref=e93] [cursor=pointer]:
+                  - /url: /login?return_to=%2Foven-sh%2Fbun
+                  - text: Star
+                  - generic "95944 users starred this repository" [ref=e96]: 95.9k
+        - navigation "Repository" [ref=e97]:
+          - list [ref=e98]:
+            - listitem [ref=e99]:
+              - link "Code" [ref=e100] [cursor=pointer]:
+                - /url: /oven-sh/bun
+            - listitem [ref=e104]:
+              - link "Issues 3.4k" [ref=e105] [cursor=pointer]:
+                - /url: /oven-sh/bun/issues
+                - generic [ref=e109]: Issues
+                - generic "3,443" [ref=e110]: 3.4k
+            - listitem [ref=e111]:
+              - link "Pull requests 5k+" [ref=e112] [cursor=pointer]:
+                - /url: /oven-sh/bun/pulls
+                - generic [ref=e115]: Pull requests
+                - generic "5,000+" [ref=e116]: 5k+
+            - listitem [ref=e117]:
+              - link "Discussions" [ref=e118] [cursor=pointer]:
+                - /url: /oven-sh/bun/discussions
+            - listitem [ref=e122]:
+              - link "Actions" [ref=e123] [cursor=pointer]:
+                - /url: /oven-sh/bun/actions
+            - listitem [ref=e127]:
+              - link "Security and quality" [ref=e128] [cursor=pointer]:
+                - /url: /oven-sh/bun/security
+            - listitem [ref=e132]:
+              - link "Insights" [ref=e133] [cursor=pointer]:
+                - /url: /oven-sh/bun/pulse
+      - generic [ref=e150]:
+        - generic [ref=e153]:
+          - generic [ref=e154]:
+            - generic [ref=e155]:
+              - button "main branch" [ref=e157] [cursor=pointer]:
+                - generic [ref=e158]: main
+              - generic [ref=e162]:
+                - link [ref=e163] [cursor=pointer]:
+                  - /url: /oven-sh/bun/branches
+                  - generic [ref=e166]:
+                    - strong [ref=e167]: "11074"
+                    - text: Branches
+                - link [ref=e168] [cursor=pointer]:
+                  - /url: /oven-sh/bun/tags
+                  - generic [ref=e171]:
+                    - strong [ref=e172]: "265"
+                    - text: Tags
+            - generic [ref=e173]:
+              - combobox "Go to file" [ref=e181]
+              - button "Code" [ref=e182] [cursor=pointer]
+          - generic [ref=e185]:
+            - generic [ref=e186]:
+              - generic [ref=e188]:
+                - heading "Latest commit" [level=2] [ref=e189]
+                - generic [ref=e190]:
+                  - generic [ref=e191]:
+                    - generic [ref=e193]:
+                      - img "cirospaciari" [ref=e194]
+                      - img "robobun" [ref=e195]
+                    - link "commits by cirospaciari" [ref=e197] [cursor=pointer]:
+                      - /url: /oven-sh/bun/commits?author=cirospaciari
+                      - text: cirospaciari
+                    - generic [ref=e198]: and
+                    - link "commits by robobun" [ref=e200] [cursor=pointer]:
+                      - /url: /oven-sh/bun/commits?author=robobun
+                      - text: robobun
+                  - generic [ref=e201]:
+                    - 'link "node:net: fix tls.connect({ socket }) and onread on a readable: false…" [ref=e204] [cursor=pointer]':
+                      - /url: /oven-sh/bun/commit/158ff6cdefa281a2039c82f08044e0fc0b6755c2
+                    - button "Open commit details" [ref=e205] [cursor=pointer]
+                    - button "failure" [ref=e208] [cursor=pointer]
+                - generic [ref=e211]:
+                  - generic [ref=e213]:
+                    - link "Commit 158ff6c" [ref=e214] [cursor=pointer]:
+                      - /url: /oven-sh/bun/commit/158ff6cdefa281a2039c82f08044e0fc0b6755c2
+                      - text: 158ff6c
+                    - text: ·
+                    - generic "Sep 12, 2026, 02:21 GMT+8" [ref=e215]: Sep 11, 202636 minutes ago
+                  - generic [ref=e216]:
+                    - heading "History" [level=2] [ref=e217]
+                    - link "17,966 Commits" [ref=e218] [cursor=pointer]:
+                      - /url: /oven-sh/bun/commits/main/
+              - heading "Folders and files" [level=2] [ref=e221]
+              - table "Folders and files" [ref=e222]:
+                - rowgroup:
+                  - row "Name Last commit message Last commit date":
+                    - columnheader "Name"
+                    - columnheader "Last commit message"
+                    - columnheader "Last commit date"
+                - rowgroup [ref=e223]:
+                  - row ".buildkite, (Directory)" [ref=e224]:
+                    - cell [ref=e225]:
+                      - link ".buildkite, (Directory)" [ref=e232] [cursor=pointer]:
+                        - /url: /oven-sh/bun/tree/main/.buildkite
+                        - text: .buildkite
+                    - cell [ref=e233]
+                    - cell [ref=e235]
+                  - row ".cargo, (Directory)" [ref=e238]:
+                    - cell [ref=e239]:
+                      - link ".cargo, (Directory)" [ref=e246] [cursor=pointer]:
+                        - /url: /oven-sh/bun/tree/main/.cargo
+                        - text: .cargo
+                    - cell [ref=e247]
+                    - cell [ref=e249]
+                  - row ".claude, (Directory)" [ref=e252]:
+                    - cell [ref=e253]:
+                      - link ".claude, (Directory)" [ref=e260] [cursor=pointer]:
+                        - /url: /oven-sh/bun/tree/main/.claude
+                        - text: .claude
+                    - cell [ref=e261]
+                    - cell [ref=e263]
+                  - row ".cursor, (Directory)" [ref=e266]:
+                    - cell [ref=e267]:
+                      - link ".cursor, (Directory)" [ref=e274] [cursor=pointer]:
+                        - /url: /oven-sh/bun/tree/main/.cursor
+                        - text: .cursor
+                    - cell [ref=e275]
+                    - cell [ref=e277]
+                  - row ".github, (Directory)" [ref=e280]:
+                    - cell [ref=e281]:
+                      - link ".github, (Directory)" [ref=e288] [cursor=pointer]:
+                        - /url: /oven-sh/bun/tree/main/.github
+                        - text: .github
+                    - cell [ref=e289]
+                    - cell [ref=e291]
+                  - row ".vscode, (Directory)" [ref=e294]:
+                    - cell [ref=e295]:
+                      - link ".vscode, (Directory)" [ref=e302] [cursor=pointer]:
+                        - /url: /oven-sh/bun/tree/main/.vscode
+                        - text: .vscode
+                    - cell [ref=e303]
+                    - cell [ref=e305]
+                  - row "bench, (Directory)" [ref=e308]:
+                    - cell [ref=e309]:
+                      - link "bench, (Directory)" [ref=e316] [cursor=pointer]:
+                        - /url: /oven-sh/bun/tree/main/bench
+                        - text: bench
+                    - cell [ref=e317]
+                    - cell [ref=e319]
+                  - row "completions, (Directory)" [ref=e322]:
+                    - cell [ref=e323]:
+                      - link "completions, (Directory)" [ref=e330] [cursor=pointer]:
+                        - /url: /oven-sh/bun/tree/main/completions
+                        - text: completions
+                    - cell [ref=e331]
+                    - cell [ref=e333]
+                  - row "dockerhub, (Directory)" [ref=e336]:
+                    - cell [ref=e337]:
+                      - link "dockerhub, (Directory)" [ref=e344] [cursor=pointer]:
+                        - /url: /oven-sh/bun/tree/main/dockerhub
+                        - text: dockerhub
+                    - cell [ref=e345]
+                    - cell [ref=e347]
+                  - row "docs, (Directory)" [ref=e350]:
+                    - cell [ref=e351]:
+                      - link "docs, (Directory)" [ref=e358] [cursor=pointer]:
+                        - /url: /oven-sh/bun/tree/main/docs
+                        - text: docs
+                    - cell [ref=e359]
+                    - cell [ref=e361]
+                  - row "misctools, (Directory)" [ref=e364]:
+                    - cell [ref=e365]:
+                      - link "misctools, (Directory)" [ref=e372] [cursor=pointer]:
+                        - /url: /oven-sh/bun/tree/main/misctools
+                        - text: misctools
+                    - cell [ref=e373]
+                    - cell [ref=e375]
+                  - row "packages, (Directory)" [ref=e378]:
+                    - cell [ref=e379]:
+                      - link "packages, (Directory)" [ref=e386] [cursor=pointer]:
+                        - /url: /oven-sh/bun/tree/main/packages
+                        - text: packages
+                    - cell [ref=e387]
+                    - cell [ref=e389]
+                  - row "patches, (Directory)" [ref=e392]:
+                    - cell [ref=e393]:
+                      - link "patches, (Directory)" [ref=e400] [cursor=pointer]:
+                        - /url: /oven-sh/bun/tree/main/patches
+                        - text: patches
+                    - cell [ref=e401]
+                    - cell [ref=e403]
+                  - row "scripts, (Directory)" [ref=e406]:
+                    - cell [ref=e407]:
+                      - link "scripts, (Directory)" [ref=e414] [cursor=pointer]:
+                        - /url: /oven-sh/bun/tree/main/scripts
+                        - text: scripts
+                    - cell [ref=e415]
+                    - cell [ref=e417]
+                  - row "src, (Directory)" [ref=e420]:
+                    - cell [ref=e421]:
+                      - link "src, (Directory)" [ref=e428] [cursor=pointer]:
+                        - /url: /oven-sh/bun/tree/main/src
+                        - text: src
+                    - cell [ref=e429]
+                    - cell [ref=e431]
+                  - row "test, (Directory)" [ref=e434]:
+                    - cell [ref=e435]:
+                      - link "test, (Directory)" [ref=e442] [cursor=pointer]:
+                        - /url: /oven-sh/bun/tree/main/test
+                        - text: test
+                    - cell [ref=e443]
+                    - cell [ref=e445]
+                  - row "tools/hawk, (Directory)" [ref=e448]:
+                    - cell [ref=e449]:
+                      - link "tools/hawk, (Directory)" [ref=e456] [cursor=pointer]:
+                        - /url: /oven-sh/bun/tree/main/tools/hawk
+                        - text: tools/hawk
+                    - cell [ref=e457]
+                    - cell [ref=e459]
+                  - row ".aikido, (File)" [ref=e462]:
+                    - cell [ref=e463]:
+                      - link ".aikido, (File)" [ref=e470] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/.aikido
+                        - text: .aikido
+                    - cell [ref=e471]
+                    - cell [ref=e473]
+                  - row ".bk.yaml, (File)" [ref=e476]:
+                    - cell [ref=e477]:
+                      - link ".bk.yaml, (File)" [ref=e484] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/.bk.yaml
+                        - text: .bk.yaml
+                    - cell [ref=e485]
+                    - cell [ref=e487]
+                  - row ".clang-tidy, (File)" [ref=e490]:
+                    - cell [ref=e491]:
+                      - link ".clang-tidy, (File)" [ref=e498] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/.clang-tidy
+                        - text: .clang-tidy
+                    - cell [ref=e499]
+                    - cell [ref=e501]
+                  - row ".clangd, (File)" [ref=e504]:
+                    - cell [ref=e505]:
+                      - link ".clangd, (File)" [ref=e512] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/.clangd
+                        - text: .clangd
+                    - cell [ref=e513]
+                    - cell [ref=e515]
+                  - row ".coderabbit.yaml, (File)" [ref=e518]:
+                    - cell [ref=e519]:
+                      - link ".coderabbit.yaml, (File)" [ref=e526] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/.coderabbit.yaml
+                        - text: .coderabbit.yaml
+                    - cell [ref=e527]
+                    - cell [ref=e529]
+                  - row ".cursorignore, (File)" [ref=e532]:
+                    - cell [ref=e533]:
+                      - link ".cursorignore, (File)" [ref=e540] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/.cursorignore
+                        - text: .cursorignore
+                    - cell [ref=e541]
+                    - cell [ref=e543]
+                  - row ".dockerignore, (File)" [ref=e546]:
+                    - cell [ref=e547]:
+                      - link ".dockerignore, (File)" [ref=e554] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/.dockerignore
+                        - text: .dockerignore
+                    - cell [ref=e555]
+                    - cell [ref=e557]
+                  - row ".editorconfig, (File)" [ref=e560]:
+                    - cell [ref=e561]:
+                      - link ".editorconfig, (File)" [ref=e568] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/.editorconfig
+                        - text: .editorconfig
+                    - cell [ref=e569]
+                    - cell [ref=e571]
+                  - row ".git-blame-ignore-revs, (File)" [ref=e574]:
+                    - cell [ref=e575]:
+                      - link ".git-blame-ignore-revs, (File)" [ref=e582] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/.git-blame-ignore-revs
+                        - text: .git-blame-ignore-revs
+                    - cell [ref=e583]
+                    - cell [ref=e585]
+                  - row ".gitattributes, (File)" [ref=e588]:
+                    - cell [ref=e589]:
+                      - link ".gitattributes, (File)" [ref=e596] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/.gitattributes
+                        - text: .gitattributes
+                    - cell [ref=e597]
+                    - cell [ref=e599]
+                  - row ".gitignore, (File)" [ref=e602]:
+                    - cell [ref=e603]:
+                      - link ".gitignore, (File)" [ref=e610] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/.gitignore
+                        - text: .gitignore
+                    - cell [ref=e611]
+                    - cell [ref=e613]
+                  - row ".lldbinit, (File)" [ref=e616]:
+                    - cell [ref=e617]:
+                      - link ".lldbinit, (File)" [ref=e624] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/.lldbinit
+                        - text: .lldbinit
+                    - cell [ref=e625]
+                    - cell [ref=e627]
+                  - row ".mailmap, (File)" [ref=e630]:
+                    - cell [ref=e631]:
+                      - link ".mailmap, (File)" [ref=e638] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/.mailmap
+                        - text: .mailmap
+                    - cell [ref=e639]
+                    - cell [ref=e641]
+                  - row ".prettierignore, (File)" [ref=e644]:
+                    - cell [ref=e645]:
+                      - link ".prettierignore, (File)" [ref=e652] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/.prettierignore
+                        - text: .prettierignore
+                    - cell [ref=e653]
+                    - cell [ref=e655]
+                  - row ".prettierrc, (File)" [ref=e658]:
+                    - cell [ref=e659]:
+                      - link ".prettierrc, (File)" [ref=e666] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/.prettierrc
+                        - text: .prettierrc
+                    - cell [ref=e667]
+                    - cell [ref=e669]
+                  - row ".typos.toml, (File)" [ref=e672]:
+                    - cell [ref=e673]:
+                      - link ".typos.toml, (File)" [ref=e680] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/.typos.toml
+                        - text: .typos.toml
+                    - cell [ref=e681]
+                    - cell [ref=e683]
+                  - row "AGENTS.md, (Symlink to file)" [ref=e686]:
+                    - cell [ref=e687]:
+                      - link "AGENTS.md, (Symlink to file)" [ref=e694] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/AGENTS.md
+                        - text: AGENTS.md
+                    - cell [ref=e695]
+                    - cell [ref=e697]
+                  - row "CLAUDE.md, (File)" [ref=e700]:
+                    - cell [ref=e701]:
+                      - link "CLAUDE.md, (File)" [ref=e708] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/CLAUDE.md
+                        - text: CLAUDE.md
+                    - cell [ref=e709]
+                    - cell [ref=e711]
+                  - row "CODE_OF_CONDUCT.md, (File)" [ref=e714]:
+                    - cell [ref=e715]:
+                      - link "CODE_OF_CONDUCT.md, (File)" [ref=e722] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/CODE_OF_CONDUCT.md
+                        - text: CODE_OF_CONDUCT.md
+                    - cell [ref=e723]
+                    - cell [ref=e725]
+                  - row "CONTRIBUTING.md, (File)" [ref=e728]:
+                    - cell [ref=e729]:
+                      - link "CONTRIBUTING.md, (File)" [ref=e736] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/CONTRIBUTING.md
+                        - text: CONTRIBUTING.md
+                    - cell [ref=e737]
+                    - cell [ref=e739]
+                  - row "Cargo.lock, (File)" [ref=e742]:
+                    - cell [ref=e743]:
+                      - link "Cargo.lock, (File)" [ref=e750] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/Cargo.lock
+                        - text: Cargo.lock
+                    - cell [ref=e751]
+                    - cell [ref=e753]
+                  - row "Cargo.toml, (File)" [ref=e756]:
+                    - cell [ref=e757]:
+                      - link "Cargo.toml, (File)" [ref=e764] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/Cargo.toml
+                        - text: Cargo.toml
+                    - cell [ref=e765]
+                    - cell [ref=e767]
+                  - row "LATEST, (File)" [ref=e770]:
+                    - cell [ref=e771]:
+                      - link "LATEST, (File)" [ref=e778] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/LATEST
+                        - text: LATEST
+                    - cell [ref=e779]
+                    - cell [ref=e781]
+                  - row "LICENSE.md, (File)" [ref=e784]:
+                    - cell [ref=e785]:
+                      - link "LICENSE.md, (File)" [ref=e792] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/LICENSE.md
+                        - text: LICENSE.md
+                    - cell [ref=e793]
+                    - cell [ref=e795]
+                  - row "README.md, (File)" [ref=e798]:
+                    - cell [ref=e799]:
+                      - link "README.md, (File)" [ref=e806] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/README.md
+                        - text: README.md
+                    - cell [ref=e807]
+                    - cell [ref=e809]
+                  - row "REVIEW.md, (File)" [ref=e812]:
+                    - cell [ref=e813]:
+                      - link "REVIEW.md, (File)" [ref=e820] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/REVIEW.md
+                        - text: REVIEW.md
+                    - cell [ref=e821]
+                    - cell [ref=e823]
+                  - row "SECURITY.md, (File)" [ref=e826]:
+                    - cell [ref=e827]:
+                      - link "SECURITY.md, (File)" [ref=e834] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/SECURITY.md
+                        - text: SECURITY.md
+                    - cell [ref=e835]
+                    - cell [ref=e837]
+                  - row "bun.lock, (File)" [ref=e840]:
+                    - cell [ref=e841]:
+                      - link "bun.lock, (File)" [ref=e848] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/bun.lock
+                        - text: bun.lock
+                    - cell [ref=e849]
+                    - cell [ref=e851]
+                  - row "bunfig.node-test.toml, (File)" [ref=e854]:
+                    - cell [ref=e855]:
+                      - link "bunfig.node-test.toml, (File)" [ref=e862] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/bunfig.node-test.toml
+                        - text: bunfig.node-test.toml
+                    - cell [ref=e863]
+                    - cell [ref=e865]
+                  - row "bunfig.toml, (File)" [ref=e868]:
+                    - cell [ref=e869]:
+                      - link "bunfig.toml, (File)" [ref=e876] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/bunfig.toml
+                        - text: bunfig.toml
+                    - cell [ref=e877]
+                    - cell [ref=e879]
+                  - row "clippy.toml, (File)" [ref=e882]:
+                    - cell [ref=e883]:
+                      - link "clippy.toml, (File)" [ref=e890] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/clippy.toml
+                        - text: clippy.toml
+                    - cell [ref=e891]
+                    - cell [ref=e893]
+                  - row "dylint.toml, (File)" [ref=e896]:
+                    - cell [ref=e897]:
+                      - link "dylint.toml, (File)" [ref=e904] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/dylint.toml
+                        - text: dylint.toml
+                    - cell [ref=e905]
+                    - cell [ref=e907]
+                  - row "entitlements.debug.plist, (File)" [ref=e910]:
+                    - cell [ref=e911]:
+                      - link "entitlements.debug.plist, (File)" [ref=e918] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/entitlements.debug.plist
+                        - text: entitlements.debug.plist
+                    - cell [ref=e919]
+                    - cell [ref=e921]
+                  - row "entitlements.plist, (File)" [ref=e924]:
+                    - cell [ref=e925]:
+                      - link "entitlements.plist, (File)" [ref=e932] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/entitlements.plist
+                        - text: entitlements.plist
+                    - cell [ref=e933]
+                    - cell [ref=e935]
+                  - row "flake.lock, (File)" [ref=e938]:
+                    - cell [ref=e939]:
+                      - link "flake.lock, (File)" [ref=e946] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/flake.lock
+                        - text: flake.lock
+                    - cell [ref=e947]
+                    - cell [ref=e949]
+                  - row "flake.nix, (File)" [ref=e952]:
+                    - cell [ref=e953]:
+                      - link "flake.nix, (File)" [ref=e960] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/flake.nix
+                        - text: flake.nix
+                    - cell [ref=e961]
+                    - cell [ref=e963]
+                  - row "hawk.toml, (File)" [ref=e966]:
+                    - cell [ref=e967]:
+                      - link "hawk.toml, (File)" [ref=e974] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/hawk.toml
+                        - text: hawk.toml
+                    - cell [ref=e975]
+                    - cell [ref=e977]
+                  - row "mordant-baseline.toml, (File)" [ref=e980]:
+                    - cell [ref=e981]:
+                      - link "mordant-baseline.toml, (File)" [ref=e988] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/mordant-baseline.toml
+                        - text: mordant-baseline.toml
+                    - cell [ref=e989]
+                    - cell [ref=e991]
+                  - row "oxlint.json, (File)" [ref=e994]:
+                    - cell [ref=e995]:
+                      - link "oxlint.json, (File)" [ref=e1002] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/oxlint.json
+                        - text: oxlint.json
+                    - cell [ref=e1003]
+                    - cell [ref=e1005]
+                  - row "package.json, (File)" [ref=e1008]:
+                    - cell [ref=e1009]:
+                      - link "package.json, (File)" [ref=e1016] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/package.json
+                        - text: package.json
+                    - cell [ref=e1017]
+                    - cell [ref=e1019]
+                  - row "rust-toolchain.toml, (File)" [ref=e1022]:
+                    - cell [ref=e1023]:
+                      - link "rust-toolchain.toml, (File)" [ref=e1030] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/rust-toolchain.toml
+                        - text: rust-toolchain.toml
+                    - cell [ref=e1031]
+                    - cell [ref=e1033]
+                  - row "rustfmt.toml, (File)" [ref=e1036]:
+                    - cell [ref=e1037]:
+                      - link "rustfmt.toml, (File)" [ref=e1044] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/rustfmt.toml
+                        - text: rustfmt.toml
+                    - cell [ref=e1045]
+                    - cell [ref=e1047]
+                  - row "shell.nix, (File)" [ref=e1050]:
+                    - cell [ref=e1051]:
+                      - link "shell.nix, (File)" [ref=e1058] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/shell.nix
+                        - text: shell.nix
+                    - cell [ref=e1059]
+                    - cell [ref=e1061]
+                  - row "tsconfig.base.json, (File)" [ref=e1064]:
+                    - cell [ref=e1065]:
+                      - link "tsconfig.base.json, (File)" [ref=e1072] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/tsconfig.base.json
+                        - text: tsconfig.base.json
+                    - cell [ref=e1073]
+                    - cell [ref=e1075]
+                  - row "tsconfig.json, (File)" [ref=e1078]:
+                    - cell [ref=e1079]:
+                      - link "tsconfig.json, (File)" [ref=e1086] [cursor=pointer]:
+                        - /url: /oven-sh/bun/blob/main/tsconfig.json
+                        - text: tsconfig.json
+                    - cell [ref=e1087]
+                    - cell [ref=e1089]
+            - generic [ref=e1093]:
+              - generic [ref=e1094]:
+                - heading "Repository files navigation" [level=2] [ref=e1095]
+                - navigation "Repository files" [ref=e1096]:
+                  - list [ref=e1097]:
+                    - listitem [ref=e1098]:
+                      - link "README" [ref=e1099] [cursor=pointer]:
+                        - /url: "#"
+                    - listitem [ref=e1104]:
+                      - link "Code of conduct" [ref=e1105] [cursor=pointer]:
+                        - /url: "#"
+                    - listitem [ref=e1110]:
+                      - link "Contributing" [ref=e1111] [cursor=pointer]:
+                        - /url: "#"
+                    - listitem [ref=e1116]:
+                      - link "License" [ref=e1117] [cursor=pointer]:
+                        - /url: "#"
+                    - listitem [ref=e1122]:
+                      - link "Security" [ref=e1123] [cursor=pointer]:
+                        - /url: "#"
+                - button "Outline" [ref=e1128] [cursor=pointer]
+              - article [ref=e1132]:
+                - paragraph [ref=e1133]:
+                  - link [ref=e1134] [cursor=pointer]:
+                    - /url: https://bun.com
+                    - img "Logo" [ref=e1135]
+                - generic [ref=e1136]:
+                  - heading "Bun" [level=1] [ref=e1137]
+                  - 'link "Permalink: Bun" [ref=e1138] [cursor=pointer]':
+                    - /url: "#bun"
+                - paragraph [ref=e1141]:
+                  - link [ref=e1142] [cursor=pointer]:
+                    - /url: https://bun.com/discord
+                  - link [ref=e1144] [cursor=pointer]:
+                    - /url: https://camo.githubusercontent.com/961ec2d48f1e50a726a067aed3bb303fdc452d00fffd5348fd88bfec17e809aa/68747470733a2f2f696d672e736869656c64732e696f2f6769746875622f73746172732f6f76656e2d73682f62756e
+                    - img "stars" [ref=e1145]
+                  - link [ref=e1146] [cursor=pointer]:
+                    - /url: https://twitter.com/jarredsumner/status/1542824445810642946
+                    - img "Bun speed" [ref=e1147]
+                - generic [ref=e1148]:
+                  - link "Documentation" [ref=e1149] [cursor=pointer]:
+                    - /url: https://bun.com/docs
+                  - text: •
+                  - link "Discord" [ref=e1150] [cursor=pointer]:
+                    - /url: https://bun.com/discord
+                  - text: •
+                  - link "Issues" [ref=e1151] [cursor=pointer]:
+                    - /url: https://github.com/oven-sh/bun/issues/new
+                  - text: •
+                  - link "Roadmap" [ref=e1152] [cursor=pointer]:
+                    - /url: https://github.com/oven-sh/bun/issues/159
+                - generic [ref=e1153]:
+                  - heading [level=3] [ref=e1154]:
+                    - link "Read the docs →" [ref=e1155] [cursor=pointer]:
+                      - /url: https://bun.com/docs
+                  - 'link "Permalink: Read the docs →" [ref=e1156] [cursor=pointer]':
+                    - /url: "#read-the-docs-"
+                - generic [ref=e1159]:
+                  - heading "What is Bun?" [level=2] [ref=e1160]
+                  - 'link "Permalink: What is Bun?" [ref=e1161] [cursor=pointer]':
+                    - /url: "#what-is-bun"
+                - paragraph [ref=e1164]:
+                  - text: Bun is an all-in-one toolkit for JavaScript and TypeScript apps. It ships as a single executable called
+                  - code [ref=e1165]: bun
+                  - text: .
+                - paragraph [ref=e1166]:
+                  - text: At its core is the
+                  - emphasis [ref=e1167]: Bun runtime
+                  - text: ", a fast JavaScript runtime designed as"
+                  - strong [ref=e1168]: a drop-in replacement for Node.js
+                  - text: . It's written in Rust and powered by JavaScriptCore under the hood, dramatically reducing startup times and memory usage.
+                - generic [ref=e1169]:
+                  - generic [ref=e1170]:
+                    - text: bun run index.tsx
+                    - generic [ref=e1171]: "# TS and JSX supported out-of-the-box"
+                  - button "Copy code to clipboard" [ref=e1173] [cursor=pointer]
+                - paragraph [ref=e1177]:
+                  - text: The
+                  - code [ref=e1178]: bun
+                  - text: command-line tool also implements a test runner, script runner, and Node.js-compatible package manager. Instead of 1,000 node_modules for development, you only need
+                  - code [ref=e1179]: bun
+                  - text: . Bun's built-in tools are significantly faster than existing options and usable in existing Node.js projects with little to no changes.
+                - generic [ref=e1180]:
+                  - generic [ref=e1181]:
+                    - text: bun test
+                    - generic [ref=e1182]: "# run tests"
+                    - text: bun run start
+                    - generic [ref=e1183]: "# run the `start` script in `package.json`"
+                    - text: bun install <pkg>
+                    - generic [ref=e1184]: "# install a package"
+                    - text: bunx cowsay
+                    - generic [ref=e1185]: "'Hello, world!'"
+                    - generic [ref=e1186]: "# execute a package"
+                  - button "Copy code to clipboard" [ref=e1188] [cursor=pointer]
+                - generic [ref=e1192]:
+                  - heading "Install" [level=2] [ref=e1193]
+                  - 'link "Permalink: Install" [ref=e1194] [cursor=pointer]':
+                    - /url: "#install"
+                - paragraph [ref=e1197]: Bun supports Linux (x64 & arm64), macOS (x64 & Apple Silicon), and Windows (x64 & arm64).
+                - blockquote [ref=e1198]:
+                  - paragraph [ref=e1199]:
+                    - strong [ref=e1200]: Linux users
+                    - text: — Kernel version 5.6 or higher is strongly recommended, but the minimum is 5.1.
+                - blockquote [ref=e1201]:
+                  - paragraph [ref=e1202]:
+                    - strong [ref=e1203]: x64 users
+                    - text: — if you see "illegal instruction" or similar errors, check our
+                    - link "CPU requirements" [ref=e1204] [cursor=pointer]:
+                      - /url: https://bun.com/docs/installation#cpu-requirements
+                - generic [ref=e1205]:
+                  - generic [ref=e1206]:
+                    - generic [ref=e1207]: "# with install script (recommended)"
+                    - text: curl -fsSL https://bun.com/install | bash
+                    - generic [ref=e1208]: "# on windows"
+                    - text: powershell -c
+                    - generic [ref=e1209]: "\"irm bun.sh/install.ps1 | iex\""
+                    - generic [ref=e1210]: "# with npm"
+                    - text: npm install -g bun
+                    - generic [ref=e1211]: "# with Homebrew"
+                    - text: brew tap oven-sh/bun brew install bun
+                    - generic [ref=e1212]: "# with Docker"
+                    - text: docker pull oven/bun docker run --rm --init --ulimit memlock=-1:-1 oven/bun
+                  - button "Copy code to clipboard" [ref=e1214] [cursor=pointer]
+                - generic [ref=e1218]:
+                  - heading "Upgrade" [level=3] [ref=e1219]
+                  - 'link "Permalink: Upgrade" [ref=e1220] [cursor=pointer]':
+                    - /url: "#upgrade"
+                - paragraph [ref=e1223]: "To upgrade to the latest version of Bun, run:"
+                - generic [ref=e1224]:
+                  - generic [ref=e1225]: bun upgrade
+                  - button "Copy code to clipboard" [ref=e1227] [cursor=pointer]
+                - paragraph [ref=e1231]:
+                  - text: Bun automatically releases a canary build on every commit to
+                  - code [ref=e1232]: main
+                  - text: ". To upgrade to the latest canary build, run:"
+                - generic [ref=e1233]:
+                  - generic [ref=e1234]: bun upgrade --canary
+                  - button "Copy code to clipboard" [ref=e1236] [cursor=pointer]
+                - paragraph [ref=e1240]:
+                  - link "View canary build" [ref=e1241] [cursor=pointer]:
+                    - /url: https://github.com/oven-sh/bun/releases/tag/canary
+                - generic [ref=e1242]:
+                  - heading "Quick links" [level=2] [ref=e1243]
+                  - 'link "Permalink: Quick links" [ref=e1244] [cursor=pointer]':
+                    - /url: "#quick-links"
+                - list [ref=e1247]:
+                  - listitem [ref=e1248]:
+                    - paragraph [ref=e1249]: Intro
+                    - list [ref=e1250]:
+                      - listitem [ref=e1251]:
+                        - link "What is Bun?" [ref=e1252] [cursor=pointer]:
+                          - /url: https://bun.com/docs/index
+                      - listitem [ref=e1253]:
+                        - link "Installation" [ref=e1254] [cursor=pointer]:
+                          - /url: https://bun.com/docs/installation
+                      - listitem [ref=e1255]:
+                        - link "Quickstart" [ref=e1256] [cursor=pointer]:
+                          - /url: https://bun.com/docs/quickstart
+                      - listitem [ref=e1257]:
+                        - link "TypeScript" [ref=e1258] [cursor=pointer]:
+                          - /url: https://bun.com/docs/typescript
+                      - listitem [ref=e1259]:
+                        - link "TypeScript 6" [ref=e1260] [cursor=pointer]:
+                          - /url: https://bun.com/docs/typescript-6
+                  - listitem [ref=e1261]:
+                    - paragraph [ref=e1262]: Templating
+                    - list [ref=e1263]:
+                      - listitem [ref=e1264]:
+                        - link [ref=e1265] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/templating/init
+                          - code [ref=e1266]: bun init
+                      - listitem [ref=e1267]:
+                        - link [ref=e1268] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/templating/create
+                          - code [ref=e1269]: bun create
+                  - listitem [ref=e1270]:
+                    - paragraph [ref=e1271]: Runtime
+                    - list [ref=e1272]:
+                      - listitem [ref=e1273]:
+                        - link [ref=e1274] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/index
+                          - code [ref=e1275]: bun run
+                      - listitem [ref=e1276]:
+                        - link "File types (Loaders)" [ref=e1277] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/file-types
+                      - listitem [ref=e1278]:
+                        - link "JSX" [ref=e1279] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/jsx
+                      - listitem [ref=e1280]:
+                        - link "Environment variables" [ref=e1281] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/environment-variables
+                      - listitem [ref=e1282]:
+                        - link "Bun APIs" [ref=e1283] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/bun-apis
+                      - listitem [ref=e1284]:
+                        - link "Web APIs" [ref=e1285] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/web-apis
+                      - listitem [ref=e1286]:
+                        - link "Node.js compatibility" [ref=e1287] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/nodejs-compat
+                      - listitem [ref=e1288]:
+                        - link "Plugins" [ref=e1289] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/plugins
+                      - listitem [ref=e1290]:
+                        - link "Watch mode / Hot Reloading" [ref=e1291] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/watch-mode
+                      - listitem [ref=e1292]:
+                        - link "Module resolution" [ref=e1293] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/module-resolution
+                      - listitem [ref=e1294]:
+                        - link "Auto-install" [ref=e1295] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/auto-install
+                      - listitem [ref=e1296]:
+                        - link "bunfig.toml" [ref=e1297] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/bunfig
+                      - listitem [ref=e1298]:
+                        - link "Debugger" [ref=e1299] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/debugger
+                      - listitem [ref=e1300]:
+                        - link "REPL" [ref=e1301] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/repl
+                      - listitem [ref=e1302]:
+                        - link "$ Shell" [ref=e1303] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/shell
+                  - listitem [ref=e1304]:
+                    - paragraph [ref=e1305]: Package manager
+                    - list [ref=e1306]:
+                      - listitem [ref=e1307]:
+                        - link [ref=e1308] [cursor=pointer]:
+                          - /url: https://bun.com/docs/pm/cli/install
+                          - code [ref=e1309]: bun install
+                      - listitem [ref=e1310]:
+                        - link [ref=e1311] [cursor=pointer]:
+                          - /url: https://bun.com/docs/pm/cli/add
+                          - code [ref=e1312]: bun add
+                      - listitem [ref=e1313]:
+                        - link [ref=e1314] [cursor=pointer]:
+                          - /url: https://bun.com/docs/pm/cli/remove
+                          - code [ref=e1315]: bun remove
+                      - listitem [ref=e1316]:
+                        - link [ref=e1317] [cursor=pointer]:
+                          - /url: https://bun.com/docs/pm/cli/update
+                          - code [ref=e1318]: bun update
+                      - listitem [ref=e1319]:
+                        - link [ref=e1320] [cursor=pointer]:
+                          - /url: https://bun.com/docs/pm/cli/link
+                          - code [ref=e1321]: bun link
+                      - listitem [ref=e1322]:
+                        - link [ref=e1323] [cursor=pointer]:
+                          - /url: https://bun.com/docs/pm/cli/pm
+                          - code [ref=e1324]: bun pm
+                      - listitem [ref=e1325]:
+                        - link [ref=e1326] [cursor=pointer]:
+                          - /url: https://bun.com/docs/pm/cli/outdated
+                          - code [ref=e1327]: bun outdated
+                      - listitem [ref=e1328]:
+                        - link [ref=e1329] [cursor=pointer]:
+                          - /url: https://bun.com/docs/pm/cli/publish
+                          - code [ref=e1330]: bun publish
+                      - listitem [ref=e1331]:
+                        - link [ref=e1332] [cursor=pointer]:
+                          - /url: https://bun.com/docs/pm/cli/patch
+                          - code [ref=e1333]: bun patch
+                      - listitem [ref=e1334]:
+                        - link [ref=e1335] [cursor=pointer]:
+                          - /url: https://bun.com/docs/pm/cli/why
+                          - code [ref=e1336]: bun why
+                      - listitem [ref=e1337]:
+                        - link [ref=e1338] [cursor=pointer]:
+                          - /url: https://bun.com/docs/pm/cli/audit
+                          - code [ref=e1339]: bun audit
+                      - listitem [ref=e1340]:
+                        - link [ref=e1341] [cursor=pointer]:
+                          - /url: https://bun.com/docs/pm/cli/info
+                          - code [ref=e1342]: bun info
+                      - listitem [ref=e1343]:
+                        - link "Global cache" [ref=e1344] [cursor=pointer]:
+                          - /url: https://bun.com/docs/pm/global-cache
+                      - listitem [ref=e1345]:
+                        - link "Global store" [ref=e1346] [cursor=pointer]:
+                          - /url: https://bun.com/docs/pm/global-store
+                      - listitem [ref=e1347]:
+                        - link "Isolated installs" [ref=e1348] [cursor=pointer]:
+                          - /url: https://bun.com/docs/pm/isolated-installs
+                      - listitem [ref=e1349]:
+                        - link "Workspaces" [ref=e1350] [cursor=pointer]:
+                          - /url: https://bun.com/docs/pm/workspaces
+                      - listitem [ref=e1351]:
+                        - link "Catalogs" [ref=e1352] [cursor=pointer]:
+                          - /url: https://bun.com/docs/pm/catalogs
+                      - listitem [ref=e1353]:
+                        - link "Lifecycle scripts" [ref=e1354] [cursor=pointer]:
+                          - /url: https://bun.com/docs/pm/lifecycle
+                      - listitem [ref=e1355]:
+                        - link "Filter" [ref=e1356] [cursor=pointer]:
+                          - /url: https://bun.com/docs/pm/filter
+                      - listitem [ref=e1357]:
+                        - link "Lockfile" [ref=e1358] [cursor=pointer]:
+                          - /url: https://bun.com/docs/pm/lockfile
+                      - listitem [ref=e1359]:
+                        - link "Scopes and registries" [ref=e1360] [cursor=pointer]:
+                          - /url: https://bun.com/docs/pm/scopes-registries
+                      - listitem [ref=e1361]:
+                        - link "Overrides and resolutions" [ref=e1362] [cursor=pointer]:
+                          - /url: https://bun.com/docs/pm/overrides
+                      - listitem [ref=e1363]:
+                        - link "Security scanner API" [ref=e1364] [cursor=pointer]:
+                          - /url: https://bun.com/docs/pm/security-scanner-api
+                      - listitem [ref=e1365]:
+                        - link [ref=e1366] [cursor=pointer]:
+                          - /url: https://bun.com/docs/pm/npmrc
+                          - code [ref=e1367]: .npmrc
+                  - listitem [ref=e1368]:
+                    - paragraph [ref=e1369]: Bundler
+                    - list [ref=e1370]:
+                      - listitem [ref=e1371]:
+                        - link [ref=e1372] [cursor=pointer]:
+                          - /url: https://bun.com/docs/bundler/index
+                          - code [ref=e1373]: Bun.build
+                      - listitem [ref=e1374]:
+                        - link "Loaders" [ref=e1375] [cursor=pointer]:
+                          - /url: https://bun.com/docs/bundler/loaders
+                      - listitem [ref=e1376]:
+                        - link "Plugins" [ref=e1377] [cursor=pointer]:
+                          - /url: https://bun.com/docs/bundler/plugins
+                      - listitem [ref=e1378]:
+                        - link "Macros" [ref=e1379] [cursor=pointer]:
+                          - /url: https://bun.com/docs/bundler/macros
+                      - listitem [ref=e1380]:
+                        - link "vs esbuild" [ref=e1381] [cursor=pointer]:
+                          - /url: https://bun.com/docs/bundler/esbuild
+                      - listitem [ref=e1382]:
+                        - link "Single-file executable" [ref=e1383] [cursor=pointer]:
+                          - /url: https://bun.com/docs/bundler/executables
+                      - listitem [ref=e1384]:
+                        - link "CSS" [ref=e1385] [cursor=pointer]:
+                          - /url: https://bun.com/docs/bundler/css
+                      - listitem [ref=e1386]:
+                        - link "HTML & static sites" [ref=e1387] [cursor=pointer]:
+                          - /url: https://bun.com/docs/bundler/html-static
+                      - listitem [ref=e1388]:
+                        - link "Hot Module Replacement (HMR)" [ref=e1389] [cursor=pointer]:
+                          - /url: https://bun.com/docs/bundler/hot-reloading
+                      - listitem [ref=e1390]:
+                        - link "Full-stack with HTML imports" [ref=e1391] [cursor=pointer]:
+                          - /url: https://bun.com/docs/bundler/fullstack
+                      - listitem [ref=e1392]:
+                        - link "Standalone HTML" [ref=e1393] [cursor=pointer]:
+                          - /url: https://bun.com/docs/bundler/standalone-html
+                      - listitem [ref=e1394]:
+                        - link "Bytecode caching" [ref=e1395] [cursor=pointer]:
+                          - /url: https://bun.com/docs/bundler/bytecode
+                      - listitem [ref=e1396]:
+                        - link "Minifier" [ref=e1397] [cursor=pointer]:
+                          - /url: https://bun.com/docs/bundler/minifier
+                  - listitem [ref=e1398]:
+                    - paragraph [ref=e1399]: Test runner
+                    - list [ref=e1400]:
+                      - listitem [ref=e1401]:
+                        - link [ref=e1402] [cursor=pointer]:
+                          - /url: https://bun.com/docs/test/index
+                          - code [ref=e1403]: bun test
+                      - listitem [ref=e1404]:
+                        - link "Writing tests" [ref=e1405] [cursor=pointer]:
+                          - /url: https://bun.com/docs/test/writing-tests
+                      - listitem [ref=e1406]:
+                        - link "Lifecycle hooks" [ref=e1407] [cursor=pointer]:
+                          - /url: https://bun.com/docs/test/lifecycle
+                      - listitem [ref=e1408]:
+                        - link "Mocks" [ref=e1409] [cursor=pointer]:
+                          - /url: https://bun.com/docs/test/mocks
+                      - listitem [ref=e1410]:
+                        - link "Snapshots" [ref=e1411] [cursor=pointer]:
+                          - /url: https://bun.com/docs/test/snapshots
+                      - listitem [ref=e1412]:
+                        - link "Dates and times" [ref=e1413] [cursor=pointer]:
+                          - /url: https://bun.com/docs/test/dates-times
+                      - listitem [ref=e1414]:
+                        - link "DOM testing" [ref=e1415] [cursor=pointer]:
+                          - /url: https://bun.com/docs/test/dom
+                      - listitem [ref=e1416]:
+                        - link "Code coverage" [ref=e1417] [cursor=pointer]:
+                          - /url: https://bun.com/docs/test/code-coverage
+                      - listitem [ref=e1418]:
+                        - link "Configuration" [ref=e1419] [cursor=pointer]:
+                          - /url: https://bun.com/docs/test/configuration
+                      - listitem [ref=e1420]:
+                        - link "Discovery" [ref=e1421] [cursor=pointer]:
+                          - /url: https://bun.com/docs/test/discovery
+                      - listitem [ref=e1422]:
+                        - link "Reporters" [ref=e1423] [cursor=pointer]:
+                          - /url: https://bun.com/docs/test/reporters
+                      - listitem [ref=e1424]:
+                        - link "Runtime Behavior" [ref=e1425] [cursor=pointer]:
+                          - /url: https://bun.com/docs/test/runtime-behavior
+                  - listitem [ref=e1426]:
+                    - paragraph [ref=e1427]: Package runner
+                    - list [ref=e1428]:
+                      - listitem [ref=e1429]:
+                        - link [ref=e1430] [cursor=pointer]:
+                          - /url: https://bun.com/docs/pm/bunx
+                          - code [ref=e1431]: bunx
+                  - listitem [ref=e1432]:
+                    - paragraph [ref=e1433]: API
+                    - list [ref=e1434]:
+                      - listitem [ref=e1435]:
+                        - link [ref=e1436] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/http/server
+                          - text: HTTP server (
+                          - code [ref=e1437]: Bun.serve
+                          - text: )
+                      - listitem [ref=e1438]:
+                        - link "HTTP routing" [ref=e1439] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/http/routing
+                      - listitem [ref=e1440]:
+                        - link "HTTP error handling" [ref=e1441] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/http/error-handling
+                      - listitem [ref=e1442]:
+                        - link "HTTP metrics" [ref=e1443] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/http/metrics
+                      - listitem [ref=e1444]:
+                        - link "WebSockets" [ref=e1445] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/http/websockets
+                      - listitem [ref=e1446]:
+                        - link "Workers" [ref=e1447] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/workers
+                      - listitem [ref=e1448]:
+                        - link "Binary data" [ref=e1449] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/binary-data
+                      - listitem [ref=e1450]:
+                        - link "Streams" [ref=e1451] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/streams
+                      - listitem [ref=e1452]:
+                        - link [ref=e1453] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/file-io
+                          - text: File I/O (
+                          - code [ref=e1454]: Bun.file
+                          - text: )
+                      - listitem [ref=e1455]:
+                        - link "Archive (tar)" [ref=e1456] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/archive
+                      - listitem [ref=e1457]:
+                        - link [ref=e1458] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/sqlite
+                          - text: SQLite (
+                          - code [ref=e1459]: bun:sqlite
+                          - text: )
+                      - listitem [ref=e1460]:
+                        - link [ref=e1461] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/sql
+                          - text: PostgreSQL (
+                          - code [ref=e1462]: Bun.sql
+                          - text: )
+                      - listitem [ref=e1463]:
+                        - link [ref=e1464] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/redis
+                          - text: Redis (
+                          - code [ref=e1465]: Bun.redis
+                          - text: )
+                      - listitem [ref=e1466]:
+                        - link [ref=e1467] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/s3
+                          - text: S3 Client (
+                          - code [ref=e1468]: Bun.s3
+                          - text: )
+                      - listitem [ref=e1469]:
+                        - link "FileSystemRouter" [ref=e1470] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/file-system-router
+                      - listitem [ref=e1471]:
+                        - link "TCP sockets" [ref=e1472] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/networking/tcp
+                      - listitem [ref=e1473]:
+                        - link "UDP sockets" [ref=e1474] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/networking/udp
+                      - listitem [ref=e1475]:
+                        - link "Globals" [ref=e1476] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/globals
+                      - listitem [ref=e1477]:
+                        - link "Child processes (spawn)" [ref=e1478] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/child-process
+                      - listitem [ref=e1479]:
+                        - link [ref=e1480] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/cron
+                          - text: Cron (
+                          - code [ref=e1481]: Bun.cron
+                          - text: )
+                      - listitem [ref=e1482]:
+                        - link "WebView" [ref=e1483] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/webview
+                      - listitem [ref=e1484]:
+                        - link [ref=e1485] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/transpiler
+                          - text: Transpiler (
+                          - code [ref=e1486]: Bun.Transpiler
+                          - text: )
+                      - listitem [ref=e1487]:
+                        - link "Hashing" [ref=e1488] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/hashing
+                      - listitem [ref=e1489]:
+                        - link [ref=e1490] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/color
+                          - text: Colors (
+                          - code [ref=e1491]: Bun.color
+                          - text: )
+                      - listitem [ref=e1492]:
+                        - link "Console" [ref=e1493] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/console
+                      - listitem [ref=e1494]:
+                        - link [ref=e1495] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/ffi
+                          - text: FFI (
+                          - code [ref=e1496]: bun:ffi
+                          - text: )
+                      - listitem [ref=e1497]:
+                        - link [ref=e1498] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/c-compiler
+                          - text: C Compiler (
+                          - code [ref=e1499]: bun:ffi
+                          - text: cc)
+                      - listitem [ref=e1500]:
+                        - link "HTMLRewriter" [ref=e1501] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/html-rewriter
+                      - listitem [ref=e1502]:
+                        - link [ref=e1503] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/cookies
+                          - text: Cookies (
+                          - code [ref=e1504]: Bun.Cookie
+                          - text: )
+                      - listitem [ref=e1505]:
+                        - link [ref=e1506] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/csrf
+                          - text: CSRF (
+                          - code [ref=e1507]: Bun.CSRF
+                          - text: )
+                      - listitem [ref=e1508]:
+                        - link [ref=e1509] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/secrets
+                          - text: Secrets (
+                          - code [ref=e1510]: Bun.secrets
+                          - text: )
+                      - listitem [ref=e1511]:
+                        - link [ref=e1512] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/yaml
+                          - text: YAML (
+                          - code [ref=e1513]: Bun.YAML
+                          - text: )
+                      - listitem [ref=e1514]:
+                        - link [ref=e1515] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/toml
+                          - text: TOML (
+                          - code [ref=e1516]: Bun.TOML
+                          - text: )
+                      - listitem [ref=e1517]:
+                        - link "JSON5" [ref=e1518] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/json5
+                      - listitem [ref=e1519]:
+                        - link "JSONL" [ref=e1520] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/jsonl
+                      - listitem [ref=e1521]:
+                        - link "Markdown" [ref=e1522] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/markdown
+                      - listitem [ref=e1523]:
+                        - link "Image processing" [ref=e1524] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/image
+                      - listitem [ref=e1525]:
+                        - link "Utils" [ref=e1526] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/utils
+                      - listitem [ref=e1527]:
+                        - link "Node-API" [ref=e1528] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/node-api
+                      - listitem [ref=e1529]:
+                        - link [ref=e1530] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/glob
+                          - text: Glob (
+                          - code [ref=e1531]: Bun.Glob
+                          - text: )
+                      - listitem [ref=e1532]:
+                        - link [ref=e1533] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/semver
+                          - text: Semver (
+                          - code [ref=e1534]: Bun.semver
+                          - text: )
+                      - listitem [ref=e1535]:
+                        - link "DNS" [ref=e1536] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/networking/dns
+                      - listitem [ref=e1537]:
+                        - link "fetch API extensions" [ref=e1538] [cursor=pointer]:
+                          - /url: https://bun.com/docs/runtime/networking/fetch
+                - generic [ref=e1539]:
+                  - heading "Guides" [level=2] [ref=e1540]
+                  - 'link "Permalink: Guides" [ref=e1541] [cursor=pointer]':
+                    - /url: "#guides"
+                - list [ref=e1544]:
+                  - listitem [ref=e1545]:
+                    - paragraph [ref=e1546]: Deployment
+                    - list [ref=e1547]:
+                      - listitem [ref=e1548]:
+                        - link "Deploy to Vercel" [ref=e1549] [cursor=pointer]:
+                          - /url: https://bun.com/guides/deployment/vercel
+                      - listitem [ref=e1550]:
+                        - link "Deploy to Railway" [ref=e1551] [cursor=pointer]:
+                          - /url: https://bun.com/guides/deployment/railway
+                      - listitem [ref=e1552]:
+                        - link "Deploy to Render" [ref=e1553] [cursor=pointer]:
+                          - /url: https://bun.com/guides/deployment/render
+                      - listitem [ref=e1554]:
+                        - link "Deploy to AWS Lambda" [ref=e1555] [cursor=pointer]:
+                          - /url: https://bun.com/guides/deployment/aws-lambda
+                      - listitem [ref=e1556]:
+                        - link "Deploy to DigitalOcean" [ref=e1557] [cursor=pointer]:
+                          - /url: https://bun.com/guides/deployment/digital-ocean
+                      - listitem [ref=e1558]:
+                        - link "Deploy to Google Cloud Run" [ref=e1559] [cursor=pointer]:
+                          - /url: https://bun.com/guides/deployment/google-cloud-run
+                  - listitem [ref=e1560]:
+                    - paragraph [ref=e1561]: Binary
+                    - list [ref=e1562]:
+                      - listitem [ref=e1563]:
+                        - link "Convert a Blob to a string" [ref=e1564] [cursor=pointer]:
+                          - /url: https://bun.com/guides/binary/blob-to-string
+                      - listitem [ref=e1565]:
+                        - link "Convert a Buffer to a blob" [ref=e1566] [cursor=pointer]:
+                          - /url: https://bun.com/guides/binary/buffer-to-blob
+                      - listitem [ref=e1567]:
+                        - link "Convert a Blob to a DataView" [ref=e1568] [cursor=pointer]:
+                          - /url: https://bun.com/guides/binary/blob-to-dataview
+                      - listitem [ref=e1569]:
+                        - link "Convert a Buffer to a string" [ref=e1570] [cursor=pointer]:
+                          - /url: https://bun.com/guides/binary/buffer-to-string
+                      - listitem [ref=e1571]:
+                        - link "Convert a Blob to a ReadableStream" [ref=e1572] [cursor=pointer]:
+                          - /url: https://bun.com/guides/binary/blob-to-stream
+                      - listitem [ref=e1573]:
+                        - link "Convert a Blob to a Uint8Array" [ref=e1574] [cursor=pointer]:
+                          - /url: https://bun.com/guides/binary/blob-to-typedarray
+                      - listitem [ref=e1575]:
+                        - link "Convert a DataView to a string" [ref=e1576] [cursor=pointer]:
+                          - /url: https://bun.com/guides/binary/dataview-to-string
+                      - listitem [ref=e1577]:
+                        - link "Convert a Uint8Array to a Blob" [ref=e1578] [cursor=pointer]:
+                          - /url: https://bun.com/guides/binary/typedarray-to-blob
+                      - listitem [ref=e1579]:
+                        - link "Convert a Blob to an ArrayBuffer" [ref=e1580] [cursor=pointer]:
+                          - /url: https://bun.com/guides/binary/blob-to-arraybuffer
+                      - listitem [ref=e1581]:
+                        - link "Convert an ArrayBuffer to a Blob" [ref=e1582] [cursor=pointer]:
+                          - /url: https://bun.com/guides/binary/arraybuffer-to-blob
+                      - listitem [ref=e1583]:
+                        - link "Convert a Buffer to a Uint8Array" [ref=e1584] [cursor=pointer]:
+                          - /url: https://bun.com/guides/binary/buffer-to-typedarray
+                      - listitem [ref=e1585]:
+                        - link "Convert a Uint8Array to a Buffer" [ref=e1586] [cursor=pointer]:
+                          - /url: https://bun.com/guides/binary/typedarray-to-buffer
+                      - listitem [ref=e1587]:
+                        - link "Convert a Uint8Array to a string" [ref=e1588] [cursor=pointer]:
+                          - /url: https://bun.com/guides/binary/typedarray-to-string
+                      - listitem [ref=e1589]:
+                        - link "Convert a Buffer to an ArrayBuffer" [ref=e1590] [cursor=pointer]:
+                          - /url: https://bun.com/guides/binary/buffer-to-arraybuffer
+                      - listitem [ref=e1591]:
+                        - link "Convert an ArrayBuffer to a Buffer" [ref=e1592] [cursor=pointer]:
+                          - /url: https://bun.com/guides/binary/arraybuffer-to-buffer
+                      - listitem [ref=e1593]:
+                        - link "Convert an ArrayBuffer to a string" [ref=e1594] [cursor=pointer]:
+                          - /url: https://bun.com/guides/binary/arraybuffer-to-string
+                      - listitem [ref=e1595]:
+                        - link "Convert a Uint8Array to a DataView" [ref=e1596] [cursor=pointer]:
+                          - /url: https://bun.com/guides/binary/typedarray-to-dataview
+                      - listitem [ref=e1597]:
+                        - link "Convert a Buffer to a ReadableStream" [ref=e1598] [cursor=pointer]:
+                          - /url: https://bun.com/guides/binary/buffer-to-readablestream
+                      - listitem [ref=e1599]:
+                        - link "Convert a Uint8Array to an ArrayBuffer" [ref=e1600] [cursor=pointer]:
+                          - /url: https://bun.com/guides/binary/typedarray-to-arraybuffer
+                      - listitem [ref=e1601]:
+                        - link "Convert an ArrayBuffer to a Uint8Array" [ref=e1602] [cursor=pointer]:
+                          - /url: https://bun.com/guides/binary/arraybuffer-to-typedarray
+                      - listitem [ref=e1603]:
+                        - link "Convert an ArrayBuffer to an array of numbers" [ref=e1604] [cursor=pointer]:
+                          - /url: https://bun.com/guides/binary/arraybuffer-to-array
+                      - listitem [ref=e1605]:
+                        - link "Convert a Uint8Array to a ReadableStream" [ref=e1606] [cursor=pointer]:
+                          - /url: https://bun.com/guides/binary/typedarray-to-readablestream
+                  - listitem [ref=e1607]:
+                    - paragraph [ref=e1608]: Ecosystem
+                    - list [ref=e1609]:
+                      - listitem [ref=e1610]:
+                        - link "Use React and JSX" [ref=e1611] [cursor=pointer]:
+                          - /url: https://bun.com/guides/ecosystem/react
+                      - listitem [ref=e1612]:
+                        - link "Use Gel with Bun" [ref=e1613] [cursor=pointer]:
+                          - /url: https://bun.com/guides/ecosystem/gel
+                      - listitem [ref=e1614]:
+                        - link "Use Prisma with Bun" [ref=e1615] [cursor=pointer]:
+                          - /url: https://bun.com/guides/ecosystem/prisma
+                      - listitem [ref=e1616]:
+                        - link "Use Prisma Postgres with Bun" [ref=e1617] [cursor=pointer]:
+                          - /url: https://bun.com/guides/ecosystem/prisma-postgres
+                      - listitem [ref=e1618]:
+                        - link "Add Sentry to a Bun app" [ref=e1619] [cursor=pointer]:
+                          - /url: https://bun.com/guides/ecosystem/sentry
+                      - listitem [ref=e1620]:
+                        - link "Create a Discord bot" [ref=e1621] [cursor=pointer]:
+                          - /url: https://bun.com/guides/ecosystem/discordjs
+                      - listitem [ref=e1622]:
+                        - link "Run Bun as a daemon with PM2" [ref=e1623] [cursor=pointer]:
+                          - /url: https://bun.com/guides/ecosystem/pm2
+                      - listitem [ref=e1624]:
+                        - link "Use Drizzle ORM with Bun" [ref=e1625] [cursor=pointer]:
+                          - /url: https://bun.com/guides/ecosystem/drizzle
+                      - listitem [ref=e1626]:
+                        - link "Use Upstash Redis with Bun" [ref=e1627] [cursor=pointer]:
+                          - /url: https://bun.com/guides/ecosystem/upstash
+                      - listitem [ref=e1628]:
+                        - link "Build an app with Nuxt and Bun" [ref=e1629] [cursor=pointer]:
+                          - /url: https://bun.com/guides/ecosystem/nuxt
+                      - listitem [ref=e1630]:
+                        - link "Build an app with Qwik and Bun" [ref=e1631] [cursor=pointer]:
+                          - /url: https://bun.com/guides/ecosystem/qwik
+                      - listitem [ref=e1632]:
+                        - link "Build an app with Astro and Bun" [ref=e1633] [cursor=pointer]:
+                          - /url: https://bun.com/guides/ecosystem/astro
+                      - listitem [ref=e1634]:
+                        - link "Build an app with Remix and Bun" [ref=e1635] [cursor=pointer]:
+                          - /url: https://bun.com/guides/ecosystem/remix
+                      - listitem [ref=e1636]:
+                        - link "Build a frontend using Vite and Bun" [ref=e1637] [cursor=pointer]:
+                          - /url: https://bun.com/guides/ecosystem/vite
+                      - listitem [ref=e1638]:
+                        - link "Build an app with Next.js and Bun" [ref=e1639] [cursor=pointer]:
+                          - /url: https://bun.com/guides/ecosystem/nextjs
+                      - listitem [ref=e1640]:
+                        - link "Run Bun as a daemon with systemd" [ref=e1641] [cursor=pointer]:
+                          - /url: https://bun.com/guides/ecosystem/systemd
+                      - listitem [ref=e1642]:
+                        - link "Build an HTTP server using Hono and Bun" [ref=e1643] [cursor=pointer]:
+                          - /url: https://bun.com/guides/ecosystem/hono
+                      - listitem [ref=e1644]:
+                        - link "Build an app with SvelteKit and Bun" [ref=e1645] [cursor=pointer]:
+                          - /url: https://bun.com/guides/ecosystem/sveltekit
+                      - listitem [ref=e1646]:
+                        - link "Build an app with SolidStart and Bun" [ref=e1647] [cursor=pointer]:
+                          - /url: https://bun.com/guides/ecosystem/solidstart
+                      - listitem [ref=e1648]:
+                        - link "Build an app with TanStack Start and Bun" [ref=e1649] [cursor=pointer]:
+                          - /url: https://bun.com/guides/ecosystem/tanstack-start
+                      - listitem [ref=e1650]:
+                        - link "Build an HTTP server using Elysia and Bun" [ref=e1651] [cursor=pointer]:
+                          - /url: https://bun.com/guides/ecosystem/elysia
+                      - listitem [ref=e1652]:
+                        - link "Build an HTTP server using StricJS and Bun" [ref=e1653] [cursor=pointer]:
+                          - /url: https://bun.com/guides/ecosystem/stric
+                      - listitem [ref=e1654]:
+                        - link "Containerize a Bun application with Docker" [ref=e1655] [cursor=pointer]:
+                          - /url: https://bun.com/guides/ecosystem/docker
+                      - listitem [ref=e1656]:
+                        - link "Build an HTTP server using Express and Bun" [ref=e1657] [cursor=pointer]:
+                          - /url: https://bun.com/guides/ecosystem/express
+                      - listitem [ref=e1658]:
+                        - link "Use Neon Postgres through Drizzle ORM" [ref=e1659] [cursor=pointer]:
+                          - /url: https://bun.com/guides/ecosystem/neon-drizzle
+                      - listitem [ref=e1660]:
+                        - link "Server-side render (SSR) a React component" [ref=e1661] [cursor=pointer]:
+                          - /url: https://bun.com/guides/ecosystem/ssr-react
+                      - listitem [ref=e1662]:
+                        - link "Read and write data to MongoDB using Mongoose and Bun" [ref=e1663] [cursor=pointer]:
+                          - /url: https://bun.com/guides/ecosystem/mongoose
+                      - listitem [ref=e1664]:
+                        - link "Use Neon's Serverless Postgres with Bun" [ref=e1665] [cursor=pointer]:
+                          - /url: https://bun.com/guides/ecosystem/neon-serverless-postgres
+                  - listitem [ref=e1666]:
+                    - paragraph [ref=e1667]: HTMLRewriter
+                    - list [ref=e1668]:
+                      - listitem [ref=e1669]:
+                        - link "Extract links from a webpage using HTMLRewriter" [ref=e1670] [cursor=pointer]:
+                          - /url: https://bun.com/guides/html-rewriter/extract-links
+                      - listitem [ref=e1671]:
+                        - link "Extract social share images and Open Graph tags" [ref=e1672] [cursor=pointer]:
+                          - /url: https://bun.com/guides/html-rewriter/extract-social-meta
+                  - listitem [ref=e1673]:
+                    - paragraph [ref=e1674]: HTTP
+                    - list [ref=e1675]:
+                      - listitem [ref=e1676]:
+                        - link "Hot reload an HTTP server" [ref=e1677] [cursor=pointer]:
+                          - /url: https://bun.com/guides/http/hot
+                      - listitem [ref=e1678]:
+                        - link "Common HTTP server usage" [ref=e1679] [cursor=pointer]:
+                          - /url: https://bun.com/guides/http/server
+                      - listitem [ref=e1680]:
+                        - link "Write a simple HTTP server" [ref=e1681] [cursor=pointer]:
+                          - /url: https://bun.com/guides/http/simple
+                      - listitem [ref=e1682]:
+                        - link "Configure TLS on an HTTP server" [ref=e1683] [cursor=pointer]:
+                          - /url: https://bun.com/guides/http/tls
+                      - listitem [ref=e1684]:
+                        - link "Send an HTTP request using fetch" [ref=e1685] [cursor=pointer]:
+                          - /url: https://bun.com/guides/http/fetch
+                      - listitem [ref=e1686]:
+                        - link "Proxy HTTP requests using fetch()" [ref=e1687] [cursor=pointer]:
+                          - /url: https://bun.com/guides/http/proxy
+                      - listitem [ref=e1688]:
+                        - link "Start a cluster of HTTP servers" [ref=e1689] [cursor=pointer]:
+                          - /url: https://bun.com/guides/http/cluster
+                      - listitem [ref=e1690]:
+                        - link "Stream a file as an HTTP Response" [ref=e1691] [cursor=pointer]:
+                          - /url: https://bun.com/guides/http/stream-file
+                      - listitem [ref=e1692]:
+                        - link "fetch with unix domain sockets in Bun" [ref=e1693] [cursor=pointer]:
+                          - /url: https://bun.com/guides/http/fetch-unix
+                      - listitem [ref=e1694]:
+                        - link "Upload files via HTTP using FormData" [ref=e1695] [cursor=pointer]:
+                          - /url: https://bun.com/guides/http/file-uploads
+                      - listitem [ref=e1696]:
+                        - link "Streaming HTTP Server with Async Iterators" [ref=e1697] [cursor=pointer]:
+                          - /url: https://bun.com/guides/http/stream-iterator
+                      - listitem [ref=e1698]:
+                        - link "Streaming HTTP Server with Node.js Streams" [ref=e1699] [cursor=pointer]:
+                          - /url: https://bun.com/guides/http/stream-node-streams-in-bun
+                      - listitem [ref=e1700]:
+                        - link "Server-Sent Events (SSE) with Bun" [ref=e1701] [cursor=pointer]:
+                          - /url: https://bun.com/guides/http/sse
+                  - listitem [ref=e1702]:
+                    - paragraph [ref=e1703]: Install
+                    - list [ref=e1704]:
+                      - listitem [ref=e1705]:
+                        - link "Add a dependency" [ref=e1706] [cursor=pointer]:
+                          - /url: https://bun.com/guides/install/add
+                      - listitem [ref=e1707]:
+                        - link "Add a Git dependency" [ref=e1708] [cursor=pointer]:
+                          - /url: https://bun.com/guides/install/add-git
+                      - listitem [ref=e1709]:
+                        - link "Add a peer dependency" [ref=e1710] [cursor=pointer]:
+                          - /url: https://bun.com/guides/install/add-peer
+                      - listitem [ref=e1711]:
+                        - link "Add a trusted dependency" [ref=e1712] [cursor=pointer]:
+                          - /url: https://bun.com/guides/install/trusted
+                      - listitem [ref=e1713]:
+                        - link "Add a development dependency" [ref=e1714] [cursor=pointer]:
+                          - /url: https://bun.com/guides/install/add-dev
+                      - listitem [ref=e1715]:
+                        - link "Add a tarball dependency" [ref=e1716] [cursor=pointer]:
+                          - /url: https://bun.com/guides/install/add-tarball
+                      - listitem [ref=e1717]:
+                        - link "Add an optional dependency" [ref=e1718] [cursor=pointer]:
+                          - /url: https://bun.com/guides/install/add-optional
+                      - listitem [ref=e1719]:
+                        - link "Generate a yarn-compatible lockfile" [ref=e1720] [cursor=pointer]:
+                          - /url: https://bun.com/guides/install/yarnlock
+                      - listitem [ref=e1721]:
+                        - link "Configuring a monorepo using workspaces" [ref=e1722] [cursor=pointer]:
+                          - /url: https://bun.com/guides/install/workspaces
+                      - listitem [ref=e1723]:
+                        - link "Install a package under a different name" [ref=e1724] [cursor=pointer]:
+                          - /url: https://bun.com/guides/install/npm-alias
+                      - listitem [ref=e1725]:
+                        - link "Install dependencies with Bun in GitHub Actions" [ref=e1726] [cursor=pointer]:
+                          - /url: https://bun.com/guides/install/cicd
+                      - listitem [ref=e1727]:
+                        - link "Using bun install with Artifactory" [ref=e1728] [cursor=pointer]:
+                          - /url: https://bun.com/guides/install/jfrog-artifactory
+                      - listitem [ref=e1729]:
+                        - link "Configure git to diff Bun's lockb lockfile" [ref=e1730] [cursor=pointer]:
+                          - /url: https://bun.com/guides/install/git-diff-bun-lockfile
+                      - listitem [ref=e1731]:
+                        - link "Override the default npm registry for bun install" [ref=e1732] [cursor=pointer]:
+                          - /url: https://bun.com/guides/install/custom-registry
+                      - listitem [ref=e1733]:
+                        - link "Using bun install with an Azure Artifacts npm registry" [ref=e1734] [cursor=pointer]:
+                          - /url: https://bun.com/guides/install/azure-artifacts
+                      - listitem [ref=e1735]:
+                        - link "Migrate from npm install to bun install" [ref=e1736] [cursor=pointer]:
+                          - /url: https://bun.com/guides/install/from-npm-install-to-bun-install
+                      - listitem [ref=e1737]:
+                        - link "Configure a private registry for an organization scope with bun install" [ref=e1738] [cursor=pointer]:
+                          - /url: https://bun.com/guides/install/registry-scope
+                  - listitem [ref=e1739]:
+                    - paragraph [ref=e1740]: Process
+                    - list [ref=e1741]:
+                      - listitem [ref=e1742]:
+                        - link "Read from stdin" [ref=e1743] [cursor=pointer]:
+                          - /url: https://bun.com/guides/process/stdin
+                      - listitem [ref=e1744]:
+                        - link "Listen for CTRL+C" [ref=e1745] [cursor=pointer]:
+                          - /url: https://bun.com/guides/process/ctrl-c
+                      - listitem [ref=e1746]:
+                        - link "Spawn a child process" [ref=e1747] [cursor=pointer]:
+                          - /url: https://bun.com/guides/process/spawn
+                      - listitem [ref=e1748]:
+                        - link "Listen to OS signals" [ref=e1749] [cursor=pointer]:
+                          - /url: https://bun.com/guides/process/os-signals
+                      - listitem [ref=e1750]:
+                        - link "Parse command-line arguments" [ref=e1751] [cursor=pointer]:
+                          - /url: https://bun.com/guides/process/argv
+                      - listitem [ref=e1752]:
+                        - link "Read stderr from a child process" [ref=e1753] [cursor=pointer]:
+                          - /url: https://bun.com/guides/process/spawn-stderr
+                      - listitem [ref=e1754]:
+                        - link "Read stdout from a child process" [ref=e1755] [cursor=pointer]:
+                          - /url: https://bun.com/guides/process/spawn-stdout
+                      - listitem [ref=e1756]:
+                        - link "Get the process uptime in nanoseconds" [ref=e1757] [cursor=pointer]:
+                          - /url: https://bun.com/guides/process/nanoseconds
+                      - listitem [ref=e1758]:
+                        - link "Spawn a child process and communicate using IPC" [ref=e1759] [cursor=pointer]:
+                          - /url: https://bun.com/guides/process/ipc
+                  - listitem [ref=e1760]:
+                    - paragraph [ref=e1761]: Read file
+                    - list [ref=e1762]:
+                      - listitem [ref=e1763]:
+                        - link "Read a JSON file" [ref=e1764] [cursor=pointer]:
+                          - /url: https://bun.com/guides/read-file/json
+                      - listitem [ref=e1765]:
+                        - link "Check if a file exists" [ref=e1766] [cursor=pointer]:
+                          - /url: https://bun.com/guides/read-file/exists
+                      - listitem [ref=e1767]:
+                        - link "Read a file as a string" [ref=e1768] [cursor=pointer]:
+                          - /url: https://bun.com/guides/read-file/string
+                      - listitem [ref=e1769]:
+                        - link "Read a file to a Buffer" [ref=e1770] [cursor=pointer]:
+                          - /url: https://bun.com/guides/read-file/buffer
+                      - listitem [ref=e1771]:
+                        - link "Get the MIME type of a file" [ref=e1772] [cursor=pointer]:
+                          - /url: https://bun.com/guides/read-file/mime
+                      - listitem [ref=e1773]:
+                        - link "Watch a directory for changes" [ref=e1774] [cursor=pointer]:
+                          - /url: https://bun.com/guides/read-file/watch
+                      - listitem [ref=e1775]:
+                        - link "Read a file as a ReadableStream" [ref=e1776] [cursor=pointer]:
+                          - /url: https://bun.com/guides/read-file/stream
+                      - listitem [ref=e1777]:
+                        - link "Read a file to a Uint8Array" [ref=e1778] [cursor=pointer]:
+                          - /url: https://bun.com/guides/read-file/uint8array
+                      - listitem [ref=e1779]:
+                        - link "Read a file to an ArrayBuffer" [ref=e1780] [cursor=pointer]:
+                          - /url: https://bun.com/guides/read-file/arraybuffer
+                  - listitem [ref=e1781]:
+                    - paragraph [ref=e1782]: Runtime
+                    - list [ref=e1783]:
+                      - listitem [ref=e1784]:
+                        - link "Delete files" [ref=e1785] [cursor=pointer]:
+                          - /url: https://bun.com/guides/runtime/delete-file
+                      - listitem [ref=e1786]:
+                        - link "Run a Shell Command" [ref=e1787] [cursor=pointer]:
+                          - /url: https://bun.com/guides/runtime/shell
+                      - listitem [ref=e1788]:
+                        - link "Import a JSON file" [ref=e1789] [cursor=pointer]:
+                          - /url: https://bun.com/guides/runtime/import-json
+                      - listitem [ref=e1790]:
+                        - link "Import a TOML file" [ref=e1791] [cursor=pointer]:
+                          - /url: https://bun.com/guides/runtime/import-toml
+                      - listitem [ref=e1792]:
+                        - link "Import a YAML file" [ref=e1793] [cursor=pointer]:
+                          - /url: https://bun.com/guides/runtime/import-yaml
+                      - listitem [ref=e1794]:
+                        - link "Import a JSON5 file" [ref=e1795] [cursor=pointer]:
+                          - /url: https://bun.com/guides/runtime/import-json5
+                      - listitem [ref=e1796]:
+                        - link "Set a time zone in Bun" [ref=e1797] [cursor=pointer]:
+                          - /url: https://bun.com/guides/runtime/timezone
+                      - listitem [ref=e1798]:
+                        - link "Set environment variables" [ref=e1799] [cursor=pointer]:
+                          - /url: https://bun.com/guides/runtime/set-env
+                      - listitem [ref=e1800]:
+                        - link "Re-map import paths" [ref=e1801] [cursor=pointer]:
+                          - /url: https://bun.com/guides/runtime/tsconfig-paths
+                      - listitem [ref=e1802]:
+                        - link "Delete directories" [ref=e1803] [cursor=pointer]:
+                          - /url: https://bun.com/guides/runtime/delete-directory
+                      - listitem [ref=e1804]:
+                        - link "Read environment variables" [ref=e1805] [cursor=pointer]:
+                          - /url: https://bun.com/guides/runtime/read-env
+                      - listitem [ref=e1806]:
+                        - link "Import a HTML file as text" [ref=e1807] [cursor=pointer]:
+                          - /url: https://bun.com/guides/runtime/import-html
+                      - listitem [ref=e1808]:
+                        - link "Install and run Bun in GitHub Actions" [ref=e1809] [cursor=pointer]:
+                          - /url: https://bun.com/guides/runtime/cicd
+                      - listitem [ref=e1810]:
+                        - link "Debugging Bun with the web debugger" [ref=e1811] [cursor=pointer]:
+                          - /url: https://bun.com/guides/runtime/web-debugger
+                      - listitem [ref=e1812]:
+                        - link "Install TypeScript declarations for Bun" [ref=e1813] [cursor=pointer]:
+                          - /url: https://bun.com/guides/runtime/typescript
+                      - listitem [ref=e1814]:
+                        - link "Debugging Bun with the VS Code extension" [ref=e1815] [cursor=pointer]:
+                          - /url: https://bun.com/guides/runtime/vscode-debugger
+                      - listitem [ref=e1816]:
+                        - link "Inspect memory usage using V8 heap snapshots" [ref=e1817] [cursor=pointer]:
+                          - /url: https://bun.com/guides/runtime/heap-snapshot
+                      - listitem [ref=e1818]:
+                        - link "Define and replace static globals & constants" [ref=e1819] [cursor=pointer]:
+                          - /url: https://bun.com/guides/runtime/define-constant
+                      - listitem [ref=e1820]:
+                        - link "Build-time constants with --define" [ref=e1821] [cursor=pointer]:
+                          - /url: https://bun.com/guides/runtime/build-time-constants
+                      - listitem [ref=e1822]:
+                        - link "Codesign a single-file JavaScript executable on macOS" [ref=e1823] [cursor=pointer]:
+                          - /url: https://bun.com/guides/runtime/codesign-macos-executable
+                  - listitem [ref=e1824]:
+                    - paragraph [ref=e1825]: Streams
+                    - list [ref=e1826]:
+                      - listitem [ref=e1827]:
+                        - link "Convert a ReadableStream to JSON" [ref=e1828] [cursor=pointer]:
+                          - /url: https://bun.com/guides/streams/to-json
+                      - listitem [ref=e1829]:
+                        - link "Convert a ReadableStream to a Blob" [ref=e1830] [cursor=pointer]:
+                          - /url: https://bun.com/guides/streams/to-blob
+                      - listitem [ref=e1831]:
+                        - link "Convert a ReadableStream to a Buffer" [ref=e1832] [cursor=pointer]:
+                          - /url: https://bun.com/guides/streams/to-buffer
+                      - listitem [ref=e1833]:
+                        - link "Convert a ReadableStream to a string" [ref=e1834] [cursor=pointer]:
+                          - /url: https://bun.com/guides/streams/to-string
+                      - listitem [ref=e1835]:
+                        - link "Convert a ReadableStream to a Uint8Array" [ref=e1836] [cursor=pointer]:
+                          - /url: https://bun.com/guides/streams/to-typedarray
+                      - listitem [ref=e1837]:
+                        - link "Convert a ReadableStream to an array of chunks" [ref=e1838] [cursor=pointer]:
+                          - /url: https://bun.com/guides/streams/to-array
+                      - listitem [ref=e1839]:
+                        - link "Convert a Node.js Readable to JSON" [ref=e1840] [cursor=pointer]:
+                          - /url: https://bun.com/guides/streams/node-readable-to-json
+                      - listitem [ref=e1841]:
+                        - link "Convert a ReadableStream to an ArrayBuffer" [ref=e1842] [cursor=pointer]:
+                          - /url: https://bun.com/guides/streams/to-arraybuffer
+                      - listitem [ref=e1843]:
+                        - link "Convert a Node.js Readable to a Blob" [ref=e1844] [cursor=pointer]:
+                          - /url: https://bun.com/guides/streams/node-readable-to-blob
+                      - listitem [ref=e1845]:
+                        - link "Convert a Node.js Readable to a string" [ref=e1846] [cursor=pointer]:
+                          - /url: https://bun.com/guides/streams/node-readable-to-string
+                      - listitem [ref=e1847]:
+                        - link "Convert a Node.js Readable to an Uint8Array" [ref=e1848] [cursor=pointer]:
+                          - /url: https://bun.com/guides/streams/node-readable-to-uint8array
+                      - listitem [ref=e1849]:
+                        - link "Convert a Node.js Readable to an ArrayBuffer" [ref=e1850] [cursor=pointer]:
+                          - /url: https://bun.com/guides/streams/node-readable-to-arraybuffer
+                  - listitem [ref=e1851]:
+                    - paragraph [ref=e1852]: Test
+                    - list [ref=e1853]:
+                      - listitem [ref=e1854]:
+                        - link [ref=e1855] [cursor=pointer]:
+                          - /url: https://bun.com/guides/test/spy-on
+                          - text: Spy on methods in
+                          - code [ref=e1856]: bun test
+                      - listitem [ref=e1857]:
+                        - link "Bail early with the Bun test runner" [ref=e1858] [cursor=pointer]:
+                          - /url: https://bun.com/guides/test/bail
+                      - listitem [ref=e1859]:
+                        - link [ref=e1860] [cursor=pointer]:
+                          - /url: https://bun.com/guides/test/mock-functions
+                          - text: Mock functions in
+                          - code [ref=e1861]: bun test
+                      - listitem [ref=e1862]:
+                        - link "Run tests in watch mode with Bun" [ref=e1863] [cursor=pointer]:
+                          - /url: https://bun.com/guides/test/watch-mode
+                      - listitem [ref=e1864]:
+                        - link [ref=e1865] [cursor=pointer]:
+                          - /url: https://bun.com/guides/test/snapshot
+                          - text: Use snapshot testing in
+                          - code [ref=e1866]: bun test
+                      - listitem [ref=e1867]:
+                        - link "Skip tests with the Bun test runner" [ref=e1868] [cursor=pointer]:
+                          - /url: https://bun.com/guides/test/skip-tests
+                      - listitem [ref=e1869]:
+                        - link "Using Testing Library with Bun" [ref=e1870] [cursor=pointer]:
+                          - /url: https://bun.com/guides/test/testing-library
+                      - listitem [ref=e1871]:
+                        - link [ref=e1872] [cursor=pointer]:
+                          - /url: https://bun.com/guides/test/update-snapshots
+                          - text: Update snapshots in
+                          - code [ref=e1873]: bun test
+                      - listitem [ref=e1874]:
+                        - link "Run your tests with the Bun test runner" [ref=e1875] [cursor=pointer]:
+                          - /url: https://bun.com/guides/test/run-tests
+                      - listitem [ref=e1876]:
+                        - link "Set the system time in Bun's test runner" [ref=e1877] [cursor=pointer]:
+                          - /url: https://bun.com/guides/test/mock-clock
+                      - listitem [ref=e1878]:
+                        - link "Set a per-test timeout with the Bun test runner" [ref=e1879] [cursor=pointer]:
+                          - /url: https://bun.com/guides/test/timeout
+                      - listitem [ref=e1880]:
+                        - link "Migrate from Jest to Bun's test runner" [ref=e1881] [cursor=pointer]:
+                          - /url: https://bun.com/guides/test/migrate-from-jest
+                      - listitem [ref=e1882]:
+                        - link "Write browser DOM tests with Bun and happy-dom" [ref=e1883] [cursor=pointer]:
+                          - /url: https://bun.com/guides/test/happy-dom
+                      - listitem [ref=e1884]:
+                        - link "Mark a test as a \"todo\" with the Bun test runner" [ref=e1885] [cursor=pointer]:
+                          - /url: https://bun.com/guides/test/todo-tests
+                      - listitem [ref=e1886]:
+                        - link "Re-run tests multiple times with the Bun test runner" [ref=e1887] [cursor=pointer]:
+                          - /url: https://bun.com/guides/test/rerun-each
+                      - listitem [ref=e1888]:
+                        - link "Generate code coverage reports with the Bun test runner" [ref=e1889] [cursor=pointer]:
+                          - /url: https://bun.com/guides/test/coverage
+                      - listitem [ref=e1890]:
+                        - link "import, require, and test Svelte components with bun test" [ref=e1891] [cursor=pointer]:
+                          - /url: https://bun.com/guides/test/svelte-test
+                      - listitem [ref=e1892]:
+                        - link "Set a code coverage threshold with the Bun test runner" [ref=e1893] [cursor=pointer]:
+                          - /url: https://bun.com/guides/test/coverage-threshold
+                      - listitem [ref=e1894]:
+                        - link "Selectively run tests concurrently with glob patterns" [ref=e1895] [cursor=pointer]:
+                          - /url: https://bun.com/guides/test/concurrent-test-glob
+                  - listitem [ref=e1896]:
+                    - paragraph [ref=e1897]: Util
+                    - list [ref=e1898]:
+                      - listitem [ref=e1899]:
+                        - link "Generate a UUID" [ref=e1900] [cursor=pointer]:
+                          - /url: https://bun.com/guides/util/javascript-uuid
+                      - listitem [ref=e1901]:
+                        - link "Hash a password" [ref=e1902] [cursor=pointer]:
+                          - /url: https://bun.com/guides/util/hash-a-password
+                      - listitem [ref=e1903]:
+                        - link "Escape an HTML string" [ref=e1904] [cursor=pointer]:
+                          - /url: https://bun.com/guides/util/escape-html
+                      - listitem [ref=e1905]:
+                        - link "Get the current Bun version" [ref=e1906] [cursor=pointer]:
+                          - /url: https://bun.com/guides/util/version
+                      - listitem [ref=e1907]:
+                        - link "Upgrade Bun to the latest version" [ref=e1908] [cursor=pointer]:
+                          - /url: https://bun.com/guides/util/upgrade
+                      - listitem [ref=e1909]:
+                        - link "Encode and decode base64 strings" [ref=e1910] [cursor=pointer]:
+                          - /url: https://bun.com/guides/util/base64
+                      - listitem [ref=e1911]:
+                        - link "Compress and decompress data with gzip" [ref=e1912] [cursor=pointer]:
+                          - /url: https://bun.com/guides/util/gzip
+                      - listitem [ref=e1913]:
+                        - link "Sleep for a fixed number of milliseconds" [ref=e1914] [cursor=pointer]:
+                          - /url: https://bun.com/guides/util/sleep
+                      - listitem [ref=e1915]:
+                        - link "Detect when code is executed with Bun" [ref=e1916] [cursor=pointer]:
+                          - /url: https://bun.com/guides/util/detect-bun
+                      - listitem [ref=e1917]:
+                        - link "Check if two objects are deeply equal" [ref=e1918] [cursor=pointer]:
+                          - /url: https://bun.com/guides/util/deep-equals
+                      - listitem [ref=e1919]:
+                        - link "Compress and decompress data with DEFLATE" [ref=e1920] [cursor=pointer]:
+                          - /url: https://bun.com/guides/util/deflate
+                      - listitem [ref=e1921]:
+                        - link "Get the absolute path to the current entrypoint" [ref=e1922] [cursor=pointer]:
+                          - /url: https://bun.com/guides/util/main
+                      - listitem [ref=e1923]:
+                        - link "Get the directory of the current file" [ref=e1924] [cursor=pointer]:
+                          - /url: https://bun.com/guides/util/import-meta-dir
+                      - listitem [ref=e1925]:
+                        - link "Check if the current file is the entrypoint" [ref=e1926] [cursor=pointer]:
+                          - /url: https://bun.com/guides/util/entrypoint
+                      - listitem [ref=e1927]:
+                        - link "Get the file name of the current file" [ref=e1928] [cursor=pointer]:
+                          - /url: https://bun.com/guides/util/import-meta-file
+                      - listitem [ref=e1929]:
+                        - link "Convert a file URL to an absolute path" [ref=e1930] [cursor=pointer]:
+                          - /url: https://bun.com/guides/util/file-url-to-path
+                      - listitem [ref=e1931]:
+                        - link "Convert an absolute path to a file URL" [ref=e1932] [cursor=pointer]:
+                          - /url: https://bun.com/guides/util/path-to-file-url
+                      - listitem [ref=e1933]:
+                        - link "Get the absolute path of the current file" [ref=e1934] [cursor=pointer]:
+                          - /url: https://bun.com/guides/util/import-meta-path
+                      - listitem [ref=e1935]:
+                        - link "Get the path to an executable bin file" [ref=e1936] [cursor=pointer]:
+                          - /url: https://bun.com/guides/util/which-path-to-executable-bin
+                  - listitem [ref=e1937]:
+                    - paragraph [ref=e1938]: WebSocket
+                    - list [ref=e1939]:
+                      - listitem [ref=e1940]:
+                        - link "Build a publish-subscribe WebSocket server" [ref=e1941] [cursor=pointer]:
+                          - /url: https://bun.com/guides/websocket/pubsub
+                      - listitem [ref=e1942]:
+                        - link "Build a simple WebSocket server" [ref=e1943] [cursor=pointer]:
+                          - /url: https://bun.com/guides/websocket/simple
+                      - listitem [ref=e1944]:
+                        - link "Enable compression for WebSocket messages" [ref=e1945] [cursor=pointer]:
+                          - /url: https://bun.com/guides/websocket/compression
+                      - listitem [ref=e1946]:
+                        - link "Set per-socket contextual data on a WebSocket" [ref=e1947] [cursor=pointer]:
+                          - /url: https://bun.com/guides/websocket/context
+                  - listitem [ref=e1948]:
+                    - paragraph [ref=e1949]: Write file
+                    - list [ref=e1950]:
+                      - listitem [ref=e1951]:
+                        - link "Delete a file" [ref=e1952] [cursor=pointer]:
+                          - /url: https://bun.com/guides/write-file/unlink
+                      - listitem [ref=e1953]:
+                        - link "Write to stdout" [ref=e1954] [cursor=pointer]:
+                          - /url: https://bun.com/guides/write-file/stdout
+                      - listitem [ref=e1955]:
+                        - link "Write a file to stdout" [ref=e1956] [cursor=pointer]:
+                          - /url: https://bun.com/guides/write-file/cat
+                      - listitem [ref=e1957]:
+                        - link "Write a Blob to a file" [ref=e1958] [cursor=pointer]:
+                          - /url: https://bun.com/guides/write-file/blob
+                      - listitem [ref=e1959]:
+                        - link "Write a string to a file" [ref=e1960] [cursor=pointer]:
+                          - /url: https://bun.com/guides/write-file/basic
+                      - listitem [ref=e1961]:
+                        - link "Append content to a file" [ref=e1962] [cursor=pointer]:
+                          - /url: https://bun.com/guides/write-file/append
+                      - listitem [ref=e1963]:
+                        - link "Write a file incrementally" [ref=e1964] [cursor=pointer]:
+                          - /url: https://bun.com/guides/write-file/filesink
+                      - listitem [ref=e1965]:
+                        - link "Write a Response to a file" [ref=e1966] [cursor=pointer]:
+                          - /url: https://bun.com/guides/write-file/response
+                      - listitem [ref=e1967]:
+                        - link "Copy a file to another location" [ref=e1968] [cursor=pointer]:
+                          - /url: https://bun.com/guides/write-file/file-cp
+                      - listitem [ref=e1969]:
+                        - link "Write a ReadableStream to a file" [ref=e1970] [cursor=pointer]:
+                          - /url: https://bun.com/guides/write-file/stream
+                - generic [ref=e1971]:
+                  - heading "Contributing" [level=2] [ref=e1972]
+                  - 'link "Permalink: Contributing" [ref=e1973] [cursor=pointer]':
+                    - /url: "#contributing"
+                - paragraph [ref=e1976]:
+                  - text: Refer to the
+                  - link "Project > Contributing" [ref=e1977] [cursor=pointer]:
+                    - /url: https://bun.com/docs/project/contributing
+                  - text: guide to start contributing to Bun.
+                - generic [ref=e1978]:
+                  - heading "License" [level=2] [ref=e1979]
+                  - 'link "Permalink: License" [ref=e1980] [cursor=pointer]':
+                    - /url: "#license"
+                - paragraph [ref=e1983]:
+                  - text: Refer to the
+                  - link "Project > License" [ref=e1984] [cursor=pointer]:
+                    - /url: https://bun.com/docs/project/license
+                  - text: page for information about Bun's licensing.
+        - generic [ref=e1987]:
+          - generic [ref=e1988]:
+            - heading "About" [level=2] [ref=e1989]
+            - paragraph [ref=e1990]: Incredibly fast JavaScript runtime, bundler, test runner, and package manager – all in one
+            - generic "https://bun.com" [ref=e1994]:
+              - link "bun.com" [ref=e1995] [cursor=pointer]:
+                - /url: https://bun.com
+            - heading "Topics" [level=3] [ref=e1996]
+            - generic [ref=e1997]:
+              - link "bun" [ref=e1998] [cursor=pointer]:
+                - /url: /topics/bun
+              - link "bundler" [ref=e1999] [cursor=pointer]:
+                - /url: /topics/bundler
+              - link "javascript" [ref=e2000] [cursor=pointer]:
+                - /url: /topics/javascript
+              - link "javascriptcore" [ref=e2001] [cursor=pointer]:
+                - /url: /topics/javascriptcore
+              - link "jsx" [ref=e2002] [cursor=pointer]:
+                - /url: /topics/jsx
+              - link "nodejs" [ref=e2003] [cursor=pointer]:
+                - /url: /topics/nodejs
+              - link "npm" [ref=e2004] [cursor=pointer]:
+                - /url: /topics/npm
+              - link "react" [ref=e2005] [cursor=pointer]:
+                - /url: /topics/react
+              - link "rust" [ref=e2006] [cursor=pointer]:
+                - /url: /topics/rust
+              - link "rust-lang" [ref=e2007] [cursor=pointer]:
+                - /url: /topics/rust-lang
+              - link "transpiler" [ref=e2008] [cursor=pointer]:
+                - /url: /topics/transpiler
+              - link "typescript" [ref=e2009] [cursor=pointer]:
+                - /url: /topics/typescript
+            - heading "Resources" [level=3] [ref=e2010]
+            - link "Readme" [ref=e2012] [cursor=pointer]:
+              - /url: "#readme-ov-file"
+            - link "License" [ref=e2016] [cursor=pointer]:
+              - /url: "#License-1-ov-file"
+            - heading "Code of conduct" [level=3] [ref=e2019]
+            - link "Code of conduct" [ref=e2021] [cursor=pointer]:
+              - /url: /oven-sh/bun#coc-ov-file
+            - heading "Contributing" [level=3] [ref=e2024]
+            - link "Contributing" [ref=e2026] [cursor=pointer]:
+              - /url: "#contributing-ov-file"
+            - heading "Security policy" [level=3] [ref=e2029]
+            - link "Security policy" [ref=e2031] [cursor=pointer]:
+              - /url: "#security-ov-file"
+            - link "Activity" [ref=e2035] [cursor=pointer]:
+              - /url: /oven-sh/bun/activity
+            - link "Custom properties" [ref=e2039] [cursor=pointer]:
+              - /url: /oven-sh/bun/custom-properties
+            - heading "Stars" [level=3] [ref=e2042]
+            - generic [ref=e2044]:
+              - strong [ref=e2047]: 95.9k
+              - text: stars
+            - heading "Watchers" [level=3] [ref=e2048]
+            - generic [ref=e2050]:
+              - strong [ref=e2053]: "632"
+              - text: watching
+            - heading "Forks" [level=3] [ref=e2054]
+            - link [ref=e2056] [cursor=pointer]:
+              - /url: /oven-sh/bun/forks
+              - strong [ref=e2060]: 5.0k
+              - text: forks
+            - link "Report repository" [ref=e2062] [cursor=pointer]:
+              - /url: /contact/report-content?content_url=https%3A%2F%2Fgithub.com%2Foven-sh%2Fbun&report=oven-sh+%28user%29
+          - heading "Releases" [level=2] [ref=e2064]
+          - heading "Used by" [level=2] [ref=e2068]
+          - heading "Contributors" [level=2] [ref=e2071]
+          - heading "Languages" [level=2] [ref=e2074]
+    - contentinfo [ref=e2077]:
+      - heading "Footer" [level=2] [ref=e2078]
+      - generic [ref=e2079]:
+        - generic [ref=e2080]:
+          - link "GitHub Homepage" [ref=e2081] [cursor=pointer]:
+            - /url: https://github.com
+          - generic [ref=e2084]: © 2026 GitHub, Inc.
+        - navigation "Footer" [ref=e2085]:
+          - heading "Footer navigation" [level=3] [ref=e2086]
+          - list "Footer navigation" [ref=e2087]:
+            - listitem [ref=e2088]:
+              - link "Terms" [ref=e2089] [cursor=pointer]:
+                - /url: https://docs.github.com/site-policy/github-terms/github-terms-of-service
+            - listitem [ref=e2090]:
+              - link "Privacy" [ref=e2091] [cursor=pointer]:
+                - /url: https://docs.github.com/site-policy/privacy-policies/github-privacy-statement
+            - listitem [ref=e2092]:
+              - link "Security" [ref=e2093] [cursor=pointer]:
+                - /url: https://github.com/security
+            - listitem [ref=e2094]:
+              - link "Status" [ref=e2095] [cursor=pointer]:
+                - /url: https://www.githubstatus.com/
+            - listitem [ref=e2096]:
+              - link "Community" [ref=e2097] [cursor=pointer]:
+                - /url: https://github.community/
+            - listitem [ref=e2098]:
+              - link "Docs" [ref=e2099] [cursor=pointer]:
+                - /url: https://docs.github.com/
+            - listitem [ref=e2100]:
+              - link "Contact" [ref=e2101] [cursor=pointer]:
+                - /url: https://support.github.com?tags=dotcom-footer
+            - listitem [ref=e2102]:
+              - button "Manage cookies" [ref=e2104] [cursor=pointer]
+            - listitem [ref=e2105]:
+              - button "Do not share my personal information" [ref=e2107] [cursor=pointer]
+  - alert [ref=e2110]

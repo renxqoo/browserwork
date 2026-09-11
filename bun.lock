@@ -6,6 +6,8 @@
       "name": "bun-webview",
       "devDependencies": {
         "@biomejs/biome": "^2.3.4",
+        "@bw/agent": "workspace:*",
+        "@bw/eval": "workspace:*",
         "@bw/service": "workspace:*",
         "@opentelemetry/api": "^1.9.1",
         "@types/bun": "^1.2.25",
@@ -43,6 +45,14 @@
       "name": "@bw/driver",
       "version": "0.0.1",
       "dependencies": {
+        "@bw/core": "workspace:*",
+      },
+    },
+    "packages/eval": {
+      "name": "@bw/eval",
+      "version": "0.1.0",
+      "dependencies": {
+        "@bw/agent": "workspace:*",
         "@bw/core": "workspace:*",
       },
     },
@@ -146,6 +156,8 @@
     "@bw/core": ["@bw/core@workspace:packages/core"],
 
     "@bw/driver": ["@bw/driver@workspace:packages/driver"],
+
+    "@bw/eval": ["@bw/eval@workspace:packages/eval"],
 
     "@bw/perception": ["@bw/perception@workspace:packages/perception"],
 

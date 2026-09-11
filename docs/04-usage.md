@@ -50,7 +50,7 @@ bw run "..." --json               # 机器可读输出（任务事件流）
 
 特点：
 
-- 上下文自动压缩（老快照折叠成一行），50 步任务约 8K token
+- 上下文自动压缩（老快照折叠成一行 + unchanged 标记跳过重读）——真站对打实测 token 比 playwright-mcp 少 43%（docs/eval-report-B16.md）
 - 预算控制：步数/token/时长三重上限，超限强制终止
 - 安全事件（确认、违规回滚）实时打印，secret 永不回显
 

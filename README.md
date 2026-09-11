@@ -13,7 +13,7 @@ bw s create --url https://bun.com && bw s snap <id>   # 外部 agent 模式（�
 - **双模式**：自治 agent（内部 GLM 循环）+ 外部会话工具（REST / CLI，给任意 LLM 用）
 - **零依赖**：macOS 用系统 WebKit，无需下载浏览器
 - **安全内建**：S1–S6（origin 白名单、敏感词确认门、IP 封锁、secret 脱敏、预算控制）
-- **省 token**：索引化 DOM 快照 + 上下文压缩（50 步任务约 8K token）
+- **省 token**：索引化 DOM 快照 + unchanged 标记 + 上下文压缩——真站实测（5 任务 × GLM）token 比 playwright-mcp 少 **43%**（60K vs 105K），步数少 21%（见 docs/eval-report-B16.md）
 
 文档：[使用文档](docs/04-usage.md) · [设计基线](docs/01-baseline.md) · [构建计划](docs/02-build-plan.md) · [单元契约](docs/03-units.md)
 

@@ -1,0 +1,1107 @@
+- generic [ref=e3]:
+  - link "Skip to content" [ref=e4] [cursor=pointer]:
+    - /url: "#main"
+  - link [ref=e5] [cursor=pointer]:
+    - /url: /blog/bun-joins-anthropic
+    - generic [ref=e6]:
+      - text: Bun has joined Anthropic — and Anthropic is betting on Bun
+      - generic [aria-hidden] [ref=e7]: →
+  - banner [ref=e8]:
+    - generic [ref=e9]:
+      - link "Bun — home" [ref=e10] [cursor=pointer]:
+        - /url: /
+      - navigation "Primary" [ref=e13]:
+        - link "Docs" [ref=e14] [cursor=pointer]:
+          - /url: /docs
+        - link "Guides" [ref=e15] [cursor=pointer]:
+          - /url: /guides
+        - link "Reference" [ref=e16] [cursor=pointer]:
+          - /url: /reference
+        - link "Blog" [ref=e17] [cursor=pointer]:
+          - /url: /blog
+      - button "Search" [ref=e19] [cursor=pointer]:
+        - generic [ref=e23]: Search docs, APIs, guides…
+        - generic "Slash" [ref=e24]: /
+      - generic [ref=e26]:
+        - link "GitHub" [ref=e27] [cursor=pointer]:
+          - /url: https://github.com/oven-sh/bun
+        - link "Discord" [ref=e33] [cursor=pointer]:
+          - /url: /discord
+        - link "Install" [ref=e39] [cursor=pointer]:
+          - /url: /get
+  - main [ref=e40]:
+    - generic [ref=e41]:
+      - generic [ref=e42]:
+        - generic [ref=e43]:
+          - link "NEW Bun v1.4.2 released" [ref=e44] [cursor=pointer]:
+            - /url: /blog/bun-v1.4.2
+            - generic [ref=e45]: NEW
+            - generic [ref=e46]: Bun v1.4.2 released
+            - generic [aria-hidden] [ref=e47]: →
+          - heading "Bun is a fast JavaScript runtime & toolkit. All in one." [level=1] [ref=e48]:
+            - text: Bun is a
+            - generic [ref=e49]: fast
+            - text: JavaScript runtime & toolkit. All in one.
+          - paragraph [ref=e50]:
+            - text: Runtime, package manager, test runner and bundler in a single binary. Use
+            - link "bun install" [ref=e51] [cursor=pointer]:
+              - /url: /package-manager
+            - text: or
+            - link "bun test" [ref=e52] [cursor=pointer]:
+              - /url: /docs/cli/test
+            - text: in an existing Node.js project, or run the whole thing on Bun.
+          - paragraph [ref=e53]: Install Bun v1.4.2
+          - generic [ref=e54]:
+            - generic [ref=e55]:
+              - generic [aria-hidden] [ref=e56]: $
+              - code [ref=e57]: curl -fsSL https://bun.sh/install | bash
+              - button "Copy install command" [ref=e58] [cursor=pointer]
+            - generic [ref=e65]:
+              - tablist "Operating system" [ref=e66]:
+                - tab "macOS & Linux" [selected] [ref=e67] [cursor=pointer]
+                - tab "Windows" [ref=e68] [cursor=pointer]
+              - link "View install script ↗" [ref=e69] [cursor=pointer]:
+                - /url: https://bun.sh/install
+          - link "Then follow the quickstart" [ref=e71] [cursor=pointer]:
+            - /url: /docs/quickstart
+        - generic [ref=e75]:
+          - generic [ref=e76]:
+            - button [aria-hidden]
+            - tablist "Benchmarks" [ref=e77]:
+              - tab "bun install" [selected] [ref=e78] [cursor=pointer]
+              - tab "Express" [ref=e80] [cursor=pointer]
+              - tab "Postgres" [ref=e82] [cursor=pointer]
+              - tab "WebSockets" [ref=e84] [cursor=pointer]
+            - button [aria-hidden]
+          - tabpanel "bun install" [ref=e87]:
+            - generic [ref=e88]:
+              - generic [ref=e89]:
+                - heading "Installing a Next.js app" [level=2] [ref=e90]
+                - paragraph [ref=e91]: warm cache · seconds (lower is better)
+              - button "Replay this benchmark in real time" [ref=e92] [cursor=pointer]:
+                - generic [ref=e95]: replay in real time
+            - generic [ref=e97]:
+              - generic [ref=e98]:
+                - generic [ref=e99]:
+                  - generic [ref=e100]: bun
+                  - generic [ref=e101]: v1.4
+                - generic [ref=e105]: 0.21s
+              - generic [ref=e106]:
+                - generic [ref=e107]:
+                  - generic [ref=e108]: yarn
+                  - generic [ref=e109]: v1.22.22
+                - generic [ref=e112]: 1.76s
+              - generic [ref=e113]:
+                - generic [ref=e114]:
+                  - generic [ref=e115]: pnpm
+                  - generic [ref=e116]: v11.21.0
+                - generic [ref=e119]: 1.92s
+              - generic [ref=e120]:
+                - generic [ref=e121]:
+                  - generic [ref=e122]: npm
+                  - generic [ref=e123]: v12.0.2
+                - generic [ref=e126]: 4.45s
+              - generic [aria-hidden] [ref=e127]:
+                - generic [ref=e129]: 0s
+                - generic [ref=e132]: 1s
+                - generic [ref=e135]: 2s
+                - generic [ref=e138]: 3s
+                - generic [ref=e141]: 4s
+                - generic [ref=e144]: 5s
+            - generic [ref=e147]:
+              - generic [ref=e148]:
+                - generic [ref=e149]: T3-stack app, 25 direct dependencies, ~220 packages in the lockfile · warm cache · lockfile present · node_modules removed · Linux x64, EPYC 9R14 · every package manager at defaults · medians of 3
+                - link "reproduce" [ref=e150] [cursor=pointer]:
+                  - /url: https://github.com/oven-sh/bun/tree/main/bench/install
+              - table [ref=e151]:
+                - caption [ref=e152]: Installing a Next.js app — T3-stack app, 25 direct dependencies, ~220 packages in the lockfile · warm cache · lockfile present · node_modules removed · Linux x64, EPYC 9R14 · every package manager at defaults · medians of 3
+                - rowgroup [ref=e153]:
+                  - row [ref=e154]:
+                    - columnheader "runtime" [ref=e155]
+                    - columnheader "version" [ref=e156]
+                    - columnheader "install time" [ref=e157]
+                    - columnheader "peak RAM" [ref=e158]
+                - rowgroup [ref=e159]:
+                  - row [ref=e160]:
+                    - rowheader "bun" [ref=e161]
+                    - cell "v1.4" [ref=e162]
+                    - cell "210 s" [ref=e163]
+                    - cell "12 MB" [ref=e164]
+                  - row [ref=e165]:
+                    - rowheader "yarn" [ref=e166]
+                    - cell "v1.22.22" [ref=e167]
+                    - cell "1,760 s" [ref=e168]
+                    - cell "205 MB" [ref=e169]
+                  - row [ref=e170]:
+                    - rowheader "pnpm" [ref=e171]
+                    - cell "v11.21.0" [ref=e172]
+                    - cell "1,920 s" [ref=e173]
+                    - cell "1.4 GB" [ref=e174]
+                  - row [ref=e175]:
+                    - rowheader "npm" [ref=e176]
+                    - cell "v12.0.2" [ref=e177]
+                    - cell "4,450 s" [ref=e178]
+                    - cell "698 MB" [ref=e179]
+      - generic [ref=e182]:
+        - paragraph [ref=e183]: Used by
+        - list [ref=e184]:
+          - listitem [ref=e185]:
+            - img "Anthropic" [ref=e186]
+          - listitem [ref=e187]:
+            - img "Cloudflare" [ref=e188]
+          - listitem [ref=e189]:
+            - img "Vercel" [ref=e190]
+          - listitem [ref=e191]:
+            - img "Expo" [ref=e192]
+          - listitem [ref=e193]:
+            - img "Cursor" [ref=e194]
+          - listitem [ref=e195]:
+            - img "Midjourney" [ref=e196]
+          - listitem [ref=e197]:
+            - img "X" [ref=e198]
+          - listitem [ref=e199]:
+            - img "Lovable" [ref=e200]
+          - listitem [ref=e201]:
+            - img "Tailwind CSS" [ref=e202]
+          - listitem [ref=e203]:
+            - img "Replit" [ref=e204]
+          - listitem [ref=e205]:
+            - img "CodeRabbit" [ref=e206]
+          - listitem [ref=e207]:
+            - img "Prisma" [ref=e208]
+    - region [ref=e209]:
+      - generic [ref=e210]:
+        - generic [ref=e211]:
+          - heading "Four tools, designed together. Adopt one, or all of them." [level=2] [ref=e212]: Four tools, designed together.Adopt one, or all of them.
+          - paragraph [ref=e213]:
+            - code [ref=e214]: bun install
+            - text: and
+            - code [ref=e215]: bun test
+            - text: drop into existing Node.js projects. No runtime switch required.
+        - generic [ref=e216]:
+          - link [ref=e217] [cursor=pointer]:
+            - /url: /docs/cli/run
+            - img [ref=e219]:
+              - generic [ref=e222]: replacesNode.js
+            - heading "Runtime" [level=3] [ref=e227]
+            - paragraph [ref=e228]: replaces Node.js
+            - paragraph [ref=e229]: Runs JavaScript & TypeScript on JavaScriptCore. Node.js APIs, node_modules and your framework work as-is.
+            - code [ref=e230]: $ bun run index.tsx
+          - link [ref=e231] [cursor=pointer]:
+            - /url: /package-manager
+            - img [ref=e233]:
+              - generic [ref=e236]: replacesnpm
+            - heading "Package manager" [level=3] [ref=e242]
+            - paragraph [ref=e243]: replaces npm · yarn · pnpm
+            - paragraph [ref=e244]: npm-compatible, up to 30× faster. Workspaces, catalogs, overrides, patches and a lockfile you can read.
+            - code [ref=e245]: $ bun install
+          - link [ref=e246] [cursor=pointer]:
+            - /url: /docs/cli/test
+            - img [ref=e248]:
+              - generic [ref=e251]: replacesJest
+            - heading "Test runner" [level=3] [ref=e256]
+            - paragraph [ref=e257]: replaces Jest · Vitest
+            - paragraph [ref=e258]: Jest-compatible expect(), mocks, snapshots, DOM and coverage — starting in milliseconds.
+            - code [ref=e259]: $ bun test
+          - link [ref=e260] [cursor=pointer]:
+            - /url: /docs/bundler
+            - img [ref=e262]:
+              - generic [ref=e265]: replacesVite
+            - heading "Bundler" [level=3] [ref=e273]
+            - paragraph [ref=e274]: replaces esbuild · Vite · webpack
+            - paragraph [ref=e275]: TS, JSX, CSS & HTML for browsers and servers. Dev server with HMR. Single-file executables.
+            - code [ref=e276]: $ bun build ./app.tsx
+    - region [ref=e277]:
+      - generic [ref=e279]:
+        - generic [ref=e280]:
+          - paragraph [ref=e281]: A minute with Bun
+          - heading "One binary for the whole workflow." [level=2] [ref=e282]
+          - paragraph [ref=e283]: Install, develop, run, test and ship with the same tool. Every step below is a real command with real output — click one, or just watch.
+          - tablist [ref=e284]:
+            - tab "01 Install dependencies $ bun install Reads your package.json, migrates your lockfile, and installs from a global cache — up to 30× faster than npm. Docs" [expanded] [selected] [ref=e285] [cursor=pointer]:
+              - generic [ref=e286]: "01"
+              - generic [ref=e287]:
+                - generic [ref=e288]: Install dependencies
+                - code [ref=e289]: $ bun install
+                - generic [ref=e291]:
+                  - text: Reads your package.json, migrates your lockfile, and installs from a global cache — up to 30× faster than npm.
+                  - link "Docs" [ref=e292]:
+                    - /url: /docs/cli/install
+            - 'tab "02 Start a frontend dev server $ bun ./index.html Point Bun at an HTML file: React, TypeScript, Tailwind and CSS just work, with hot reloading that keeps state. Docs" [ref=e295] [cursor=pointer]':
+              - generic [ref=e296]: "02"
+              - generic [ref=e297]:
+                - generic [ref=e298]: Start a frontend dev server
+                - code [ref=e299]: $ bun ./index.html
+                - generic:
+                  - generic:
+                    - text: "Point Bun at an HTML file: React, TypeScript, Tailwind and CSS just work, with hot reloading that keeps state."
+                    - link "Docs" [ref=e300]:
+                      - /url: /docs/bundler/html
+            - tab "03 Run TypeScript directly $ bun run server.ts No build step, no ts-node. Bun.serve() handles HTTP, routing and WebSockets; SQL, Redis and S3 clients are built in. Docs" [ref=e303] [cursor=pointer]:
+              - generic [ref=e304]: "03"
+              - generic [ref=e305]:
+                - generic [ref=e306]: Run TypeScript directly
+                - code [ref=e307]: $ bun run server.ts
+                - generic:
+                  - generic:
+                    - text: No build step, no ts-node. Bun.serve() handles HTTP, routing and WebSockets; SQL, Redis and S3 clients are built in.
+                    - link "Docs" [ref=e308]:
+                      - /url: /docs/cli/run
+            - tab "04 Run your test suite $ bun test Jest-compatible expect(), mocks, snapshots and DOM testing — starting in milliseconds instead of seconds. Docs" [ref=e311] [cursor=pointer]:
+              - generic [ref=e312]: "04"
+              - generic [ref=e313]:
+                - generic [ref=e314]: Run your test suite
+                - code [ref=e315]: $ bun test
+                - generic:
+                  - generic:
+                    - text: Jest-compatible expect(), mocks, snapshots and DOM testing — starting in milliseconds instead of seconds.
+                    - link "Docs" [ref=e316]:
+                      - /url: /docs/cli/test
+            - tab "05 Ship a single binary $ bun build ./cli.ts --compile --outfile todo Bundle your app and the Bun runtime into one executable. Cross-compile for Linux, macOS and Windows from any machine. Docs" [ref=e319] [cursor=pointer]:
+              - generic [ref=e320]: "05"
+              - generic [ref=e321]:
+                - generic [ref=e322]: Ship a single binary
+                - code [ref=e323]: $ bun build ./cli.ts --compile --outfile todo
+                - generic:
+                  - generic:
+                    - text: Bundle your app and the Bun runtime into one executable. Cross-compile for Linux, macOS and Windows from any machine.
+                    - link "Docs" [ref=e324]:
+                      - /url: /docs/bundler/executables
+        - tabpanel [ref=e327]:
+          - generic [ref=e329]:
+            - generic [ref=e330]:
+              - generic [ref=e334]: ~/my-app — bun
+              - generic [ref=e335]: 01 / 05
+            - generic "Terminal output for bun install" [ref=e337]:
+              - generic [ref=e338]: $ bun install
+              - generic [ref=e339]: bun install v1.4.2 (0aa2b1cd)
+              - generic [ref=e340]: 🔍 Resolving [712/712]
+              - generic [ref=e341]: + react@19.1.0
+              - generic [ref=e342]: + react-dom@19.1.0
+              - generic [ref=e343]: + next@15.4.1
+              - generic [ref=e344]: + tailwindcss@4.1.11
+              - generic [ref=e345]: + typescript@5.9.2 (+ 706 more)
+              - generic [ref=e347]: 712 packages installed [1.18s]
+              - generic [ref=e348]: $
+          - generic [ref=e350]:
+            - generic [ref=e351]: Output abridged from Bun v1.4.2. Hover to pause.
+            - generic [ref=e352]:
+              - button "Previous step" [ref=e353] [cursor=pointer]: ‹
+              - button "Replay step" [ref=e354] [cursor=pointer]: replay
+              - button "Next step" [ref=e355] [cursor=pointer]: ›
+    - region [ref=e356]:
+      - generic [ref=e358]:
+        - generic [ref=e359]:
+          - paragraph [ref=e360]:
+            - generic [ref=e361]: v1.4.2
+            - text: Latest release · September 2026
+          - heading "Elysia regression fixed. Upgraded JavaScriptCore. CMYK JPEGs in Bun.Image." [level=2] [ref=e362]
+          - paragraph [ref=e363]: "Bun 1.4.2 fixes 7 issues, including two v1.4.1 regressions: a bun build rename bug impacting Elysia apps and an AsyncLocalStorage memory leak. It also fixes worker_threads 'online' ordering, GC and JIT crashes, CMYK JPEG decoding in Bun.Image and a bun install lockfile panic, and upgrades JavaScriptCore."
+          - generic [ref=e364]:
+            - link "Read the release notes" [ref=e365] [cursor=pointer]:
+              - /url: /blog/bun-v1.4.2
+            - code [ref=e368]: $ bun upgrade
+        - generic [ref=e369]:
+          - list [ref=e370]:
+            - listitem [ref=e371]:
+              - link "Upgraded JavaScriptCore with Intl and TypedArray fixes and cheaper Date objects" [ref=e372] [cursor=pointer]:
+                - /url: /blog/bun-v1.4.2
+            - listitem [ref=e375]:
+              - link [ref=e376] [cursor=pointer]:
+                - /url: /docs/bundler
+                - generic [ref=e378]:
+                  - code [ref=e379]: bun build
+                  - text: no longer renames a var onto a let in the same block (v1.4.1 regression that broke Elysia)
+            - listitem [ref=e380]:
+              - link [ref=e381] [cursor=pointer]:
+                - /url: /docs/runtime/nodejs-compat
+                - generic [ref=e383]:
+                  - code [ref=e384]: AsyncLocalStorage
+                  - text: exit() and nested run() no longer retain the outer store
+            - listitem [ref=e385]:
+              - link [ref=e386] [cursor=pointer]:
+                - /url: /docs/runtime/workers
+                - generic [ref=e388]:
+                  - code [ref=e389]: worker_threads
+                  - text: "'online' arrives before the worker's first messages, unblocking @discordjs/ws"
+            - listitem [ref=e390]:
+              - link "Fixed a rare JIT crash in long-running processes and a GC crash on musl" [ref=e391] [cursor=pointer]:
+                - /url: /blog/bun-v1.4.2
+            - listitem [ref=e394]:
+              - link [ref=e395] [cursor=pointer]:
+                - /url: /docs/runtime/image
+                - generic [ref=e397]:
+                  - code [ref=e398]: Bun.Image
+                  - text: decodes CMYK and YCCK JPEGs
+            - listitem [ref=e399]:
+              - link [ref=e400] [cursor=pointer]:
+                - /url: /docs/runtime/web-apis
+                - generic [ref=e402]:
+                  - code [ref=e403]: .json()
+                  - text: rejects invalid JSON with the same SyntaxError as JSON.parse
+            - listitem [ref=e404]:
+              - link [ref=e405] [cursor=pointer]:
+                - /url: /docs/pm/cli/install
+                - generic [ref=e407]:
+                  - code [ref=e408]: bun install
+                  - text: no longer panics on a lockfile with a mismatched package-name hash
+          - link "All releases" [ref=e410] [cursor=pointer]:
+            - /url: /blog
+    - generic [ref=e414]:
+      - generic [ref=e416]:
+        - paragraph [ref=e417]: In production
+        - heading "Bun in production" [level=2] [ref=e419]
+        - paragraph [ref=e420]: "Claude Code ships to millions of developers as a Bun executable. Midjourney pushes every image notification through Bun's WebSocket server. Railway runs its serverless functions on it. Hear it from them:"
+      - generic [ref=e421]:
+        - generic [ref=e422]:
+          - 'button "Play video: Boris Cherny, Head of Claude Code, Anthropic — Why Claude Code ships on Bun" [ref=e423] [cursor=pointer]':
+            - generic [ref=e429]:
+              - generic [ref=e430]: Boris Cherny
+              - generic [ref=e431]: Head of Claude Code, Anthropic
+          - generic [ref=e432]:
+            - paragraph [ref=e433]: Claude Code
+            - heading "Claude Code ships to every developer as a Bun single-file executable." [level=3] [ref=e434]
+            - paragraph [ref=e435]: Claude Code is a single file with Bun inside it. Users download it and run it. There is no install step and no startup lag.
+            - link "Single-file executables" [ref=e437] [cursor=pointer]:
+              - /url: /docs/bundler/executables
+        - generic [ref=e440]:
+          - 'button "Play video: Cheng Lou, Engineer, Midjourney — Midjourney''s realtime notifications on Bun" [ref=e441] [cursor=pointer]':
+            - generic [ref=e447]:
+              - generic [ref=e448]: Cheng Lou
+              - generic [ref=e449]: Engineer, Midjourney
+          - generic [ref=e450]:
+            - paragraph [ref=e451]: Midjourney
+            - heading "Every image notification Midjourney sends goes through Bun's WebSocket server." [level=3] [ref=e452]
+            - paragraph [ref=e453]:
+              - text: Pub/sub, backpressure and per-message compression are built into
+              - code [ref=e454]: Bun.serve()
+              - text: — no ws, no socket.io, no sidecar.
+            - link "Bun's WebSocket server" [ref=e456] [cursor=pointer]:
+              - /url: /docs/api/websockets
+        - generic [ref=e459]:
+          - 'button "Play video: Jake Cooper, Founder, Railway — Railway Functions run on Bun" [ref=e460] [cursor=pointer]':
+            - generic [ref=e466]:
+              - generic [ref=e467]: Jake Cooper
+              - generic [ref=e468]: Founder, Railway
+          - generic [ref=e469]:
+            - paragraph [ref=e470]: Railway
+            - heading "Railway built its serverless Functions product on Bun." [level=3] [ref=e471]
+            - paragraph [ref=e472]: A Railway Function is a TypeScript file. Bun runs it as-is, so a deploy skips the build and a cold start takes milliseconds.
+            - link "Deploy on Railway" [ref=e474] [cursor=pointer]:
+              - /url: https://railway.com/new/function?utm_source=bun.com
+      - generic [ref=e478]:
+        - 'button "Play video: Lee Robinson, VP of Developer Experience, Cursor — Lee Robinson on Bun and Next.js" [ref=e479] [cursor=pointer]':
+          - generic [ref=e485]:
+            - generic [ref=e486]: Lee Robinson
+            - generic [ref=e487]: VP of Developer Experience, Cursor
+        - generic [ref=e488]:
+          - paragraph [ref=e489]: Frameworks
+          - heading "Bun runs Next.js, Remix, Nuxt, Astro, SvelteKit, Hono, Elysia & friends." [level=3] [ref=e491]
+          - paragraph [ref=e492]:
+            - text: Node.js compatibility means your framework already works. Swap
+            - code [ref=e493]: npm run dev
+            - text: for
+            - code [ref=e494]: bun --bun run dev
+            - text: and keep shipping — with Bun's SQL, S3 and shell APIs available right inside your route handlers.
+          - generic [ref=e495]:
+            - generic [ref=e496]: app/blog/[slug]/page.tsx
+            - generic [ref=e497]:
+              - generic [ref=e498]: "import { s3, $, sql } from \"bun\";"
+              - generic [ref=e500]: "export default async function BlogPage({ params }) {"
+              - generic [ref=e501]: "const [post] = await sql`SELECT * FROM posts WHERE slug = ${params.slug}`;"
+              - generic [ref=e502]: const img = s3.file(post.imageKey).presign();
+              - generic [ref=e503]: "const words = await $`wc -w < ${post.file}`.text();"
+              - generic [ref=e504]: "return <Article post={post} img={img} words={words} />;"
+              - generic [ref=e505]: "}"
+          - generic [ref=e506]:
+            - link "Next.js with Bun" [ref=e507] [cursor=pointer]:
+              - /url: /guides/ecosystem/nextjs
+            - link "Node.js compatibility" [ref=e510] [cursor=pointer]:
+              - /url: /docs/runtime/nodejs-apis
+            - link "All framework guides" [ref=e511] [cursor=pointer]:
+              - /url: /guides/ecosystem
+    - generic [ref=e513]:
+      - generic [ref=e514]:
+        - generic [ref=e515]:
+          - paragraph [ref=e516]: bun install
+          - heading "The fastest install in every situation you actually hit." [level=2] [ref=e518]
+          - paragraph [ref=e519]: Cold cache, warm cache, CI, a no-op reinstall — one T3-stack Next.js app, 25 direct dependencies, ~220 packages in the lockfile, measured six ways against npm, pnpm and yarn at their defaults.
+        - generic [ref=e520]:
+          - link "bun install" [ref=e521] [cursor=pointer]:
+            - /url: /package-manager
+          - link "Migrate from npm" [ref=e524] [cursor=pointer]:
+            - /url: /guides/install/from-npm-install-to-bun-install
+      - generic [ref=e525]:
+        - generic [ref=e526]:
+          - generic [ref=e527]:
+            - generic [ref=e528]: First install, ever
+            - generic [ref=e529]: no cache · no lockfile · no node_modules
+          - generic [ref=e530]:
+            - generic [ref=e531]:
+              - generic [ref=e532]: bun
+              - generic [ref=e536]: 1.41s
+            - generic [ref=e537]:
+              - generic [ref=e538]: npm
+              - generic [ref=e541]: 18.12s
+            - generic [ref=e542]:
+              - generic [ref=e543]: pnpm
+              - generic [ref=e546]: 13.49s
+            - generic [ref=e547]:
+              - generic [ref=e548]: yarn
+              - generic [ref=e551]: 20.51s
+          - generic [ref=e552]:
+            - generic [ref=e553]: 10–15× faster
+            - generic [ref=e554]: RAM 376 MB vs pnpm 1.8 GB
+        - generic [ref=e555]:
+          - generic [ref=e556]:
+            - generic [ref=e557]: Fresh checkout, warm cache
+            - generic [ref=e558]: no lockfile yet · every package already in the cache
+          - generic [ref=e559]:
+            - generic [ref=e560]:
+              - generic [ref=e561]: bun
+              - generic [ref=e565]: 251ms
+            - generic [ref=e566]:
+              - generic [ref=e567]: npm
+              - generic [ref=e570]: 7.61s
+            - generic [ref=e571]:
+              - generic [ref=e572]: pnpm
+              - generic [ref=e575]: 2.38s
+            - generic [ref=e576]:
+              - generic [ref=e577]: yarn
+              - generic [ref=e580]: 1.83s
+          - generic [ref=e581]:
+            - generic [ref=e582]: 7–30× faster
+            - generic [ref=e583]: RAM 52 MB vs pnpm 1.1 GB
+        - generic [ref=e584]:
+          - generic [ref=e585]:
+            - generic [ref=e586]: CI without a cache
+            - generic [ref=e587]: lockfile committed · every tarball fetched from the registry
+          - generic [ref=e588]:
+            - generic [ref=e589]:
+              - generic [ref=e590]: bun
+              - generic [ref=e594]: 951ms
+            - generic [ref=e595]:
+              - generic [ref=e596]: npm
+              - generic [ref=e599]: 4.92s
+            - generic [ref=e600]:
+              - generic [ref=e601]: pnpm
+              - generic [ref=e604]: 11.69s
+            - generic [ref=e605]:
+              - generic [ref=e606]: yarn
+              - generic [ref=e609]: 17.61s
+          - generic [ref=e610]:
+            - generic [ref=e611]: 5–19× faster
+            - generic [ref=e612]: RAM 214 MB vs pnpm 2.7 GB
+        - generic [ref=e613]:
+          - generic [ref=e614]:
+            - generic [ref=e615]: CI with a warm cache
+            - generic [ref=e616]: lockfile committed · dependency cache restored · node_modules rebuilt
+          - generic [ref=e617]:
+            - generic [ref=e618]:
+              - generic [ref=e619]: bun
+              - generic [ref=e623]: 210ms
+            - generic [ref=e624]:
+              - generic [ref=e625]: npm
+              - generic [ref=e628]: 4.45s
+            - generic [ref=e629]:
+              - generic [ref=e630]: pnpm
+              - generic [ref=e633]: 1.92s
+            - generic [ref=e634]:
+              - generic [ref=e635]: yarn
+              - generic [ref=e638]: 1.76s
+          - generic [ref=e639]:
+            - generic [ref=e640]: 8–21× faster
+            - generic [ref=e641]: RAM 12 MB vs pnpm 1.4 GB
+        - generic [ref=e642]:
+          - generic [ref=e643]:
+            - generic [ref=e644]: node_modules there, cache gone
+            - generic [ref=e645]: already installed · only the dependency cache was cleared
+          - generic [ref=e646]:
+            - generic [ref=e647]:
+              - generic [ref=e648]: bun
+              - generic [ref=e652]: 12ms
+            - generic [ref=e653]:
+              - generic [ref=e654]: npm
+              - generic [ref=e657]: 384ms
+            - generic [ref=e658]:
+              - generic [ref=e659]: pnpm
+              - generic [ref=e662]: 399ms
+            - generic [ref=e663]:
+              - generic [ref=e664]: yarn
+              - generic [ref=e667]: 212ms
+          - generic [ref=e668]:
+            - generic [ref=e669]: 18–33× faster
+            - generic [ref=e670]: RAM 12 MB vs pnpm 141 MB
+        - generic [ref=e671]:
+          - generic [ref=e672]:
+            - generic [ref=e673]: Everything already up to date
+            - generic [ref=e674]: the reinstall after nothing changed
+          - generic [ref=e675]:
+            - generic [ref=e676]:
+              - generic [ref=e677]: bun
+              - generic [ref=e681]: 12ms
+            - generic [ref=e682]:
+              - generic [ref=e683]: npm
+              - generic [ref=e686]: 337ms
+            - generic [ref=e687]:
+              - generic [ref=e688]: pnpm
+              - generic [ref=e691]: 400ms
+            - generic [ref=e692]:
+              - generic [ref=e693]: yarn
+              - generic [ref=e696]: 211ms
+          - generic [ref=e697]:
+            - generic [ref=e698]: 18–33× faster
+            - generic [ref=e699]: RAM 12 MB vs pnpm 141 MB
+      - paragraph [ref=e700]:
+        - generic [ref=e701]: Linux x64, EPYC 9R14 · bench/install in oven-sh/bun · each package manager with its own lockfile and node_modules, state prepared per scenario before every run, every package manager at defaults · medians of 3, peak memory is the largest of the 3 runs
+        - link "reproduce the benchmark →" [ref=e702] [cursor=pointer]:
+          - /url: https://github.com/oven-sh/bun/tree/main/bench/install
+      - table [ref=e703]:
+        - caption [ref=e704]: bun install vs npm, pnpm and yarn — install time by scenario (medians of 3, Linux x64)
+        - rowgroup [ref=e705]:
+          - row [ref=e706]:
+            - columnheader "scenario" [ref=e707]
+            - columnheader "bun" [ref=e708]
+            - columnheader "npm" [ref=e709]
+            - columnheader "pnpm" [ref=e710]
+            - columnheader "yarn" [ref=e711]
+        - rowgroup [ref=e712]:
+          - row [ref=e713]:
+            - rowheader "First install, ever (no cache · no lockfile · no node_modules)" [ref=e714]
+            - cell "1.41s" [ref=e715]
+            - cell "18.12s" [ref=e716]
+            - cell "13.49s" [ref=e717]
+            - cell "20.51s" [ref=e718]
+          - row [ref=e719]:
+            - rowheader "Fresh checkout, warm cache (no lockfile yet · every package already in the cache)" [ref=e720]
+            - cell "251ms" [ref=e721]
+            - cell "7.61s" [ref=e722]
+            - cell "2.38s" [ref=e723]
+            - cell "1.83s" [ref=e724]
+          - row [ref=e725]:
+            - rowheader "CI without a cache (lockfile committed · every tarball fetched from the registry)" [ref=e726]
+            - cell "951ms" [ref=e727]
+            - cell "4.92s" [ref=e728]
+            - cell "11.69s" [ref=e729]
+            - cell "17.61s" [ref=e730]
+          - row [ref=e731]:
+            - rowheader "CI with a warm cache (lockfile committed · dependency cache restored · node_modules rebuilt)" [ref=e732]
+            - cell "210ms" [ref=e733]
+            - cell "4.45s" [ref=e734]
+            - cell "1.92s" [ref=e735]
+            - cell "1.76s" [ref=e736]
+          - row [ref=e737]:
+            - rowheader "node_modules there, cache gone (already installed · only the dependency cache was cleared)" [ref=e738]
+            - cell "12ms" [ref=e739]
+            - cell "384ms" [ref=e740]
+            - cell "399ms" [ref=e741]
+            - cell "212ms" [ref=e742]
+          - row [ref=e743]:
+            - rowheader "Everything already up to date (the reinstall after nothing changed)" [ref=e744]
+            - cell "12ms" [ref=e745]
+            - cell "337ms" [ref=e746]
+            - cell "400ms" [ref=e747]
+            - cell "211ms" [ref=e748]
+    - region [ref=e749]:
+      - generic [ref=e750]:
+        - generic [ref=e751]:
+          - heading "Everything built in. Nothing weighing it down." [level=2] [ref=e753]
+          - paragraph [ref=e754]: "All-in-one usually means heavier. Bun goes the other way: the same runs as the benchmarks above, measured by peak resident memory, come in under Node.js and Deno while doing more work per second. One binary, more throughput, less RAM."
+        - generic [ref=e755]:
+          - figure "Serving Express over HTTPS peak memory while handling 48k req/s" [ref=e756]:
+            - generic [ref=e757]:
+              - generic [ref=e758]: Serving Express over HTTPS
+              - generic [ref=e759]: peak memory while handling 48k req/s
+            - generic [ref=e760]:
+              - generic [ref=e761]:
+                - generic [ref=e762]: Bun
+                - generic [ref=e765]: 105 MB
+              - generic [ref=e766]:
+                - generic [ref=e767]: Node.js
+                - generic [ref=e770]: 142 MB
+              - generic [ref=e771]:
+                - generic [ref=e772]: Deno
+                - generic [ref=e775]: 176 MB
+            - generic [ref=e776]:
+              - generic [ref=e777]:
+                - generic [ref=e778]: 2× less
+                - text: than the hungriest · √ scale
+              - link "reproduce →" [ref=e779] [cursor=pointer]:
+                - /url: https://github.com/oven-sh/bun/tree/main/bench/express
+          - figure "Running a WebSocket chat server peak memory while handling 4.2M msg/s" [ref=e780]:
+            - generic [ref=e781]:
+              - generic [ref=e782]: Running a WebSocket chat server
+              - generic [ref=e783]: peak memory while handling 4.2M msg/s
+            - generic [ref=e784]:
+              - generic [ref=e785]:
+                - generic [ref=e786]: Bun
+                - generic [ref=e789]: 51 MB
+              - generic [ref=e790]:
+                - generic [ref=e791]: ws (Node.js)
+                - generic [ref=e794]: 78 MB
+              - generic [ref=e795]:
+                - generic [ref=e796]: Deno
+                - generic [ref=e799]: 1.2 GB
+            - generic [ref=e800]:
+              - generic [ref=e801]:
+                - generic [ref=e802]: 24× less
+                - text: than the hungriest · √ scale
+              - link "reproduce →" [ref=e803] [cursor=pointer]:
+                - /url: https://github.com/oven-sh/bun/tree/main/bench/websocket-server
+          - figure "Installing a Next.js app peak memory, warm cache" [ref=e804]:
+            - generic [ref=e805]:
+              - generic [ref=e806]: Installing a Next.js app
+              - generic [ref=e807]: peak memory, warm cache
+            - generic [ref=e808]:
+              - generic [ref=e809]:
+                - generic [ref=e810]: bun
+                - generic [ref=e813]: 12 MB
+              - generic [ref=e814]:
+                - generic [ref=e815]: yarn
+                - generic [ref=e818]: 205 MB
+              - generic [ref=e819]:
+                - generic [ref=e820]: npm
+                - generic [ref=e823]: 698 MB
+              - generic [ref=e824]:
+                - generic [ref=e825]: pnpm
+                - generic [ref=e828]: 1.4 GB
+            - generic [ref=e829]:
+              - generic [ref=e830]:
+                - generic [ref=e831]: 119× less
+                - text: than the hungriest · √ scale
+              - link "reproduce →" [ref=e832] [cursor=pointer]:
+                - /url: https://github.com/oven-sh/bun/tree/main/bench/install
+        - paragraph [ref=e833]: Linux x64, AMD EPYC 9R14 (64 vCPU), kernel 6.1 · medians of 3 · full methodology in each benchmark's README.
+    - generic [ref=e835]:
+      - generic [ref=e837]:
+        - paragraph [ref=e838]: Batteries included
+        - heading "The APIs you need, baked in." [level=2] [ref=e840]
+        - paragraph [ref=e841]: Most servers need an HTTP stack, a database client, Redis, S3, hashing and a way to shell out. Bun ships all of them, so that is a stack of packages you never install or patch.
+      - generic [ref=e842]:
+        - tablist "API examples" [ref=e843]:
+          - tab "HTTP server" [selected] [ref=e844] [cursor=pointer]
+          - tab "WebSockets" [ref=e847] [cursor=pointer]
+          - tab "PostgreSQL" [ref=e850] [cursor=pointer]
+          - tab "Redis" [ref=e853] [cursor=pointer]
+          - tab "S3" [ref=e856] [cursor=pointer]
+          - tab "Shell" [ref=e859] [cursor=pointer]
+          - tab "Testing" [ref=e862] [cursor=pointer]
+          - tab "Passwords" [ref=e865] [cursor=pointer]
+          - tab "Frontend" [ref=e868] [cursor=pointer]
+          - tab "FFI" [ref=e871] [cursor=pointer]
+        - tabpanel "HTTP server" [ref=e875]:
+          - generic [ref=e876]:
+            - generic [ref=e877]:
+              - paragraph [ref=e878]: Bun.serve() with routes, params and static responses.
+              - link "Docs" [ref=e879] [cursor=pointer]:
+                - /url: /docs/api/http
+            - generic [ref=e882]:
+              - paragraph [ref=e884]: server.ts
+              - generic [ref=e885]:
+                - code [ref=e889]:
+                  - generic [ref=e890]: "import { serve, sql } from \"bun\";"
+                  - generic [ref=e891]: "const server = serve({"
+                  - generic [ref=e892]: "port: 3000,"
+                  - generic [ref=e893]: "routes: {"
+                  - generic [ref=e894]: "\"/\": new Response(\"Welcome to Bun!\"),"
+                  - generic [ref=e895]: "\"/api/users/:id\": async req => {"
+                  - generic [ref=e896]: "const [user] = await sql`SELECT * FROM users WHERE id = ${req.params.id}`;"
+                  - generic [ref=e897]: return Response.json(user);
+                  - generic [ref=e898]: "},"
+                  - generic [ref=e899]: "},"
+                  - generic [ref=e900]: "});"
+                  - generic [ref=e901]: "console.log(`Listening on ${server.url}`);"
+                - button "Copy to clipboard" [ref=e902] [cursor=pointer]
+    - generic [ref=e910]:
+      - generic [ref=e911]:
+        - heading "…and the rest of the standard library" [level=3] [ref=e912]
+        - link "Full API reference" [ref=e913] [cursor=pointer]:
+          - /url: /reference
+      - generic [ref=e916]:
+        - generic [ref=e917]:
+          - heading "HTTP & WebSockets" [level=3] [ref=e918]
+          - list [ref=e919]:
+            - listitem [ref=e920]:
+              - link "Bun.serve() HTTP, routing & WebSockets" [ref=e921] [cursor=pointer]:
+                - /url: /docs/api/http
+                - generic [ref=e922]:
+                  - code [ref=e923]: Bun.serve()
+                  - generic [ref=e924]: HTTP, routing & WebSockets
+            - listitem [ref=e928]:
+              - link "request.cookies Zero-overhead cookies" [ref=e929] [cursor=pointer]:
+                - /url: /docs/api/cookie
+                - generic [ref=e930]:
+                  - code [ref=e931]: request.cookies
+                  - generic [ref=e932]: Zero-overhead cookies
+            - listitem [ref=e936]:
+              - link "fetch HTTP/2, proxies, unix sockets" [ref=e937] [cursor=pointer]:
+                - /url: /docs/api/fetch
+                - generic [ref=e938]:
+                  - code [ref=e939]: fetch
+                  - generic [ref=e940]: HTTP/2, proxies, unix sockets
+        - generic [ref=e944]:
+          - heading "Data" [level=3] [ref=e945]
+          - list [ref=e946]:
+            - listitem [ref=e947]:
+              - link "Bun.sql Postgres, MySQL, SQLite" [ref=e948] [cursor=pointer]:
+                - /url: /docs/api/sql
+                - generic [ref=e949]:
+                  - code [ref=e950]: Bun.sql
+                  - generic [ref=e951]: Postgres, MySQL, SQLite
+            - listitem [ref=e955]:
+              - link "Bun.redis Redis client & Pub/Sub" [ref=e956] [cursor=pointer]:
+                - /url: /docs/api/redis
+                - generic [ref=e957]:
+                  - code [ref=e958]: Bun.redis
+                  - generic [ref=e959]: Redis client & Pub/Sub
+            - listitem [ref=e963]:
+              - link "Bun.s3 S3-compatible storage" [ref=e964] [cursor=pointer]:
+                - /url: /docs/api/s3
+                - generic [ref=e965]:
+                  - code [ref=e966]: Bun.s3
+                  - generic [ref=e967]: S3-compatible storage
+        - generic [ref=e971]:
+          - heading "Files & processes" [level=3] [ref=e972]
+          - list [ref=e973]:
+            - listitem [ref=e974]:
+              - link "Bun.file() Lazy, fast file I/O" [ref=e975] [cursor=pointer]:
+                - /url: /docs/api/file-io
+                - generic [ref=e976]:
+                  - code [ref=e977]: Bun.file()
+                  - generic [ref=e978]: Lazy, fast file I/O
+            - listitem [ref=e982]:
+              - link "Bun.$ Cross-platform shell" [ref=e983] [cursor=pointer]:
+                - /url: /docs/runtime/shell
+                - generic [ref=e984]:
+                  - code [ref=e985]: Bun.$
+                  - generic [ref=e986]: Cross-platform shell
+            - listitem [ref=e990]:
+              - link "Bun.spawn() Child processes & IPC" [ref=e991] [cursor=pointer]:
+                - /url: /docs/api/spawn
+                - generic [ref=e992]:
+                  - code [ref=e993]: Bun.spawn()
+                  - generic [ref=e994]: Child processes & IPC
+        - generic [ref=e998]:
+          - heading "Security" [level=3] [ref=e999]
+          - list [ref=e1000]:
+            - listitem [ref=e1001]:
+              - link "Bun.password argon2 & bcrypt" [ref=e1002] [cursor=pointer]:
+                - /url: /docs/api/hashing
+                - generic [ref=e1003]:
+                  - code [ref=e1004]: Bun.password
+                  - generic [ref=e1005]: argon2 & bcrypt
+            - listitem [ref=e1009]:
+              - link "Bun.CSRF CSRF tokens" [ref=e1010] [cursor=pointer]:
+                - /url: /docs/api/csrf
+                - generic [ref=e1011]:
+                  - code [ref=e1012]: Bun.CSRF
+                  - generic [ref=e1013]: CSRF tokens
+            - listitem [ref=e1017]:
+              - link "Bun.secrets OS keychain" [ref=e1018] [cursor=pointer]:
+                - /url: /docs/api/secrets
+                - generic [ref=e1019]:
+                  - code [ref=e1020]: Bun.secrets
+                  - generic [ref=e1021]: OS keychain
+        - generic [ref=e1025]:
+          - heading "Formats" [level=3] [ref=e1026]
+          - list [ref=e1027]:
+            - listitem [ref=e1028]:
+              - link "Bun.YAML YAML & TOML imports" [ref=e1029] [cursor=pointer]:
+                - /url: /docs/api/yaml
+                - generic [ref=e1030]:
+                  - code [ref=e1031]: Bun.YAML
+                  - generic [ref=e1032]: YAML & TOML imports
+            - listitem [ref=e1036]:
+              - link "Bun.markdown CommonMark → HTML" [ref=e1037] [cursor=pointer]:
+                - /url: /docs/api/markdown
+                - generic [ref=e1038]:
+                  - code [ref=e1039]: Bun.markdown
+                  - generic [ref=e1040]: CommonMark → HTML
+            - listitem [ref=e1044]:
+              - link "Bun.escapeHTML() and 40+ utilities" [ref=e1045] [cursor=pointer]:
+                - /url: /docs/api/utils
+                - generic [ref=e1046]:
+                  - code [ref=e1047]: Bun.escapeHTML()
+                  - generic [ref=e1048]: and 40+ utilities
+        - generic [ref=e1052]:
+          - heading "Low level" [level=3] [ref=e1053]
+          - list [ref=e1054]:
+            - listitem [ref=e1055]:
+              - link "bun:ffi Call C, Rust, Zig" [ref=e1056] [cursor=pointer]:
+                - /url: /docs/api/ffi
+                - generic [ref=e1057]:
+                  - code [ref=e1058]: bun:ffi
+                  - generic [ref=e1059]: Call C, Rust, Zig
+            - listitem [ref=e1063]:
+              - link "Worker Threads & structuredClone" [ref=e1064] [cursor=pointer]:
+                - /url: /docs/api/workers
+                - generic [ref=e1065]:
+                  - code [ref=e1066]: Worker
+                  - generic [ref=e1067]: Threads & structuredClone
+            - listitem [ref=e1071]:
+              - link "Bun.Glob Fast glob matching" [ref=e1072] [cursor=pointer]:
+                - /url: /docs/api/glob
+                - generic [ref=e1073]:
+                  - code [ref=e1074]: Bun.Glob
+                  - generic [ref=e1075]: Fast glob matching
+    - generic [ref=e1080]:
+      - generic [ref=e1081]:
+        - generic [ref=e1082]:
+          - paragraph [ref=e1083]: Frontend
+          - heading "Full speed, full‑stack" [level=2] [ref=e1085]
+          - paragraph [ref=e1086]:
+            - text: Point Bun at an HTML file and you get a dev server with instant hot reloading, then
+            - code [ref=e1087]: bun build --production
+            - text: for optimized bundles. React, TypeScript, Tailwind and CSS imports work out of the box.
+        - list [ref=e1088]:
+          - listitem [ref=e1089]:
+            - generic [ref=e1090]: "1"
+            - generic [ref=e1091]:
+              - code [ref=e1092]: bun init --react
+              - paragraph [ref=e1093]: Scaffold a React app (or add index.html to any project).
+          - listitem [ref=e1094]:
+            - generic [ref=e1095]: "2"
+            - generic [ref=e1096]:
+              - code [ref=e1097]: bun ./index.html
+              - paragraph [ref=e1098]: Dev server with HMR that preserves state; browser logs stream to your terminal.
+          - listitem [ref=e1099]:
+            - generic [ref=e1100]: "3"
+            - generic [ref=e1101]:
+              - code [ref=e1102]: bun build ./index.html --production
+              - paragraph [ref=e1103]: Tree-shaken, minified, code-split bundles.
+        - link "Full-stack apps with Bun" [ref=e1105] [cursor=pointer]:
+          - /url: /docs/bundler/fullstack
+      - generic [ref=e1109]:
+        - generic [ref=e1110]: bun ./index.html — hot reloading
+        - generic "Bun's frontend dev server hot reloading a React app" [ref=e1116]
+    - region [ref=e1117]:
+      - generic [ref=e1118]:
+        - heading "Bun is a complete toolkit." [level=2] [ref=e1120]
+        - generic [ref=e1122]:
+          - table [ref=e1123]:
+            - rowgroup [ref=e1124]:
+              - row [ref=e1125]:
+                - columnheader "Feature" [ref=e1126]
+                - columnheader "Bun" [ref=e1127]
+                - columnheader "Node.js" [ref=e1130]
+                - columnheader "Deno" [ref=e1131]
+            - rowgroup [ref=e1132]:
+              - row [ref=e1133]:
+                - columnheader "Runtime" [ref=e1134]
+              - row [ref=e1135]:
+                - rowheader "Node.js compatibility Aiming to be a drop-in replacement for Node.js apps" [ref=e1136]:
+                  - link "Node.js compatibility" [ref=e1137] [cursor=pointer]:
+                    - /url: /docs/runtime/nodejs-apis
+                  - generic [ref=e1138]: Aiming to be a drop-in replacement for Node.js apps
+                - cell [ref=e1139]:
+                  - img "Partial" [ref=e1141]
+                - cell [ref=e1143]:
+                  - img "Yes" [ref=e1145]
+                - cell [ref=e1148]:
+                  - img "Partial" [ref=e1150]
+              - row [ref=e1152]:
+                - rowheader [ref=e1153]:
+                  - link "Web Standard APIs" [ref=e1154] [cursor=pointer]:
+                    - /url: /docs/api/fetch
+                  - generic [ref=e1155]:
+                    - code [ref=e1156]: fetch
+                    - text: ","
+                    - code [ref=e1157]: URL
+                    - text: ","
+                    - code [ref=e1158]: EventTarget
+                    - text: ","
+                    - code [ref=e1159]: Headers
+                    - text: ", streams…"
+                - cell [ref=e1160]:
+                  - generic [ref=e1161]:
+                    - 'img "Yes: Powered by WebCore (from WebKit/Safari)" [ref=e1162]'
+                    - generic: Powered by WebCore (from WebKit/Safari)
+                - cell [ref=e1165]:
+                  - img "Yes" [ref=e1167]
+                - cell [ref=e1170]:
+                  - img "Yes" [ref=e1172]
+              - row [ref=e1175]:
+                - rowheader [ref=e1176]:
+                  - link "TypeScript" [ref=e1177] [cursor=pointer]:
+                    - /url: /docs/runtime/typescript
+                  - generic [ref=e1178]:
+                    - text: First-class, including
+                    - code [ref=e1179]: "\"paths\""
+                    - text: ","
+                    - code [ref=e1180]: enum
+                    - text: ","
+                    - code [ref=e1181]: namespace
+                - cell [ref=e1182]:
+                  - img "Yes" [ref=e1184]
+                - cell [ref=e1187]:
+                  - img "Partial" [ref=e1189]
+                - cell [ref=e1191]:
+                  - img "Yes" [ref=e1193]
+              - row [ref=e1196]:
+                - rowheader "JSX First-class support without configuration" [ref=e1197]:
+                  - link "JSX" [ref=e1198] [cursor=pointer]:
+                    - /url: /docs/runtime/jsx
+                  - generic [ref=e1199]: First-class support without configuration
+                - cell [ref=e1200]:
+                  - img "Yes" [ref=e1202]
+                - cell [ref=e1205]:
+                  - img "No" [ref=e1207]
+                - cell [ref=e1210]:
+                  - img "Yes" [ref=e1212]
+              - row [ref=e1215]:
+                - rowheader "Native addons Call C-compatible native code from JavaScript" [ref=e1216]:
+                  - link "Native addons" [ref=e1217] [cursor=pointer]:
+                    - /url: /docs/api/ffi
+                  - generic [ref=e1218]: Call C-compatible native code from JavaScript
+                - cell [ref=e1219]:
+                  - generic [ref=e1220]:
+                    - 'img "Yes: bun:ffi, N-API, partial V8 C++ API" [ref=e1221]'
+                    - generic: bun:ffi, N-API, partial V8 C++ API
+                - cell [ref=e1224]:
+                  - img "Yes" [ref=e1226]
+                - cell [ref=e1229]:
+                  - img "Yes" [ref=e1231]
+              - row [ref=e1234]:
+                - rowheader "Module loader plugins Import custom file types" [ref=e1235]:
+                  - link "Module loader plugins" [ref=e1236] [cursor=pointer]:
+                    - /url: /docs/runtime/plugins
+                  - generic [ref=e1237]: Import custom file types
+                - cell [ref=e1238]:
+                  - generic [ref=e1239]:
+                    - 'img "Yes: `Bun.plugin` works in browsers & Bun" [ref=e1240]'
+                    - generic:
+                      - code: Bun.plugin
+                      - text: works in browsers & Bun
+                - cell [ref=e1243]:
+                  - generic [ref=e1244]:
+                    - 'img "Partial: 3 different loader APIs, server-side only" [ref=e1245]'
+                    - generic: 3 different loader APIs, server-side only
+                - cell [ref=e1247]:
+                  - img "No" [ref=e1249]
+            - rowgroup [ref=e1252]:
+              - row [ref=e1253]:
+                - columnheader "Built-in APIs" [ref=e1254]
+              - row [ref=e1255]:
+                - rowheader "PostgreSQL, MySQL & SQLite drivers One fast, unified SQL API" [ref=e1256]:
+                  - link "PostgreSQL, MySQL & SQLite drivers" [ref=e1257] [cursor=pointer]:
+                    - /url: /docs/api/sql
+                  - generic [ref=e1258]: One fast, unified SQL API
+                - cell [ref=e1259]:
+                  - generic [ref=e1260]:
+                    - 'img "Yes: Fastest available, with query pipelining" [ref=e1261]'
+                    - generic: Fastest available, with query pipelining
+                - cell [ref=e1264]:
+                  - img "No" [ref=e1266]
+                - cell [ref=e1269]:
+                  - img "No" [ref=e1271]
+              - row [ref=e1274]:
+                - rowheader "S3 client Upload and download from S3-compatible storage" [ref=e1275]:
+                  - link "S3 client" [ref=e1276] [cursor=pointer]:
+                    - /url: /docs/api/s3
+                  - generic [ref=e1277]: Upload and download from S3-compatible storage
+                - cell [ref=e1278]:
+                  - generic [ref=e1279]:
+                    - 'img "Yes: Fastest available" [ref=e1280]'
+                    - generic: Fastest available
+                - cell [ref=e1283]:
+                  - img "No" [ref=e1285]
+                - cell [ref=e1288]:
+                  - img "No" [ref=e1290]
+              - row [ref=e1293]:
+                - rowheader "Redis client With Pub/Sub" [ref=e1294]:
+                  - link "Redis client" [ref=e1295] [cursor=pointer]:
+                    - /url: /docs/api/redis
+                  - generic [ref=e1296]: With Pub/Sub
+                - cell [ref=e1297]:
+                  - img "Yes" [ref=e1299]
+                - cell [ref=e1302]:
+                  - img "No" [ref=e1304]
+                - cell [ref=e1307]:
+                  - img "No" [ref=e1309]
+            - rowgroup [ref=e1312]:
+              - row [ref=e1313]:
+                - columnheader "Tooling" [ref=e1314]
+          - button "Show all 23 rows" [ref=e1315] [cursor=pointer]
+    - generic [ref=e1319]:
+      - heading "Try it on the repo you have open right now." [level=2] [ref=e1321]: Try it on the repoyou have openright now.
+      - generic [ref=e1322]:
+        - paragraph [ref=e1323]:
+          - text: Install Bun, open the project you were already working on, and run
+          - code [ref=e1324]: bun install
+          - text: . Your code, dependencies and scripts stay exactly as they are.
+        - generic [ref=e1325]:
+          - generic [ref=e1326]:
+            - generic [aria-hidden] [ref=e1327]: $
+            - code [ref=e1328]: curl -fsSL https://bun.sh/install | bash
+            - button "Copy install command" [ref=e1329] [cursor=pointer]
+          - generic [ref=e1336]:
+            - tablist "Operating system" [ref=e1337]:
+              - tab "macOS & Linux" [selected] [ref=e1338] [cursor=pointer]
+              - tab "Windows" [ref=e1339] [cursor=pointer]
+            - link "View install script ↗" [ref=e1340] [cursor=pointer]:
+              - /url: https://bun.sh/install
+        - generic [ref=e1341]:
+          - link "Quickstart" [ref=e1342] [cursor=pointer]:
+            - /url: /docs/quickstart
+          - link "Other ways to install" [ref=e1345] [cursor=pointer]:
+            - /url: /docs/installation
+  - contentinfo [ref=e1346]:
+    - generic [ref=e1347]:
+      - generic [ref=e1348]:
+        - link "Bun — home" [ref=e1349] [cursor=pointer]:
+          - /url: /
+        - paragraph [ref=e1352]:
+          - text: The fast all-in-one JavaScript runtime & toolkit. Now part of
+          - link "Anthropic" [ref=e1353] [cursor=pointer]:
+            - /url: /blog/bun-joins-anthropic
+          - text: .
+        - generic [ref=e1354]:
+          - link "GitHub" [ref=e1355] [cursor=pointer]:
+            - /url: https://github.com/oven-sh/bun
+          - link "Discord" [ref=e1361] [cursor=pointer]:
+            - /url: /discord
+          - link "X (Twitter)" [ref=e1367] [cursor=pointer]:
+            - /url: https://x.com/bunjavascript
+          - link "RSS feed" [ref=e1372] [cursor=pointer]:
+            - /url: /rss.xml
+      - navigation "Product" [ref=e1377]:
+        - paragraph [ref=e1378]: Product
+        - link "Documentation" [ref=e1379] [cursor=pointer]:
+          - /url: /docs
+        - link "Guides" [ref=e1380] [cursor=pointer]:
+          - /url: /guides
+        - link "API Reference" [ref=e1381] [cursor=pointer]:
+          - /url: /reference
+        - link "Blog" [ref=e1382] [cursor=pointer]:
+          - /url: /blog
+        - link "Install" [ref=e1383] [cursor=pointer]:
+          - /url: /get
+      - navigation "Toolkit" [ref=e1384]:
+        - paragraph [ref=e1385]: Toolkit
+        - link "Runtime" [ref=e1386] [cursor=pointer]:
+          - /url: /docs/cli/run
+        - link "Package manager" [ref=e1387] [cursor=pointer]:
+          - /url: /package-manager
+        - link "Test runner" [ref=e1388] [cursor=pointer]:
+          - /url: /docs/cli/test
+        - link "Bundler" [ref=e1389] [cursor=pointer]:
+          - /url: /docs/bundler
+      - navigation "Community" [ref=e1390]:
+        - paragraph [ref=e1391]: Community
+        - link "GitHub" [ref=e1392] [cursor=pointer]:
+          - /url: https://github.com/oven-sh/bun
+        - link "Discord" [ref=e1393] [cursor=pointer]:
+          - /url: /discord
+        - link "X (Twitter)" [ref=e1394] [cursor=pointer]:
+          - /url: https://x.com/bunjavascript
+        - link "Merch" [ref=e1395] [cursor=pointer]:
+          - /url: https://shop.bun.com
+      - navigation "Company" [ref=e1396]:
+        - paragraph [ref=e1397]: Company
+        - link "Bun × Anthropic" [ref=e1398] [cursor=pointer]:
+          - /url: /blog/bun-joins-anthropic
+        - link "Press kit" [ref=e1399] [cursor=pointer]:
+          - /url: /press-kit
+        - link "License" [ref=e1400] [cursor=pointer]:
+          - /url: /docs/project/licensing
+    - paragraph [ref=e1402]: Baked with ♥ in San Francisco · © 2026 Anthropic, PBC
