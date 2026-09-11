@@ -7,3 +7,5 @@ coverage/
 .env.*
 .claude/settings.local.json
 .claude/
+.playwright-mcp/
+packages/eval/test/tmp-*/
