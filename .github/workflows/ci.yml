@@ -1,0 +1,36 @@
+# CI 平台矩阵（05 §3.8）：macOS = webkit+chrome 双真视图；Linux = chrome 真视图
+# （webkit 用例 skipIf 跳过——显式非静默）。Bun 版本锁 packageManager 字段。
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  doors:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      # Linux runner 预装 chrome（/usr/bin/google-chrome）；macOS 走 /Applications
+      BUN_CHROME_PATH: ${{ matrix.os == 'ubuntu-latest' && '/usr/bin/google-chrome' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2 # 锁定（01 §8：升级前跑探针回归）
+      - run: bun install --frozen-lockfile
+      - name: typecheck
+        run: bun run typecheck
+      - name: lint
+        run: bun run lint
+      - name: build
+        run: bun run build
+      - name: test（含覆盖率门 + 真 webview 集成）
+        run: bun run test
+      - name: 产物冒烟
+        run: |
+          bun dist/cli/cli.js --version
+          bun dist/cli/cli.js --help

@@ -6,6 +6,7 @@
       "name": "bun-webview",
       "devDependencies": {
         "@biomejs/biome": "^2.3.4",
+        "@bw/service": "workspace:*",
         "@opentelemetry/api": "^1.9.1",
         "@types/bun": "^1.2.25",
         "typescript": "^5.9.3",
