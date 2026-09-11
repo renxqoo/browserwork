@@ -24,6 +24,8 @@ export interface SnapNode {
   type?: string;
   placeholder?: string;
   value?: string;
+  /** checkbox/radio 勾选态（B12：渲染 diff 依赖；不入 domHash——与 value 同属状态非结构） */
+  checked?: boolean;
   /** 主视口坐标系（同源 iframe 内元素含递归 frame 偏移 + frame 盒裁剪） */
   x: number;
   y: number;
@@ -137,6 +139,7 @@ function renderNode(n: SnapNode): string {
   if (n.text !== undefined) parts.push(`"${n.text}"`);
   if (n.placeholder !== undefined) parts.push(`(placeholder: ${n.placeholder})`);
   if (n.value !== undefined) parts.push(`[value: ${n.value}]`);
+  if (n.checked === true) parts.push("[checked]");
   if (n.href !== undefined) parts.push(`-> ${n.href}`);
   if (n.below) parts.push("↓below-viewport");
   if (n.above) parts.push("↑above-viewport");

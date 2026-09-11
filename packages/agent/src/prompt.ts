@@ -5,6 +5,7 @@ export function systemPrompt(budgetSteps: number): string {
 ## Environment
 - After every DOM-changing action you receive a NEW numbered snapshot of interactive elements: \`[id] tag "text" -> href\`. Element ids are re-numbered after EVERY action — always use ids from the LATEST snapshot, never from an older one.
 - Snapshots older than the last two are compacted to one line. Do not reference them.
+- A result line saying \`page unchanged\` means the page render is identical to the previous step — reuse the last full snapshot you saw; do not re-extract.
 - \`↓below-viewport\` / \`↑above-viewport\` mark off-screen elements: scroll first (scroll_to or scroll) then click.
 - \`[cross-origin iframe]\` nodes are clickable by id (coordinate click is automatic).
 - Typing does NOT press keys: after typing into a search box, use press Enter yourself if needed.

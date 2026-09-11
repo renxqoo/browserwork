@@ -81,7 +81,7 @@
 ### 3.2 截图与窗口治理（B12）——审查 P13/P23 处置后
 
 - `compactSnapshots`：含 image content 的 toolResult 只保**最近 1 张**，更早的 image 项替换为文本 `[screenshot removed]`（文字描述保留）。
-- 窗口估算（修正方向）：text 按内容 CJK 占比分档——CJK>30% 用 1.5 chars/token，否则 4 chars/token；image 按 **2000 token/张** 直计（不折 chars）。估算和 > 0.5×contextWindow 时依次压缩：非快照 toolResult → 单行摘要；全量快照 2→1；旧 assistant **仅 text part** 首行截断（toolCall part 原样，结构不变断言入测试）。事后 contextWindow 断言保留为兜底而非主防线。
+- 窗口估算（修正方向）：text 按内容 CJK 占比分档——CJK>30% 用 1.5 chars/token，否则 4 chars/token；image 按 **2000 token/张** 直计（不折 chars）；toolCall arguments 计入估算。估算和 > 0.5×contextWindow 时依次压缩：非快照 toolResult → 单行摘要；全量快照 2→1；旧 assistant/user **仅 text part** 首行截断（toolCall part 原样，结构不变断言入测试）。事后 contextWindow 断言保留为兜底而非主防线。已知取舍：阶段 2（快照 2→1）后 unchanged 标记链的锚点快照可能不在窗内（极端窗口压力；摘要行含页首行可部分还原）。
 - `budget_warn` 补 contextWindow 维度（50%/80% 两档）。
 
 ### 3.3 strong 模型路由（B12）——审查 P17 处置后

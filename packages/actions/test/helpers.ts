@@ -16,6 +16,13 @@ export interface FakeWorldOptions {
     headings?: Array<{ tag: string; text: string }>;
     title?: string;
   };
+  /** 逐次提取序列（每次 EXTRACT 弹出一个，末项重复）——快照变化场景用（05 §3.1 测试） */
+  extractSequence?: Array<{
+    nodes: Array<Record<string, unknown>>;
+    title?: string;
+    url?: string;
+    scrollY?: number;
+  }>;
   enterSubmit?: { submit: boolean; action?: string; method?: string };
   bodyText?: string;
   quietMs?: number; // settle 表达式返回值（默认 = 已静默）
@@ -55,6 +62,23 @@ export function makeFakeWorld(opts: FakeWorldOptions): FakeWorld {
           const extra = opts.extraEvaluate?.(expr);
           if (extra !== undefined) return extra;
           if (expr === EXTRACT_EXPRESSION) {
+            if (opts.extractSequence !== undefined && opts.extractSequence.length > 0) {
+              const head = opts.extractSequence[0] as NonNullable<
+                (typeof opts.extractSequence)[number]
+              >;
+              if (opts.extractSequence.length > 1) opts.extractSequence.shift();
+              return {
+                nodes: head.nodes,
+                headings: [],
+                warnings: [],
+                title: head.title ?? "fake",
+                url: head.url ?? "https://fake.test/page",
+                scrollY: head.scrollY ?? 0,
+                scrollX: 0,
+                docHeight: 1000,
+                viewportH: 720,
+              };
+            }
             return {
               nodes: rawNodes,
               headings: opts.rawExtract.headings ?? [],

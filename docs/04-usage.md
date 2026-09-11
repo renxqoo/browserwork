@@ -274,6 +274,10 @@ console.log(await handle.result());
 | `BW_TOKEN` | 手动 serve/远程连接时的 Bearer token |
 | `BW_HOME` | 状态目录（默认 `~/.bw`；测试隔离用） |
 | `GLM_API_KEY` / `GLM_BASE_URL` / `GLM_MODEL` | 自治模式 LLM 凭据 |
+| `GLM_STRONG_MODEL` | 卡死升级用强模型 id（B12：连续 3 步页面同态时切换续跑） |
+| `BW_PRICES_JSON` | 价目表 `{"模型id":{"input":USD,"output":USD}}`（每 1M token；CLI 也认 .env）；配了才有 `cost` 计量 |
+
+> 注意：serve 进程的 env 里有 `GLM_API_KEY` 时，`POST /tasks` 会自动装配模型——上下文窗口治理（0.5×窗口压缩、50%/80% 预警、contextWindow 硬预算）随之生效，长任务可能以 `budget_exceeded(contextWindow)` 提前终局（B12 起的行为）。
 
 手动起服务（一般不需要）：
 

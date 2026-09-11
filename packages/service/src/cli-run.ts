@@ -1,5 +1,5 @@
 /** bw run：CLI 单任务执行（读 .env 或环境变量配置 LLM） */
-import { glmModelFromEnv, runTask } from "@bw/agent";
+import { glmModelsFromEnv, runTask } from "@bw/agent";
 import type { TaskEvent } from "@bw/core";
 
 export interface RunCliArgs {
@@ -21,33 +21,44 @@ async function loadEnvFile(path: string): Promise<Record<string, string>> {
 
 export async function runCliTask(args: RunCliArgs): Promise<number> {
   // key 优先级：进程 env > .env > ~/.bw/.env
+  const envFiles = {
+    ...(await loadEnvFile(".env")),
+    ...(await loadEnvFile(`${process.env.HOME ?? ""}/.bw/.env`)),
+  };
   let key = process.env.GLM_API_KEY;
   let baseUrl = process.env.GLM_BASE_URL;
   let model = process.env.GLM_MODEL;
+  let strongModel = process.env.GLM_STRONG_MODEL;
   if (key === undefined) {
-    const env = {
-      ...(await loadEnvFile(".env")),
-      ...(await loadEnvFile(`${process.env.HOME ?? ""}/.bw/.env`)),
-    };
-    key = env.GLM_API_KEY;
-    baseUrl = baseUrl ?? env.GLM_BASE_URL;
-    model = model ?? env.GLM_MODEL;
+    key = envFiles.GLM_API_KEY;
+    baseUrl = baseUrl ?? envFiles.GLM_BASE_URL;
+    model = model ?? envFiles.GLM_MODEL;
+    strongModel = strongModel ?? envFiles.GLM_STRONG_MODEL;
+  }
+  // 价目表也认 .env（B12 审查 P2-8）——runTask 读 process.env
+  if (process.env.BW_PRICES_JSON === undefined && envFiles.BW_PRICES_JSON !== undefined) {
+    process.env.BW_PRICES_JSON = envFiles.BW_PRICES_JSON;
   }
   if (key === undefined) {
     console.error("GLM_API_KEY not found (env, .env, or ~/.bw/.env)");
     return 2;
   }
 
-  const model_ = glmModelFromEnv({
+  const models = glmModelsFromEnv({
     GLM_API_KEY: key,
     ...(baseUrl !== undefined ? { GLM_BASE_URL: baseUrl } : {}),
     ...(model !== undefined ? { GLM_MODEL: model } : {}),
+    // 05 §3.3：GLM_STRONG_MODEL（env > .env）配了才有升级路径
+    ...(strongModel !== undefined ? { GLM_STRONG_MODEL: strongModel } : {}),
   });
 
   const handle = runTask(
     { goal: args.goal, ...(args.startUrl !== undefined ? { startUrl: args.startUrl } : {}) },
     {
-      models: { fast: model_ as never },
+      models: {
+        fast: models.fast as never,
+        ...(models.strong !== undefined ? { strong: models.strong as never } : {}),
+      },
       apiKey: key,
       ...(args.startUrl?.startsWith("http://127.0.0.1") === true ? { testMode: true } : {}),
     },

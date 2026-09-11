@@ -193,7 +193,18 @@ describe("U6 假 LLM 旅程", () => {
 
   test("快照压缩：第 3 步起旧快照 toolResult 压成单行（上下文有界）", async () => {
     const { node, locate } = fakeNode("2", {});
-    const world = makeFakeWorld({ locateResults: { 2: locate }, rawExtract: { nodes: [node] } });
+    // B12 起：静态世界会走 unchanged 标记——用逐步变化的快照让三个全量真实发生
+    const mk = (text: string): Array<Record<string, unknown>> => [{ ...node, text }];
+    const world = makeFakeWorld({
+      locateResults: { 2: locate },
+      rawExtract: { nodes: mk("a") },
+      extractSequence: [
+        { nodes: mk("a") },
+        { nodes: mk("b") },
+        { nodes: mk("c") },
+        { nodes: mk("d") },
+      ],
+    });
     const wait = { name: "wait", arguments: { seconds: 0.01 } };
     const script: ScriptStep[] = [
       { toolCalls: [wait] },
@@ -216,7 +227,7 @@ describe("U6 假 LLM 旅程", () => {
     // 第 4 次调用（done 前的 LLM turn）上下文中：快照 toolResult 只保留最近 2 个完整
     const ctx = llm.calls[Math.min(3, llm.calls.length - 1)];
     const msgs = JSON.stringify(ctx?.messages);
-    const fullSnapshots = (msgs.match(/\\[SNAPSHOT\\]/g) ?? []).length;
+    const fullSnapshots = (msgs.match(/# Page:/g) ?? []).length;
     expect(fullSnapshots).toBeLessThanOrEqual(2);
     expect(msgs).toContain("[snapshot removed:");
   });

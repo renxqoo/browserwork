@@ -47,6 +47,8 @@ export interface TaskResult {
   tokens: { input: number; output: number };
   trajectory: string;
   error?: string;
+  /** 价目表已注入时的累计成本（05 §3.4；未注入则缺省） */
+  cost?: { usd: number };
 }
 
 /** pi 事件名透传集合（message 前缀、tool_execution 前缀、turn 前缀、agent 前缀）与本域事件 */

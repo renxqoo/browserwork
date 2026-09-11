@@ -366,8 +366,34 @@ describe.skipIf(process.platform !== "darwin")("外部会话模式", () => {
 
   test("安全 S1③：同源链接 302 跳到未批准域 → 违规事件 + 回滚", async () => {
     fixture = await startFixtureServer();
+    // 未批准域 = 本地第二 origin 经 localhost 主机名访问（127.0.0.1 在白名单里，
+    // localhost 不在）——免外网/DNS 依赖（B12 期间修的存量 flaky：example.com 三重不确定）
+    const unapproved = Bun.serve({
+      port: 0,
+      fetch: () =>
+        new Response("<!doctype html><title>Unapproved</title><p>other origin</p>", {
+          headers: { "content-type": "text/html; charset=utf-8" },
+        }),
+    });
+    const bounceServer = Bun.serve({
+      port: 0,
+      fetch(req) {
+        const p = new URL(req.url).pathname;
+        if (p === "/") {
+          return new Response(
+            `<!doctype html><html lang="en"><head><title>Bounce Home</title></head>
+<body><h1>Home</h1><a href="/bounce">Bounce</a></body></html>`,
+            { headers: { "content-type": "text/html; charset=utf-8" } },
+          );
+        }
+        if (p === "/bounce") {
+          return Response.redirect(`http://localhost:${unapproved.port}/`, 302);
+        }
+        return new Response("nf", { status: 404 });
+      },
+    });
     mgr = createSessionManager({ sessionTtlMs: 30_000, confirmationTimeoutMs: 1000 });
-    const s = await mgr.create(fixture.origin);
+    const s = await mgr.create(`http://127.0.0.1:${bounceServer.port}`);
 
     const bounce = /\[(\d+)\] link "Bounce"/.exec(mgr.snapshot(s.id));
     expect(bounce).toBeTruthy();
@@ -375,7 +401,7 @@ describe.skipIf(process.platform !== "darwin")("外部会话模式", () => {
     const r = await mgr.executeTool(s.id, "click", { index: bounce?.[1] ?? "" });
     expect(r.ok).toBe(true); // 同源链接本体放行（预检看不到 302 目标）
 
-    // onNavigated(example.com) → settled 复检 → 违规事件 + 回滚
+    // onNavigated(localhost:port) → settled 复检 → 违规事件 + 回滚
     const events = await collectEvents(mgr, s.id, 10_000);
     expect(
       events.some(
@@ -383,11 +409,17 @@ describe.skipIf(process.platform !== "darwin")("外部会话模式", () => {
       ),
     ).toBe(true);
 
-    // 回滚后仍在 fixture 域
-    await new Promise((res) => setTimeout(res, 1000));
+    // 回滚后仍在已批准域：wait 复合步重提取（回滚导航在 settle 内被观察到）
+    const w = await mgr.executeTool(s.id, "wait", { seconds: 0.05 });
+    expect(w.ok).toBe(true);
+    await new Promise((res) => setTimeout(res, 500));
+    const w2 = await mgr.executeTool(s.id, "wait", { seconds: 0.05 });
+    expect(w2.ok).toBe(true);
     expect(mgr.get(s.id)?.url ?? "").toContain("127.0.0.1");
 
     mgr.close(s.id);
+    unapproved.stop(true);
+    bounceServer.stop(true);
   }, 45_000);
 
   test("新工具：console/errors/cookies/storage/eval（默认禁用→opt-in）", async () => {

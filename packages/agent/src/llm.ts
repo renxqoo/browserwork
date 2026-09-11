@@ -10,6 +10,8 @@ export interface GlmEnv {
   /** 完整端点或 base（兼容两种写法——.env 实测是完整端点） */
   GLM_BASE_URL?: string;
   GLM_MODEL?: string;
+  /** 卡死升级用强模型 id（05 §3.3；未设 = 无升级） */
+  GLM_STRONG_MODEL?: string;
 }
 
 export function glmModelFromEnv(env: GlmEnv): Model<"openai-completions"> {
@@ -28,6 +30,25 @@ export function glmModelFromEnv(env: GlmEnv): Model<"openai-completions"> {
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: 128_000,
     maxTokens: 16_384,
+  };
+}
+
+/** fast + 可选 strong 双模型装配（05 §3.3 三级装配的 env 层） */
+export function glmModelsFromEnv(env: GlmEnv): {
+  fast: Model<"openai-completions">;
+  strong?: Model<"openai-completions">;
+} {
+  const fast = glmModelFromEnv(env);
+  if (env.GLM_STRONG_MODEL === undefined || env.GLM_STRONG_MODEL === "") {
+    return { fast };
+  }
+  return {
+    fast,
+    strong: {
+      ...fast,
+      id: env.GLM_STRONG_MODEL,
+      name: `GLM ${env.GLM_STRONG_MODEL}`,
+    },
   };
 }
 
@@ -58,9 +79,12 @@ export function scriptLLM(script: ScriptStep[]): {
     context: Context,
   ) => ReturnType<typeof createAssistantMessageEventStream>;
   calls: Context[];
+  /** 每次调用实际使用的模型 id（strong 路由断言用） */
+  callModels: string[];
   model: Model<"openai-completions">;
 } {
   const calls: Context[] = [];
+  const callModels: string[] = [];
   const queue = [...script];
   const fakeModel: Model<"openai-completions"> = {
     id: "scripted",
@@ -80,6 +104,7 @@ export function scriptLLM(script: ScriptStep[]): {
   ): ReturnType<typeof createAssistantMessageEventStream> => {
     // tools 含函数不可 structuredClone——只快照可 JSON 化面
     calls.push(JSON.parse(JSON.stringify(context)) as Context);
+    callModels.push(_model.id);
     const step = queue.shift() ?? { text: "(script exhausted)" };
     const s = createAssistantMessageEventStream();
     const usage: Usage = {
@@ -134,5 +159,5 @@ export function scriptLLM(script: ScriptStep[]): {
     s.end(message);
     return s;
   };
-  return { streamFn, calls, model: fakeModel };
+  return { streamFn, calls, callModels, model: fakeModel };
 }

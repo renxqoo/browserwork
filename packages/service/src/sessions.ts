@@ -23,6 +23,8 @@ export interface SessionToolResponse {
   text: string;
   /** 新快照（索引化 DOM 树——LLM 下一步决策的依据） */
   snapshot: string;
+  /** 渲染文本与上一步逐字符相等（05 §3.1）——外部 agent 可据此跳过重读 */
+  unchanged: boolean;
   /** 截图（仅 look 工具） */
   image?: { base64: string; mimeType: string };
   /** 动作解析出的导航意图 */
@@ -76,6 +78,8 @@ interface ManagedSession {
   allowEval: boolean;
   /** S1③：最近一次通过 onNavigationSettled 的 URL（违规回滚目标） */
   lastAllowedUrl: string;
+  /** 最近一次返回的快照渲染文本（unchanged 判定 + 渲染缓存，05 §3.1） */
+  lastRendered: string | null;
   /** 事件流（外部 agent 可选订阅） */
   events: TaskEvent[];
   eventWaiters: Array<() => void>;
@@ -382,6 +386,7 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
         steps: 0,
         allowEval: createOpts?.allowEval === true,
         lastAllowedUrl: startUrl ?? "about:blank",
+        lastRendered: null,
         events: [],
         eventWaiters: [],
         closed: false,
@@ -507,7 +512,7 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
             sessions.delete(id);
             return { ok: false, code: "BUDGET_EXCEEDED", error: "budget exceeded" };
           }
-          return { ok: true, text, snapshot: "" };
+          return { ok: true, text, snapshot: "", unchanged: false };
         }
 
         // ---- eval（B11：默认禁用——create 时显式 allowEval 才可用）
@@ -523,13 +528,13 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
             return { ok: false, code: "INVALID_TOOL_ARGS", error: "eval requires expression" };
           }
           const text = await s.engine.runExpression(params.expression);
-          return { ok: true, text, snapshot: "" };
+          return { ok: true, text, snapshot: "", unchanged: false };
         }
 
         // ---- tabs：标签页清单（driver.pages() 只读快照）
         if (toolName === "tabs") {
           const tabs = s.driver.pages().map((p, i) => ({ tab: i, url: p.url, title: p.title }));
-          return { ok: true, text: JSON.stringify(tabs), snapshot: "" };
+          return { ok: true, text: JSON.stringify(tabs), snapshot: "", unchanged: false };
         }
 
         const action = buildAction(toolName, params);
@@ -565,11 +570,18 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
         const r = await s.engine.act(action, s.snapshot);
         if (r.snapshot !== null) s.snapshot = r.snapshot;
 
+        // 05 §3.1：渲染缓存 + unchanged 判定（外部 agent 可跳过重读）
+        const rendered = r.snapshot !== null ? renderSnapshot(r.snapshot) : "";
+        const unchanged =
+          r.snapshot !== null && s.lastRendered !== null && rendered === s.lastRendered;
+        if (r.snapshot !== null) s.lastRendered = rendered;
+
         // 构造响应
         const response: SessionToolResponse = {
           ok: true,
           text: r.text,
-          snapshot: r.snapshot !== null ? renderSnapshot(r.snapshot) : "",
+          snapshot: rendered,
+          unchanged,
           ...(r.image !== undefined ? { image: r.image } : {}),
           ...(r.intent !== undefined
             ? {

@@ -13,6 +13,8 @@ import type { AgentTool } from "@mariozechner/pi-agent-core";
 import { Type } from "@mariozechner/pi-ai";
 
 export const SNAPSHOT_MARKER = "[SNAPSHOT]";
+/** unchanged 标记（05 §3.1）——渲染逐字符相等；不参与 keep-2 计数（区别于全量标记） */
+export const SNAPSHOT_MARKER_UNCHANGED = "[SNAPSHOT-UNCHANGED]";
 
 export interface ToolHooks {
   onEvent: (event: {
@@ -30,8 +32,8 @@ export interface ToolContext {
   engine: { act: (action: BrowserAction, snapshot?: Snapshot | null) => Promise<ActionResult> };
   policy: PolicyEngine;
   hooks: ToolHooks;
-  /** 当前最新快照（工具间共享；每个 DOM 动作复合步产出新快照） */
-  current: { snapshot: Snapshot | null };
+  /** 当前最新快照 + 最近返回给 LLM 的全量渲染文本（工具间共享） */
+  current: { snapshot: Snapshot | null; rendered: string | null };
   redact: (text: string) => string;
 }
 
@@ -94,7 +96,15 @@ async function runAction(ctx: ToolContext, action: BrowserAction): Promise<Actio
   const r = await ctx.engine.act(action, ctx.current.snapshot);
   let text = r.text;
   if (r.snapshot !== null) {
-    text = `${text}\n${SNAPSHOT_MARKER}\n${renderSnapshot(r.snapshot)}`;
+    // 05 §3.1：渲染文本逐字符 diff（白名单法废除——value/checked/滚动变化天然改变渲染）
+    const rendered = renderSnapshot(r.snapshot);
+    if (ctx.current.rendered !== null && rendered === ctx.current.rendered) {
+      text = `${text}\n${SNAPSHOT_MARKER_UNCHANGED}\n(page unchanged since last step — render identical)`;
+    } else {
+      text = `${text}\n${SNAPSHOT_MARKER}\n${rendered}`;
+      ctx.current.rendered = rendered;
+    }
+    // 快照本体始终更新（坐标新鲜，供下一步 locate 校验）
     ctx.current.snapshot = r.snapshot;
   }
   ctx.hooks.onActionResult(action, r);

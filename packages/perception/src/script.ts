@@ -100,6 +100,12 @@ export const EXTRACT_EXPRESSION = `(() => {
     let value;
     if (tag === "input" && type === "password") value = "***";
     else if (tag === "input" || tag === "textarea") value = clampText(el.value, 40);
+    // B12 审查 P1-1：checkbox/radio 的 checked 必须进快照——value 恒定不反映勾选态，
+    // 渲染 diff 依赖它（05 §3.1「checked 变化改变渲染」承诺）
+    const checked =
+      tag === "input" && (type === "checkbox" || type === "radio")
+        ? el.checked === true
+        : undefined;
     const id = nextId();
     el.setAttribute("data-bw-id", id);
     nodes.push({
@@ -111,6 +117,7 @@ export const EXTRACT_EXPRESSION = `(() => {
       type,
       placeholder: clampText(el.getAttribute("placeholder"), 80),
       value,
+      checked,
       x: Math.round(clamped.x),
       y: Math.round(clamped.y),
       w: Math.round(clamped.w),
