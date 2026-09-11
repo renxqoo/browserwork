@@ -202,7 +202,7 @@ $ bw s confirm <id> sc-8h2k1x9p --yes    # 或 --no
 
 **健康检查**：`GET /healthz`（免 Bearer，仅 loopback 绑定时暴露）→ `{ok, version, uptimeMs, sessions, activeTasks}`。
 
-**运维**：SIGTERM/SIGINT 优雅退出（abort 任务/关会话/清 PID 文件）；轨迹默认落盘 `~/.bw/trajectories/<id>.jsonl`（`--trajectory-dir` 可改），janitor 每 7 天/512MB 清理（含 `~/.bw/downloads`）；`bw replay <taskId|file>` 只读回放轨迹。会话触顶返回 **429**（本地 http://127.0.0.1 与内网地址默认被 S4 封锁——serve 进程设 `BW_ALLOW_PRIVATE_NETWORK=1` 后 create 传 `"allowPrivateNetwork": true` 才放行：网络边界归运维，不归持 token 的请求方）。
+**多实例 supervisor**（进程级隔离）：`bw sup start [--instances N] [--data-root DIR]`——每实例独立 Chrome dataDir/端口（3460+i）/token/轨迹目录，崩溃自动退避重启、healthz 3 连败重启；`bw sup status` / `bw sup stop`。请求路由归宿主（按端口自选）。**运维**：SIGTERM/SIGINT 优雅退出（abort 任务/关会话/清 PID 文件）；轨迹默认落盘 `~/.bw/trajectories/<id>.jsonl`（`--trajectory-dir` 可改），janitor 每 7 天/512MB 清理（含 `~/.bw/downloads`）；`bw replay <taskId|file>` 只读回放轨迹。会话触顶返回 **429**（本地 http://127.0.0.1 与内网地址默认被 S4 封锁——serve 进程设 `BW_ALLOW_PRIVATE_NETWORK=1` 后 create 传 `"allowPrivateNetwork": true` 才放行：网络边界归运维，不归持 token 的请求方）。
 
 ### 自治任务
 

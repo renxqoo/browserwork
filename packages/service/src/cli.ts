@@ -13,6 +13,7 @@ Usage:
   bw serve [--port <port>] [--token <auth-token>]   start HTTP service
          [--trajectory-dir <dir>]
   bw replay <taskId|file>                           print a task trajectory
+  bw sup start|status|stop [--instances N]          supervise N serve instances
   bw s [command]                                    session tools (bw s --help)
   bw --version                                      print version
   bw --help                                         show this help`;
@@ -174,6 +175,14 @@ export async function main(argv?: string[]): Promise<number> {
     }
     setInterval(() => {}, 60_000); // 活跃定时器——Bun 事件循环保持进程
     await new Promise(() => {}); // 永不返回——防止 main return 触发 process.exit
+  }
+  if (cmd === "sup") {
+    const { runSupCommand } = await import("./supervisor.ts");
+    const supArgv = (argv ?? process.argv.slice(2)).slice(1);
+    return runSupCommand(supArgv, {
+      createSupervisor: (await import("./supervisor.ts")).createSupervisor,
+      waitForHealthUrl: (await import("./supervisor.ts")).waitForHealthUrl,
+    });
   }
   if (cmd === "replay") {
     const target = args.goal;

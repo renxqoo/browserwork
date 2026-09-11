@@ -17,4 +17,12 @@ export type {
 } from "./sessions.ts";
 export { createSessionManager, SessionLimitError } from "./sessions.ts";
 export { installSignalHandlers } from "./shutdown.ts";
+export type { Supervisor, SupervisorConfig, SupInstance } from "./supervisor.ts";
+export {
+  createSupervisor,
+  readSupervisorState,
+  SupError,
+  supervisorStateDir,
+  waitForHealthUrl,
+} from "./supervisor.ts";
 export { VERSION } from "./version.ts";

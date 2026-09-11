@@ -7,3 +7,4 @@ packages/service/src/server.ts	SSE overflow/catch/running 分支需网络故障�
 packages/service/src/sessions.ts	会话 TTL 清理/intentSink/destroySession 边界需故障注入	min=75
 packages/service/src/cli-session.ts	CLI session 子命令（HTTP client 包装——底层已覆盖）	min=0
 packages/service/src/daemon.ts	进程编排（真实 spawn/空闲退出需 E2E；文件/探测/复用分支已单测）	min=55
+packages/service/src/supervisor.ts	进程编排默认路径（真 spawn/常驻 dwell/健康重启闭包需 E2E；假 spawn 矩阵 22 用例 + 真 chrome 冒烟已覆盖行为面）	min=80
