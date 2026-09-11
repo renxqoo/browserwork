@@ -3,6 +3,9 @@
  * 每 page 互斥锁吸收平台跨槽并发；复合步 = 校验 → 意图解析 → 执行 →
  * settle → 重提取；错误一律 throw BWError（LLM 自纠通道）。
  */
+import { existsSync, readdirSync, realpathSync, statSync, unlinkSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { type BrowserAction, BWError, type NavigationIntent } from "@bw/core";
 import type { Driver, Page } from "@bw/driver";
 import {
@@ -31,6 +34,8 @@ export interface ActionEngineOptions {
   resolveSecret?: (name: string, targetOrigin: string) => Promise<string>;
   /** S1②/S2：导航/提交意图上报（B5 前检消费；可异步——B5 在此做 DNS/白名单前检并等待） */
   intentSink?: (intent: NavigationIntent, action: BrowserAction) => void | Promise<void>;
+  /** B14 下载落盘目录工厂（缺省 ~/.bw/downloads/default；会话模式注入 per-session 目录） */
+  downloadsDir?: () => string;
 }
 
 export interface ActionResult {
@@ -54,7 +59,7 @@ export interface ActionEngine {
   runExpression(expression: string): Promise<string>;
 }
 
-/** inspect 类目（B11：对齐 agent-browser 的 get/debug 面，只取安全子集） */
+/** inspect 类目（B11：对齐 agent-browser 的 get/debug 面，只取安全子集；B14 增网络/cookie 元数据） */
 export type InspectKind =
   | "console"
   | "errors"
@@ -63,7 +68,9 @@ export type InspectKind =
   | "cookies_clear"
   | "storage"
   | "storage_set"
-  | "storage_clear";
+  | "storage_clear"
+  | "requests"
+  | "cookies_all";
 
 export interface InspectParams {
   key?: string;
@@ -75,6 +82,13 @@ const WAIT_MAX_SECONDS = 30;
 const SCROLL_STEP_PX = 600;
 const EVAL_TIMEOUT_MS = 10_000;
 const EVAL_MAX_RESULT = 8000;
+/** B14 下载预算（05 §4-8：并发 ≤1 / 单文件 ≤100MB / 会话累计 ≤1GB） */
+const DOWNLOAD_TIMEOUT_MS = 60_000;
+const DOWNLOAD_MAX_FILE_BYTES = 100 * 1024 * 1024;
+const DOWNLOAD_MAX_TOTAL_BYTES = 1024 * 1024 * 1024;
+/** 网络监听环形缓冲（05 §4-2：200 条，url ≤500 字符） */
+const NETWORK_BUFFER_MAX = 200;
+const NETWORK_URL_MAX = 500;
 
 /** 每 page 互斥锁：串行化引擎发起的一切驱动调用 + settle 轮询（01 §6.1） */
 const pageLocks = new WeakMap<object, Promise<unknown>>();
@@ -262,13 +276,280 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
     return extractSnapshot(page);
   };
 
+  // ---- B14：网络监听（chrome；环形缓冲 200 条，url ≤500 截断）----
+  interface NetEntry {
+    url: string;
+    requestId?: string;
+    method?: string;
+    type?: string;
+    status?: number;
+    failed?: boolean;
+    truncated?: boolean;
+    ts: number;
+  }
+  /** query 敏感参数掩码（requests 工具出域面——B14 审查 P2-10） */
+  const SENSITIVE_QUERY_KEYS =
+    /(^|&)(token|access_token|refresh_token|id_token|api[_-]?key|apikey|key|sig|signature|secret|password|passwd|authorization|credential|client_secret|session[_-]?id)=([^&]*)/gi;
+  const maskUrl = (raw: string): string => {
+    if (!raw.includes("?")) return raw;
+    const i = raw.indexOf("?");
+    const masked = raw.slice(i + 1).replace(SENSITIVE_QUERY_KEYS, "$1$2=***");
+    return `${raw.slice(0, i)}?${masked}`;
+  };
+  const netBuffers = new WeakMap<Page, NetEntry[]>();
+  const netWired = new WeakSet<Page>();
+  const ensureNetworkMonitor = async (page: Page): Promise<void> => {
+    if (!driver.capabilities().networkEvents || netWired.has(page)) return;
+    const entries: NetEntry[] = [];
+    netBuffers.set(page, entries);
+    const push = (e: NetEntry): void => {
+      if (entries.length >= NETWORK_BUFFER_MAX) entries.shift();
+      entries.push(e);
+    };
+    try {
+      await page.cdp("Network.enable", {});
+      netWired.add(page); // enable 成功才标记——瞬态失败可重试（B14 审查 P2-13）
+      page.onCdpEvent("Network.requestWillBeSent", (params) => {
+        const p = params as {
+          requestId?: string;
+          request?: { url?: string; method?: string };
+          type?: string;
+        };
+        const url = p.request?.url ?? "";
+        push({
+          url: maskUrl(url).slice(0, NETWORK_URL_MAX),
+          ...(p.requestId !== undefined ? { requestId: p.requestId } : {}),
+          ...(p.request?.method !== undefined ? { method: p.request.method } : {}),
+          ...(p.type !== undefined ? { type: p.type } : {}),
+          truncated: url.length > NETWORK_URL_MAX,
+          ts: Date.now(),
+        });
+      });
+      page.onCdpEvent("Network.responseReceived", (params) => {
+        // 按 requestId 精确匹配（并发乱序下「最新未定条目」启发式会张冠李戴——B14 审查 P2-9）
+        const p = params as { requestId?: string; response?: { status?: number } };
+        const target = [...entries]
+          .reverse()
+          .find((e) => e.requestId !== undefined && e.requestId === p.requestId);
+        if (target !== undefined && p.response?.status !== undefined) {
+          target.status = p.response.status;
+        }
+      });
+      page.onCdpEvent("Network.loadingFailed", (params) => {
+        const p = params as { requestId?: string };
+        const target = [...entries]
+          .reverse()
+          .find((e) => e.requestId !== undefined && e.requestId === p.requestId);
+        if (target !== undefined) target.failed = true;
+      });
+    } catch {
+      // chrome-only；失败静默（requests 工具将不可用——工具注册按能力判定）
+    }
+  };
+
+  // ---- B14 下载（chrome；预算：并发≤1 / 单文件≤100MB / 累计≤1GB）----
+  let downloadInFlight = false;
+  let downloadTotalBytes = 0;
+  const sanitizeFilename = (name: string): string => {
+    const base = name.split("/").pop() ?? "download";
+    const cleaned = base.replace(/[^A-Za-z0-9._-]/g, "_");
+    return cleaned === "" || cleaned === "." || cleaned === ".." ? "download" : cleaned;
+  };
+  const listDir = (dir: string): Set<string> => {
+    try {
+      return new Set(readdirSync(dir));
+    } catch {
+      return new Set();
+    }
+  };
+  const performDownload = async (
+    page: Page,
+    node: SnapNode,
+    located: LocateResult,
+    snapshot: Snapshot,
+  ): Promise<string> => {
+    const dir =
+      opts?.downloadsDir?.() ??
+      join(process.env.BW_DOWNLOADS_DIR ?? join(homedir(), ".bw", "downloads"), "default");
+    if (downloadInFlight) throw new BWError("INVALID_TOOL_ARGS", "another download is in flight");
+    if (downloadTotalBytes > DOWNLOAD_MAX_TOTAL_BYTES) {
+      throw new BWError("INVALID_TOOL_ARGS", "download budget exhausted (1GB per session)");
+    }
+    downloadInFlight = true;
+    // 下载行为只在本动作窗口启用（S1③ 违规窗口期不可触发下载——05 §3.7 审查 P7）
+    // behavior "allow"：保留原文件名（冲突自动去重）；"allowAndName" 会改存 UUID 名
+    // （契约实测）——目录差集 + 名字前缀匹配定位落盘文件
+    const enable = await page
+      .cdp("Browser.setDownloadBehavior", {
+        behavior: "allow",
+        downloadPath: dir,
+        eventsEnabled: true,
+      })
+      .catch(() => undefined);
+    const before = listDir(dir);
+    try {
+      let filename = "";
+      let offBegin: () => void = () => {};
+      let offProgress: () => void = () => {};
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const done = new Promise<void>((resolve, reject) => {
+        timer = setTimeout(
+          () => reject(new BWError("TIMEOUT", "download timed out after 60s")),
+          DOWNLOAD_TIMEOUT_MS,
+        );
+        offBegin = page.onCdpEvent("Page.downloadWillBegin", (params) => {
+          filename = sanitizeFilename(
+            (params as { suggestedFilename?: string }).suggestedFilename ?? "download",
+          );
+        });
+        offProgress = page.onCdpEvent("Page.downloadProgress", (params) => {
+          const state = (params as { state?: string }).state;
+          if (state === "completed") {
+            resolve();
+          } else if (state === "canceled") {
+            reject(new BWError("DRIVER_ERROR", "download canceled"));
+          }
+        });
+      }).finally(() => {
+        // 任一终态（含 TIMEOUT reject）卸载监听与计时——防永久泄漏（B14 审查 P2-7）
+        if (timer !== undefined) clearTimeout(timer);
+        offBegin();
+        offProgress();
+      });
+      await executeClick(page, node, located, {
+        w: snapshot.scroll.viewportW ?? 1280,
+        h: snapshot.scroll.viewportH,
+      });
+      await done;
+      // 落盘定位：目录差集（冲突自动去重改名）+ 名字前缀匹配 + 最新 mtime
+      await new Promise((r) => setTimeout(r, 200));
+      const added = [...listDir(dir)].filter((f) => !before.has(f));
+      let path = "";
+      let size = 0;
+      let newest = 0;
+      const stem = filename !== "" ? filename.replace(/\.[^.]+$/, "") : "";
+      for (const f of added) {
+        if (stem !== "" && !f.includes(stem)) continue;
+        const p = join(dir, f);
+        try {
+          const st = statSync(p);
+          // 首个匹配（path===""）或更新 mtime 的候选（0 字节照常参与——B14 审查 P2-8）
+          if (st.isFile() && (path === "" || st.mtimeMs > newest)) {
+            path = p;
+            size = st.size;
+            newest = st.mtimeMs;
+          }
+        } catch {
+          /* 竞态 */
+        }
+      }
+      if (path === "") throw new BWError("DRIVER_ERROR", "downloaded file not found on disk");
+      if (size > DOWNLOAD_MAX_FILE_BYTES) {
+        try {
+          unlinkSync(path);
+        } catch {
+          /* 尽力 */
+        }
+        downloadTotalBytes += size;
+        throw new BWError(
+          "INVALID_TOOL_ARGS",
+          `download exceeds 100MB limit (${size} bytes); deleted`,
+        );
+      }
+      downloadTotalBytes += size;
+      return path;
+    } finally {
+      downloadInFlight = false;
+      if (enable !== undefined) {
+        await page.cdp("Browser.setDownloadBehavior", { behavior: "default" }).catch(() => {});
+      }
+    }
+  };
+
+  // ---- B14 上传（chrome；performSearch 穿 shadow/iframe → setFileInputFiles）----
+  const performUpload = async (
+    page: Page,
+    node: SnapNode,
+    files: string[],
+    located: LocateResult,
+  ): Promise<void> => {
+    // P0-1 处置（B14 审查）：定位校验防「页面偷换目的地」——元素必须仍是可见的
+    // file input 且坐标未漂移（与 click/type 轨同一防线）
+    if (located.tag !== "input" || located.inputType !== "file") {
+      throw new BWError("ELEMENT_NOT_ACTIONABLE", `element ${node.id} is not a file input`);
+    }
+    if (located.visible === false) {
+      throw new BWError("ELEMENT_NOT_ACTIONABLE", `element ${node.id} is hidden`);
+    }
+    // realpath 解析（压缩路径闸检查与使用的 TOCTOU 窗口——审查 P1-5）
+    const resolved: string[] = [];
+    for (const f of files) {
+      if (!existsSync(f)) {
+        throw new BWError("INVALID_TOOL_ARGS", `file not found: ${f}`);
+      }
+      try {
+        resolved.push(realpathSync(f));
+      } catch {
+        resolved.push(f);
+      }
+    }
+    const search = (await page.cdp("DOM.performSearch", {
+      query: `[data-bw-id="${node.id}"]`,
+    })) as { searchId?: string; resultCount?: number };
+    if (search.searchId === undefined || (search.resultCount ?? 0) === 0) {
+      throw new BWError("ELEMENT_NOT_FOUND", `element ${node.id} not found via DOM search`);
+    }
+    const results = (await page.cdp("DOM.getSearchResults", {
+      searchId: search.searchId,
+      fromIndex: 0,
+      toIndex: search.resultCount,
+    })) as { nodeIds?: number[] };
+    await page.cdp("DOM.discardSearchResults", { searchId: search.searchId }).catch(() => {});
+    const nodeId = results.nodeIds?.[0];
+    if (nodeId === undefined || nodeId <= 0) {
+      throw new BWError("ELEMENT_NOT_FOUND", `element ${node.id} has no DOM node`);
+    }
+    await page.cdp("DOM.setFileInputFiles", { files: resolved, nodeId });
+  };
+
   /** JSON 参数安全内嵌（引号/换行转义后拼入页面表达式） */
   const lit = (s: string): string => JSON.stringify(s);
+
+  /** 最近一次落定导航是否为 POST（submit/enter_submit 置位）——reload 写重放闸（05 §3.7 审查 P6） */
+  const lastNavWasPost = new WeakMap<Page, boolean>();
 
   const inspect = async (kind: InspectKind, params?: InspectParams): Promise<string> => {
     const page = ensureActive();
     return runExclusive(page, async () => {
       switch (kind) {
+        case "requests": {
+          if (!driver.capabilities().networkEvents) {
+            throw new BWError("INVALID_TOOL_ARGS", "requests requires the chrome backend");
+          }
+          const entries = netBuffers.get(page) ?? [];
+          return JSON.stringify(entries.slice(-50));
+        }
+        case "cookies_all": {
+          // B14：httpOnly cookie 元数据（值永不出域——05 §0/§3.7 审查 P4 处置）
+          if (!driver.capabilities().httpOnlyCookies) {
+            throw new BWError("INVALID_TOOL_ARGS", "cookies_all requires the chrome backend");
+          }
+          const raw = (await page.cdp<{ cookies?: Array<Record<string, unknown>> }>(
+            "Network.getCookies",
+            { urls: [page.url] },
+          )) ?? { cookies: [] };
+          const masked = (raw.cookies ?? []).map((c) => ({
+            name: c.name,
+            domain: c.domain,
+            path: c.path,
+            expires: c.expires,
+            httpOnly: c.httpOnly === true,
+            secure: c.secure === true,
+            sameSite: c.sameSite,
+            value: "***",
+          }));
+          return JSON.stringify(masked);
+        }
         case "console":
         case "errors": {
           const logs = (await page.evaluate<PageLogEntry[]>(DRAIN_LOGS_EXPRESSION)) ?? [];
@@ -357,7 +638,10 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
       if (action.kind === "open_tab") {
         const page = await driver.createPage({ url: action.url });
         active = page;
-        const snap = await runExclusive(page, () => settleAndExtract(page));
+        const snap = await runExclusive(page, async () => {
+          await ensureNetworkMonitor(page); // 新 tab 即接线（B14 审查 P2-13）
+          return settleAndExtract(page);
+        });
         return { text: `opened tab: ${page.url}`, snapshot: snap };
       }
       if (action.kind === "switch_tab") {
@@ -370,7 +654,10 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
           );
         }
         active = page;
-        const snap = await runExclusive(page, () => settleAndExtract(page));
+        const snap = await runExclusive(page, async () => {
+          await ensureNetworkMonitor(page); // 切回旧 tab 补接线（B14 审查 P2-13）
+          return settleAndExtract(page);
+        });
         return { text: `switched to tab ${action.tab}: ${page.url}`, snapshot: snap };
       }
       if (action.kind === "close_tab") {
@@ -390,9 +677,11 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
 
       const page = ensureActive();
       return runExclusive(page, async () => {
+        await ensureNetworkMonitor(page); // chrome 侧幂等（webkit no-op）
         switch (action.kind) {
           case "navigate": {
             await page.navigate(action.url, { timeoutMs: 30_000 });
+            lastNavWasPost.set(page, false);
             const snap = await settleAndExtract(page);
             return { text: `navigated to ${page.url}`, snapshot: snap };
           }
@@ -405,6 +694,7 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
             const intent = intentFrom(located);
             if (intent !== null) {
               await opts?.intentSink?.(intent, action);
+              lastNavWasPost.set(page, intent.kind === "submit");
             }
             const baselineUrl = page.url;
             const viewport = {
@@ -471,6 +761,8 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
                     ? { kind: "enter_submit", href: intentInfo.action, method: intentInfo.method }
                     : { kind: "enter_submit" };
                 await opts?.intentSink?.(intent, action);
+                // POST 落点记账（含 Enter 提交——B14 审查 P1-2：reload 写重放闸缺口）
+                lastNavWasPost.set(page, intent.method === undefined || intent.method !== "get");
               }
             }
             await page.press(action.key);
@@ -558,6 +850,62 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
             const snap =
               snapshot !== undefined && snapshot !== null ? await settleAndExtract(page) : null;
             return { text: `waited ${seconds}s`, snapshot: snap };
+          }
+          case "resize": {
+            // 复合步强制重提取——缓存坐标全失效（B14 审查 P2-10）
+            const w = Math.min(Math.max(Math.round(action.width), 1), 16384);
+            const h = Math.min(Math.max(Math.round(action.height), 1), 16384);
+            await page.resize(w, h);
+            const snap = await settleAndExtract(page);
+            return { text: `resized to ${w}x${h}`, snapshot: snap };
+          }
+          case "reload": {
+            // 写重放闸：栈顶是 POST 落点时过 S2 提交意图（05 §3.7 审查 P6）
+            if (lastNavWasPost.get(page) === true) {
+              await opts?.intentSink?.({ kind: "submit", href: page.url }, action);
+            }
+            await page.reload();
+            const snap = await settleAndExtract(page);
+            return { text: `reloaded ${page.url}`, snapshot: snap };
+          }
+          case "download": {
+            if (!driver.capabilities().download) {
+              throw new BWError("INVALID_TOOL_ARGS", "download requires the chrome backend");
+            }
+            if (snapshot === undefined || snapshot === null) {
+              throw new BWError("INVALID_TOOL_ARGS", "download requires a snapshot");
+            }
+            await ensureNetworkMonitor(page);
+            const node = findNode(snapshot, action.index);
+            const located = await locateAndValidate(page, node);
+            const intent = intentFrom(located);
+            if (intent !== null) {
+              await opts?.intentSink?.(intent, action);
+              lastNavWasPost.set(page, intent.kind === "submit");
+            }
+            const path = await performDownload(page, node, located, snapshot);
+            const snap = await settleAndExtract(page);
+            return { text: `downloaded to ${path}`, snapshot: snap };
+          }
+          case "upload": {
+            if (!driver.capabilities().upload) {
+              throw new BWError("INVALID_TOOL_ARGS", "upload requires the chrome backend");
+            }
+            if (snapshot === undefined || snapshot === null) {
+              throw new BWError("INVALID_TOOL_ARGS", "upload requires a snapshot");
+            }
+            const node = findNode(snapshot, action.index);
+            if (node.tag !== "input" || node.type !== "file") {
+              throw new BWError("ELEMENT_NOT_ACTIONABLE", `element ${node.id} is not a file input`);
+            }
+            // 定位校验（P0-1：目的地偷换防线——漂移/可见性/inputType 三查）
+            const located = await locateAndValidate(page, node);
+            await performUpload(page, node, action.files, located);
+            const snap = await settleAndExtract(page);
+            return {
+              text: `uploaded ${action.files.length} file(s) to [${node.id}]`,
+              snapshot: snap,
+            };
           }
           case "done": {
             return { text: action.answer ?? "", snapshot: null, done: true };

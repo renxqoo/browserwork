@@ -25,3 +25,18 @@
 ## 能力矩阵定稿（webkit 列，01 §5 同步）
 
 `cdp:false · upload:false · download:false · dialogEvents:false（自动处理）· userAgentOverride:false · pierceClick:false · popups:"dropped"`
+
+## p10/p11（B14 前置：chrome 后端 CDP 面，2026-09-12）
+
+| 探针 | 结论 |
+|---|---|
+| p10.cdpCommand | DOM.getDocument 直发 OK（先 navigate 建会话） |
+| p10.cdpEvent | Network.requestWillBeSent 事件订阅 OK |
+| p10.resize | resize(1024,768) 后 innerWidth/Height 即时生效 |
+| p10.backOnNavigated | **`back()` 运行时不存在**（bun-types 1.4.2 声明了 back/forward 但未实现——在线文档的 goBack 同样不可用）→ B14 放弃历史导航动作，登记上游限制 |
+| p10.uaOverride | Emulation.setUserAgentOverride 生效（navigator.userAgent 变更可见） |
+| p11.runtimeMethods | reload= function / back=undefined / forward=undefined / resize=function |
+| p11.querySelector | DOM.getDocument{depth:-1} + DOM.querySelector 命中（p10 失败是探针页无目标元素） |
+| p11.objectIdObjectGroup | Runtime.evaluate 需 **objectGroup** 才返回 objectId（无 objectGroup 时剥离） |
+| p11.performSearch | DOM.performSearch **穿 shadow DOM**（找到 shadow 内 data-bw-id）→ 上传主路径 |
+| p11.downloadEvents | Browser.setDownloadBehavior(eventsEnabled) + Page.downloadWillBegin{suggestedFilename} OK；**行为契约实测：`allowAndName` 落盘为 UUID 名，`allow` 保留原名（冲突自动去重）——引擎采用 allow + 目录差集定位** |

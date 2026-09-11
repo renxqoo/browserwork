@@ -55,6 +55,10 @@ export function makeFakeWorld(opts: FakeWorldOptions): FakeWorld {
         dialogEvents: false,
         userAgentOverride: false,
         pierceClick: false,
+        httpOnlyCookies: false,
+        networkEvents: false,
+        webp: false,
+        popups: false,
       },
       {
         selectors,

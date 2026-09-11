@@ -37,6 +37,8 @@ export interface FakePageOptions {
   selectors?: string[];
   /** selectors 中「可点击」的子集（默认 = selectors 全部） */
   notActionable?: string[];
+  /** cdp 处理器（B14：模拟 CDP 命令；未提供时抛 DRIVER_ERROR 如 webkit） */
+  cdpHandler?: (method: string, params?: Record<string, unknown>) => unknown;
 }
 
 export class FakePage implements Page {
@@ -56,6 +58,11 @@ export class FakePage implements Page {
   readonly presses: Array<{ key: string; modifiers: PressModifier[] | undefined }> = [];
   readonly scrolls: Array<{ dx: number; dy: number }> = [];
   readonly scrollToCalls: string[] = [];
+  readonly resizes: Array<{ width: number; height: number }> = [];
+  readonly reloadCount: number[] = [];
+  /** 注入 CDP 事件（B14：网络监听/下载事件模拟） */
+  readonly cdpEventLog: Array<{ method: string; params: unknown }> = [];
+  #cdpListeners = new Map<string, Set<(params: unknown) => void>>();
 
   constructor(opts: FakePageOptions = {}) {
     this.#opts = opts;
@@ -206,6 +213,52 @@ export class FakePage implements Page {
     return TINY_PNG.slice();
   }
 
+  async resize(width: number, height: number): Promise<void> {
+    this.#assertOpen();
+    this.resizes.push({ width, height });
+  }
+
+  async reload(): Promise<void> {
+    this.#assertOpen();
+    this.reloadCount.push(Date.now());
+    // 与真驱动语义对齐：reload 触发导航回调
+    for (const l of this.#navListeners) {
+      try {
+        l(this.#url, this.#title);
+      } catch {
+        // 隔离
+      }
+    }
+  }
+
+  async cdp<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T> {
+    this.#assertOpen();
+    if (this.#opts.cdpHandler === undefined) {
+      throw new BWError("DRIVER_ERROR", `cdp not available on this backend: ${method}`);
+    }
+    return this.#opts.cdpHandler(method, params) as T;
+  }
+
+  onCdpEvent(method: string, listener: (params: unknown) => void): () => void {
+    this.#assertOpen();
+    const set = this.#cdpListeners.get(method) ?? new Set();
+    set.add(listener);
+    this.#cdpListeners.set(method, set);
+    return () => set.delete(listener);
+  }
+
+  /** 测试注入：向 onCdpEvent 订阅者派发事件 */
+  emitCdpEvent(method: string, params: unknown): void {
+    this.cdpEventLog.push({ method, params });
+    for (const l of this.#cdpListeners.get(method) ?? []) {
+      try {
+        l(params);
+      } catch {
+        // 隔离
+      }
+    }
+  }
+
   onNavigated(listener: NavigationListener): () => void {
     this.#navListeners.add(listener);
     return () => this.#navListeners.delete(listener);
@@ -253,6 +306,10 @@ export class FakeDriver implements Driver {
       dialogEvents: false,
       userAgentOverride: false,
       pierceClick: false,
+      httpOnlyCookies: false,
+      networkEvents: false,
+      webp: false,
+      popups: false,
     },
     pageOptions: FakePageOptions = {},
   ) {

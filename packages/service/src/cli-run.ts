@@ -6,6 +6,12 @@ export interface RunCliArgs {
   goal: string;
   startUrl?: string;
   json?: boolean;
+  backend?: "webkit" | "chrome";
+  dataDir?: string;
+  chromePath?: string;
+  width?: number;
+  height?: number;
+  ua?: string;
 }
 
 async function loadEnvFile(path: string): Promise<Record<string, string>> {
@@ -53,7 +59,27 @@ export async function runCliTask(args: RunCliArgs): Promise<number> {
   });
 
   const handle = runTask(
-    { goal: args.goal, ...(args.startUrl !== undefined ? { startUrl: args.startUrl } : {}) },
+    {
+      goal: args.goal,
+      ...(args.startUrl !== undefined ? { startUrl: args.startUrl } : {}),
+      ...(args.backend !== undefined ||
+      args.dataDir !== undefined ||
+      args.chromePath !== undefined ||
+      args.width !== undefined ||
+      args.height !== undefined ||
+      args.ua !== undefined
+        ? {
+            driver: {
+              ...(args.backend !== undefined ? { backend: args.backend } : {}),
+              ...(args.dataDir !== undefined ? { dataDir: args.dataDir } : {}),
+              ...(args.chromePath !== undefined ? { chromePath: args.chromePath } : {}),
+              ...(args.width !== undefined ? { width: args.width } : {}),
+              ...(args.height !== undefined ? { height: args.height } : {}),
+              ...(args.ua !== undefined ? { userAgent: args.ua } : {}),
+            },
+          }
+        : {}),
+    },
     {
       models: {
         fast: models.fast as never,

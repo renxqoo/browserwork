@@ -44,7 +44,7 @@
 
 ### 2.2 BrowserAction 词表（core/actions.ts）
 
-追加：`{kind:"resize"; width:number; height:number}` · `{kind:"go_back"}` · `{kind:"go_forward"}` · `{kind:"reload"}` · `{kind:"download"; index:string}` · `{kind:"upload"; index:string; files:string[]}`。全部走既有 beforeStep 预算/轨迹钩子。同步扩项清单（审查 P24）：`BROWSER_ACTION_KINDS` 封闭断言、engine `never` 穷举、actions 表驱动矩阵、driver 契约套件、sessions `buildAction` 表、cli-session 命令表、U4/U6 单元卡（§7 回改 03）。
+追加：`{kind:"resize"; width:number; height:number}` · `{kind:"reload"}` · `{kind:"download"; index:string}` · `{kind:"upload"; index:string; files:string[]}`。（go_back/go_forward 经探针 p10/p11 放弃——bun-types 声明 back/forward 但运行时未实现，登记为 Bun 1.4.2 上游限制）全部走既有 beforeStep 预算/轨迹钩子。同步扩项清单（审查 P24）：`BROWSER_ACTION_KINDS` 封闭断言、engine `never` 穷举、actions 表驱动矩阵、driver 契约套件、sessions `buildAction` 表、cli-session 命令表、U4/U6 单元卡（§7 回改 03）。
 
 ### 2.3 InspectKind 词表（actions）
 

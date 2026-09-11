@@ -4,6 +4,8 @@
  * 边界模型：意图前检（S1①②/S2/S3/S5）+ 结果后检（S1③ 回滚）——
  * webkit 无请求拦截，不承诺请求级阻断。
  */
+import { realpathSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { type BrowserAction, BWError, type NavigationIntent } from "@bw/core";
 import {
   checkUrl,
@@ -82,6 +84,8 @@ export interface PolicyConfig {
   sensitiveWords?: readonly string[];
   /** 测试档放宽 S4 内网封锁（fixture 127.0.0.1）——默认 false */
   allowPrivateNetwork?: boolean;
+  /** B14 上传路径闸：允许直接上传的目录（realpath 双向解析后前缀匹配；缺省仅 os.tmpdir()） */
+  allowUploadDirs?: string[];
   budget: BudgetLimits;
 }
 
@@ -175,6 +179,8 @@ export interface PolicyEngine {
   onNavigationSettled(finalUrl: string): Promise<SettledVerdict>;
   /** S2：写闸（敏感词/提交意图） */
   onAction(action: BrowserAction, target?: ActionTarget, intent?: NavigationIntent): GateDecision;
+  /** B14：上传路径闸——目录外文件走确认门（realpath 防 symlink；05 §3.7 审查 P9） */
+  checkUploadFiles(files: string[]): GateDecision;
   /** S3：凭据解析（绑定 origin；解析值进 redact 集） */
   resolveSecret(name: string, targetOrigin: string): Promise<string>;
   /** S6：出域前统一脱敏（含变体） */
@@ -368,6 +374,34 @@ export function createPolicyEngine(config: PolicyConfig, deps: PolicyDeps): Poli
       return { ok: true, rollback: false };
     },
 
+    checkUploadFiles(files) {
+      // B14：默认仅 tmpdir；realpath 双向解析后前缀匹配（防 symlink 绕过——审查 P9）
+      const allowed = (config.allowUploadDirs ?? [tmpdir()]).map((d) => {
+        try {
+          return realpathSync(d);
+        } catch {
+          return d;
+        }
+      });
+      const outside = files.filter((f) => {
+        let real: string;
+        try {
+          real = realpathSync(f);
+        } catch {
+          real = f;
+        }
+        return !allowed.some((a) => real === a || real.startsWith(`${a}/`));
+      });
+      if (outside.length === 0) return { kind: "allow" };
+      const cid = deps.newCid();
+      confirmations.set(cid, { kind: "action", cid });
+      return {
+        kind: "confirm",
+        cid,
+        reason: `upload outside allowed dirs: ${outside[0]?.slice(0, 60) ?? ""}`,
+      };
+    },
+
     onAction(action, target, intent) {
       // B6 审查 P1-4 处置：工具内挂起式确认（批准即在 gate 内放行执行）不需要
       // 令牌重发放行——approvedActionSignatures 机制废除，同签名动作始终重新确认
@@ -496,6 +530,7 @@ export function testPolicyConfig(
     allowSecretsHosts: [...(base?.allowSecretsHosts ?? []), ...fixtureHosts],
     allowPrivateNetwork: true,
     ...(base?.sensitiveWords !== undefined ? { sensitiveWords: base.sensitiveWords } : {}),
+    ...(base?.allowUploadDirs !== undefined ? { allowUploadDirs: base.allowUploadDirs } : {}),
     budget: base?.budget ?? {
       maxSteps: 100,
       maxTokensInput: 10_000_000,

@@ -25,6 +25,12 @@ interface ParsedArgs {
   port: number | undefined;
   token: string | undefined;
   trajectoryDir: string | undefined;
+  backend: string | undefined;
+  dataDir: string | undefined;
+  chromePath: string | undefined;
+  width: number | undefined;
+  height: number | undefined;
+  ua: string | undefined;
 }
 
 export function parseArgs(argv: string[]): ParsedArgs {
@@ -36,6 +42,12 @@ export function parseArgs(argv: string[]): ParsedArgs {
     port: undefined,
     token: undefined,
     trajectoryDir: undefined,
+    backend: undefined,
+    dataDir: undefined,
+    chromePath: undefined,
+    width: undefined,
+    height: undefined,
+    ua: undefined,
   };
   const [cmd, ...rest] = argv;
   out.command = cmd;
@@ -54,6 +66,24 @@ export function parseArgs(argv: string[]): ParsedArgs {
       i += 1;
     } else if (a === "--trajectory-dir") {
       out.trajectoryDir = rest[i + 1];
+      i += 1;
+    } else if (a === "--backend") {
+      out.backend = rest[i + 1];
+      i += 1;
+    } else if (a === "--data-dir") {
+      out.dataDir = rest[i + 1];
+      i += 1;
+    } else if (a === "--chrome-path") {
+      out.chromePath = rest[i + 1];
+      i += 1;
+    } else if (a === "--width") {
+      out.width = Number(rest[i + 1]);
+      i += 1;
+    } else if (a === "--height") {
+      out.height = Number(rest[i + 1]);
+      i += 1;
+    } else if (a === "--ua") {
+      out.ua = rest[i + 1];
       i += 1;
     } else if (out.goal === undefined && a !== undefined && !a.startsWith("--")) {
       out.goal = a;
@@ -89,6 +119,12 @@ export async function main(argv?: string[]): Promise<number> {
       goal: args.goal,
       ...(args.url !== undefined ? { startUrl: args.url } : {}),
       ...(args.json ? { json: true } : {}),
+      ...(args.backend !== undefined ? { backend: args.backend as "webkit" | "chrome" } : {}),
+      ...(args.dataDir !== undefined ? { dataDir: args.dataDir } : {}),
+      ...(args.chromePath !== undefined ? { chromePath: args.chromePath } : {}),
+      ...(args.width !== undefined ? { width: args.width } : {}),
+      ...(args.height !== undefined ? { height: args.height } : {}),
+      ...(args.ua !== undefined ? { ua: args.ua } : {}),
     });
   }
   if (cmd === "s" || cmd === "session") {
@@ -102,7 +138,7 @@ export async function main(argv?: string[]): Promise<number> {
     const bwHome = process.env.BW_HOME ?? process.env.HOME ?? "/tmp";
     const trajectoryDir =
       args.trajectoryDir ?? process.env.BW_TRAJECTORY_DIR ?? `${bwHome}/.bw/trajectories`;
-    const downloadsRoot = process.env.BW_DOWNLOADS_DIR ?? `${bwHome}/.bw/downloads`;
+    const { downloadsRoot } = await import("./sessions.ts");
     const server = createServer({
       port: args.port ?? 3456,
       ...(explicit !== undefined ? { authToken: explicit } : {}),
@@ -117,7 +153,11 @@ export async function main(argv?: string[]): Promise<number> {
     console.log(`bw serve listening on ${server.url} (trajectories: ${trajectoryDir})`);
     console.log("Press Ctrl+C to stop");
     const { startJanitor } = await import("./janitor.ts");
-    startJanitor([{ dir: trajectoryDir, extensions: [".jsonl"] }, { dir: downloadsRoot }]);
+    startJanitor([
+      { dir: trajectoryDir, extensions: [".jsonl"] },
+      // 下载根为会话/任务子目录结构——一层展开清扫（B14 审查 P1-6）
+      { dir: downloadsRoot(), subdirs: true },
+    ]);
     // B13：优雅退出（SIGTERM/SIGINT——daemon 停止/容器停止不再裸杀）
     const { installSignalHandlers } = await import("./shutdown.ts");
     const { getDaemonInfo, removePidFile, isServeIdle, setupIdleExit } = await import(

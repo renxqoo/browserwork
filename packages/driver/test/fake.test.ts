@@ -93,6 +93,10 @@ describe("FakeDriver", () => {
       dialogEvents: false,
       userAgentOverride: false,
       pierceClick: false,
+      httpOnlyCookies: false,
+      networkEvents: false,
+      webp: false,
+      popups: false,
     });
   });
 

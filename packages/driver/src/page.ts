@@ -235,8 +235,58 @@ export class WebViewPage implements Page {
       });
       return new Uint8Array(buf);
     } catch (cause) {
-      throw new BWError("DRIVER_ERROR", "screenshot failed", { cause });
+      const message = cause instanceof Error ? cause.message : String(cause);
+      throw new BWError(
+        "DRIVER_ERROR",
+        message.includes("webp")
+          ? "screenshot failed: webp requires the chrome backend"
+          : "screenshot failed",
+        { cause },
+      );
     }
+  }
+
+  async resize(width: number, height: number): Promise<void> {
+    const view = this.#require();
+    try {
+      await view.resize(width, height);
+    } catch (cause) {
+      throw new BWError("DRIVER_ERROR", `resize failed: ${width}x${height}`, { cause });
+    }
+  }
+
+  async reload(): Promise<void> {
+    const view = this.#require();
+    try {
+      await view.reload();
+    } catch (cause) {
+      throw new BWError("DRIVER_ERROR", "reload failed", { cause });
+    }
+  }
+
+  async cdp<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T> {
+    const view = this.#require();
+    try {
+      return (await view.cdp(method, params ?? {})) as T;
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause);
+      if (message.includes("ERR_METHOD_NOT_IMPLEMENTED")) {
+        throw new BWError("DRIVER_ERROR", `cdp not available on this backend: ${method}`, {
+          cause,
+        });
+      }
+      throw new BWError("DRIVER_ERROR", `cdp failed: ${method}`, { cause });
+    }
+  }
+
+  onCdpEvent(method: string, listener: (params: unknown) => void): () => void {
+    const view = this.#require();
+    const wrapped = (event: Event): void => {
+      const data = (event as CustomEvent).detail ?? (event as unknown as { data?: unknown }).data;
+      listener(data);
+    };
+    view.addEventListener(method, wrapped as EventListener);
+    return () => view.removeEventListener(method, wrapped as EventListener);
   }
 
   onNavigated(listener: NavigationListener): () => void {

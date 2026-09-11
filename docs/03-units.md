@@ -38,8 +38,8 @@
 
 ## U4 `@bw/actions` — 动作层
 
-**处理**：`executeAction(action, ctx)`；动作词表 `navigate/click/type/type_text_secret/press/scroll/scroll_to/select/extract_text/look/open_tab/switch_tab/close_tab/wait/done`；**每 page 互斥锁**（覆盖一切驱动调用 + settle 轮询 + 轨迹截图，基线 §6.1）；索引桥双轨：主文档 light DOM → selector 轨（点击前若 belowViewport 先 scrollTo）；shadow/iframe/跨源 → 坐标轨（先 locate 校验元素存在与 rect 一致，坐标点击）；**导航意图解析**（click/press 目标的 `a[href]`/formaction/form action + press Enter 且焦点在表单内 = 提交意图）交给 U5 前检；**动作前校验**（bw-id 深度定位 + rect 容差比对；type_secret 需目标文档 origin）；`select` 经 evaluate 原生 setter + change 事件合成（P2-4 处置；type 的 InsertText 天然兼容 React，不设 setValue helper）；settle（观察者静默 500ms 或 10s 上限照常继续，**超限不报错**）；复合步 `act(snapshot, action) → {result, nextSnapshot}`（锁内：校验→执行→settle→提取→轨迹截图）。
-**不处理**：放行决策（U5 先拦）；LLM schema（U6）；上传下载（chrome 批次）。
+**处理**：`executeAction(action, ctx)`；动作词表 `navigate/click/type/type_text_secret/press/scroll/scroll_to/select/extract_text/look/open_tab/switch_tab/close_tab/wait/resize/reload/download/upload/done`（B14 增 resize/reload/download/upload；go_back/go_forward 因 Bun 1.4.2 运行时未实现 back/forward 放弃——探针 p10/p11）；**每 page 互斥锁**（覆盖一切驱动调用 + settle 轮询 + 轨迹截图，基线 §6.1）；索引桥双轨：主文档 light DOM → selector 轨（点击前若 belowViewport 先 scrollTo）；shadow/iframe/跨源 → 坐标轨（先 locate 校验元素存在与 rect 一致，坐标点击）；**导航意图解析**（click/press 目标的 `a[href]`/formaction/form action + press Enter 且焦点在表单内 = 提交意图）交给 U5 前检；**动作前校验**（bw-id 深度定位 + rect 容差比对；type_secret 需目标文档 origin）；`select` 经 evaluate 原生 setter + change 事件合成（P2-4 处置；type 的 InsertText 天然兼容 React，不设 setValue helper）；settle（观察者静默 500ms 或 10s 上限照常继续，**超限不报错**）；复合步 `act(snapshot, action) → {result, nextSnapshot}`（锁内：校验→执行→settle→提取→轨迹截图）。
+**不处理**：放行决策（U5 先拦）；LLM schema（U6）。（上传下载已随 B14 落地：download/upload 仅 chrome 后端，上传路径闸见 05 §3.7）
 **契约要点**：错误一律 `throw BWError`；`look` 在「本页已输入 secret」期间默认拒绝（S6）；事件循环保活：等待期持有 pending evaluate（浏览器子进程不保活事件循环，P2-3 处置）。
 **测试口径**：动作 × FakePage 表驱动（FakePage 模拟选择器作用域真实语义）；**双轨分派矩阵**（主文档/shadow/同源 iframe/跨源 → 各走哪轨）；竞态（提取后 DOM 替换 → ELEMENT_NOT_FOUND 非误点）；settle 两侧（永动页照常继续）；submit 意图解析表（a 按钮/submit 按钮/Enter in form/JS submit）；select 原生 setter 触发 change 断言；真 view 集成（fixture React 表单全旅程）；导航意图 href 解析表。
 

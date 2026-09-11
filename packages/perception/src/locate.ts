@@ -16,6 +16,8 @@ export interface LocateResult {
   visible?: boolean;
   /** isContentEditable——type 动作可输入判据（B4 审查 P2-5） */
   editable?: boolean;
+  /** input 控件的 type 属性（B14：upload 目的地复核——file input 防偷换） */
+  inputType?: string;
   x?: number;
   y?: number;
   w?: number;
@@ -47,6 +49,7 @@ function hitActionFor(op: Op): string {
       text: String(el.textContent || "").replace(/\\s+/g, " ").trim().slice(0, 80) || undefined,
       visible: !(cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0"),
       editable: !!el.isContentEditable,
+      inputType: el.tagName === "INPUT" ? String(el.getAttribute("type") || "text").toLowerCase() : undefined,
       x: Math.round(c.x), y: Math.round(c.y), w: Math.round(c.w), h: Math.round(c.h),
       origin: doc.location.origin,
       inShadow, inFrame,

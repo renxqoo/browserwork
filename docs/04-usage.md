@@ -117,6 +117,12 @@ $ bw s close sess-1fbd1489-3d34
 | `scrollto <id> <index>` | 滚到某元素 |
 | `wait <id> <seconds>` | 等待 |
 | `navigate <id> <url>` | 导航（过安全闸） |
+| `resize <id> <w> <h>` | 视口尺寸（快照坐标刷新） |
+| `reload <id>` | 重新加载（POST 落点过确认门） |
+| `download <id> <index>` | 点下载链接存文件（仅 chrome；单文件≤100MB） |
+| `upload <id> <index> <file>…` | 上传文件（仅 chrome；目录外走确认门） |
+| `requests <id>` | 最近网络请求（仅 chrome） |
+| `cookies-all <id>` | 全量 cookie 元数据，值掩码（仅 chrome） |
 
 | 标签页 | |
 |---|---|
@@ -136,6 +142,8 @@ $ bw s close sess-1fbd1489-3d34
 | `storage-set <id> <key> <value>` | 写 |
 | `storage-clear <id>` | 清 |
 | `eval <id> <js表达式>` | 受控求值（见 2.5） |
+
+`create` 另收：`--backend <webkit\|chrome>`、`--data-dir <dir>`（登录态持久化；chrome 为进程级首会话生效）、`--chrome-path`、`--width/--height`、`--ua`。`bw run` 同名 flag 一致。
 
 ### 2.4 统一输出格式
 

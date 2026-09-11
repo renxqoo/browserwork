@@ -18,6 +18,10 @@ describe("BrowserAction 词表封闭（U1）", () => {
       "switch_tab",
       "close_tab",
       "wait",
+      "resize",
+      "reload",
+      "download",
+      "upload",
       "done",
     ]);
   });
@@ -50,6 +54,10 @@ describe("BrowserAction 判别联合穷举（编译期穷举 + 运行时形态�
     { kind: "switch_tab", tab: 0 },
     { kind: "close_tab" },
     { kind: "wait", seconds: 1 },
+    { kind: "resize", width: 1024, height: 768 },
+    { kind: "reload" },
+    { kind: "download", index: "5" },
+    { kind: "upload", index: "6", files: ["/tmp/a.txt"] },
     { kind: "done", answer: "ok" },
     { kind: "done" },
   ];
@@ -78,6 +86,10 @@ describe("BrowserAction 判别联合穷举（编译期穷举 + 运行时形态�
         case "switch_tab":
         case "close_tab":
         case "wait":
+        case "resize":
+        case "reload":
+        case "download":
+        case "upload":
         case "done":
           return a.kind;
         default: {

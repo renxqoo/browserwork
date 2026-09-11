@@ -100,6 +100,7 @@ const WIRE_NAMES: Record<string, string> = {
   "cookies-clear": "cookies_clear",
   "storage-set": "storage_set",
   "storage-clear": "storage_clear",
+  "cookies-all": "cookies_all",
 };
 
 /** 工具名 → 参数映射（位置参数 → JSON 参数） */
@@ -142,8 +143,10 @@ function mapToolArgs(
     case "errors":
     case "tabs":
     case "cookies":
-    case "cookies_clear":
-    case "cookies-clear":
+    case "cookies_all":
+    case "cookies-all":
+    case "requests":
+    case "reload":
     case "storage_clear":
     case "storage-clear":
       return { params: {}, hint: "" };
@@ -161,6 +164,16 @@ function mapToolArgs(
     case "wait":
       if (args.length < 1) return { error: "usage: bw s wait <sessionId> <seconds>" };
       return { params: { seconds: Number(args[0]) }, hint: "" };
+    case "resize":
+      if (args.length < 2) return { error: "usage: bw s resize <sessionId> <width> <height>" };
+      return { params: { width: Number(args[0]), height: Number(args[1]) }, hint: "" };
+    case "download":
+      if (args.length < 1) return { error: "usage: bw s download <sessionId> <index>" };
+      return { params: { index: args[0] }, hint: "" };
+    case "upload":
+      if (args.length < 2)
+        return { error: "usage: bw s upload <sessionId> <index> <file> [file...]" };
+      return { params: { index: args[0], files: args.slice(1) }, hint: "" };
     case "switchtab":
       if (args.length < 1) return { error: "usage: bw s switchtab <sessionId> <tabNumber>" };
       return { params: { tab: Number(args[0]) }, hint: "" };
@@ -220,6 +233,14 @@ Usage:
   bw s storage-set <id> <key> <value>    set localStorage entry
   bw s storage-clear <id>                clear localStorage
   bw s eval <id> <js-expression>         run JS (requires create --allow-eval)
+  bw s resize <id> <w> <h>               set viewport size
+  bw s reload <id>                       reload current page
+  bw s download <id> <index>             click a download link, save file (chrome only)
+  bw s upload <id> <index> <file>...     upload files to a file input (chrome only)
+  bw s requests <id>                     recent network requests (chrome only)
+  bw s cookies-all <id>                  all cookie metadata incl httpOnly (chrome only)
+  create also accepts: --backend <webkit|chrome> --data-dir <dir> --chrome-path <p>
+                       --width <n> --height <n> --ua <user-agent>
   bw s confirm <id> <cid> --yes|--no     approve/deny confirmation
   bw s close <id>                        close session
   bw s stop                              stop background server
@@ -232,15 +253,31 @@ Env:
 
   // ---- create
   if (cmd === "create") {
-    const urlIdx = rest.indexOf("--url");
-    const startUrl = urlIdx !== -1 ? rest[urlIdx + 1] : undefined;
+    const flagValue = (name: string): string | undefined => {
+      const i = rest.indexOf(name);
+      return i !== -1 ? rest[i + 1] : undefined;
+    };
+    const startUrl = flagValue("--url");
     const allowEval = rest.includes("--allow-eval");
     // B13：生产档 S4 生效——本地/内网地址需显式放行
     const allowPrivate = rest.includes("--allow-private-network");
+    // B14：驱动构造透传
+    const backend = flagValue("--backend");
+    const dataDir = flagValue("--data-dir");
+    const chromePath = flagValue("--chrome-path");
+    const width = flagValue("--width");
+    const height = flagValue("--height");
+    const ua = flagValue("--ua");
     const { status, data } = await api(cfg, "POST", "/sessions", {
       ...(startUrl !== undefined ? { startUrl } : {}),
       ...(allowEval ? { allowEval: true } : {}),
       ...(allowPrivate ? { allowPrivateNetwork: true } : {}),
+      ...(backend !== undefined ? { backend: backend as "webkit" | "chrome" } : {}),
+      ...(dataDir !== undefined ? { dataDir } : {}),
+      ...(chromePath !== undefined ? { chromePath } : {}),
+      ...(width !== undefined ? { width: Number(width) } : {}),
+      ...(height !== undefined ? { height: Number(height) } : {}),
+      ...(ua !== undefined ? { userAgent: ua } : {}),
     });
     if (status === 201) {
       const p: Record<string, unknown> = { sessionId: String(data.id) };

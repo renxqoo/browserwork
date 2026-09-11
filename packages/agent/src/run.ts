@@ -4,6 +4,7 @@
  * 计时器（默认 120s，超时=deny）；卡死升级 fast→strong 一次；预算双点断言。
  */
 
+import { homedir } from "node:os";
 import { type ActionEngine, createActionEngine } from "@bw/actions";
 import {
   type BrowserAction,
@@ -15,7 +16,7 @@ import {
   type TaskResult,
   type TrajectorySink,
 } from "@bw/core";
-import { createWebViewDriver, type Driver } from "@bw/driver";
+import { type CreateDriverOptions, createWebViewDriver, type Driver } from "@bw/driver";
 import { isSameView, type Snapshot } from "@bw/perception";
 import {
   createPolicyEngine,
@@ -54,6 +55,18 @@ export interface RunTaskOptions {
   env?: GlmEnv;
   /** 价目表（每 1M token USD；05 §3.4；缺省读 env BW_PRICES_JSON） */
   prices?: Record<string, { input: number; output: number }>;
+}
+
+/** TaskRequest.driver（宽松入参）→ CreateDriverOptions（exactOptionalPropertyTypes） */
+function normalizeDriverOptions(d: NonNullable<TaskRequest["driver"]>): CreateDriverOptions {
+  const out: CreateDriverOptions = {};
+  if (d.backend !== undefined) out.backend = d.backend;
+  if (d.width !== undefined) out.width = d.width;
+  if (d.height !== undefined) out.height = d.height;
+  if (d.dataDir !== undefined) out.dataStore = d.dataDir;
+  if (d.chromePath !== undefined) out.chromePath = d.chromePath;
+  if (d.userAgent !== undefined) out.userAgent = d.userAgent;
+  return out;
 }
 
 /** 最后一条 assistant 纯文本（终局兜底答案；无则 undefined） */
@@ -172,7 +185,10 @@ export function runTask(req: TaskRequest, opts?: RunTaskOptions): TaskHandle {
     newCid: () => `c-${Math.random().toString(36).slice(2, 10)}`,
   });
 
-  const driver = opts?.driver ?? createWebViewDriver();
+  // B14：TaskRequest.driver 消费（未注入 opts.driver 时按请求构造）
+  const driver =
+    opts?.driver ??
+    createWebViewDriver(req.driver ? normalizeDriverOptions(req.driver) : undefined);
   const toolCtxLate: { engine?: ActionEngine } = {};
   const engine: ActionEngine = createActionEngine(driver, {
     resolveSecret: (name, origin) => policy.resolveSecret(name, origin),
@@ -190,6 +206,11 @@ export function runTask(req: TaskRequest, opts?: RunTaskOptions): TaskHandle {
     },
     settleQuietMs: opts?.settleQuietMs ?? 400,
     settleCapMs: opts?.settleCapMs ?? 8000,
+    // B14 审查 P1-6：per-task 下载目录（跨进程隔离，janitor 兜底清理）
+    downloadsDir: () => {
+      const root = process.env.BW_DOWNLOADS_DIR ?? `${homedir()}/.bw/downloads`;
+      return `${root}/${id}`;
+    },
   });
   toolCtxLate.engine = engine;
   const trajectory: TrajectorySink =
@@ -323,13 +344,17 @@ export function runTask(req: TaskRequest, opts?: RunTaskOptions): TaskHandle {
 
   const done = { answer: undefined as string | undefined, called: false };
   const tools = [
-    ...buildBrowserTools({
-      engine,
-      policy,
-      hooks,
-      current,
-      redact: (t: string) => policy.redact(t),
-    }),
+    ...buildBrowserTools(
+      {
+        engine,
+        policy,
+        hooks,
+        current,
+        redact: (t: string) => policy.redact(t),
+        inspect: (kind) => engine.inspect(kind),
+      },
+      driver.capabilities(),
+    ),
     buildDoneTool((answer) => {
       // 首个 done 定案：pi 批终止是 every() 语义——升级发生在批中段时整批不收束，
       // 可能多跑一轮旧模型并重复调 done；重复调用不覆写（B12 审查 P2-9 处置）

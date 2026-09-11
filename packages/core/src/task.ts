@@ -36,6 +36,15 @@ export interface TaskRequest {
   secrets?: Record<string, SecretRef>;
   /** fast/strong 双模型（卡死升级用；缺省同一个） */
   model?: { fast?: string; strong?: string };
+  /** 驱动构造（B14：backend/视口/持久化目录/Chrome 路径/UA——未注入 opts.driver 时生效） */
+  driver?: {
+    backend?: "webkit" | "chrome";
+    width?: number;
+    height?: number;
+    dataDir?: string;
+    chromePath?: string;
+    userAgent?: string;
+  };
 }
 
 export type TaskStatus = "done" | "failed" | "aborted" | "budget_exceeded";

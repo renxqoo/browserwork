@@ -7,6 +7,7 @@
 
 import type { ActionResult } from "@bw/actions";
 import { type BrowserAction, BWError, type NavigationIntent } from "@bw/core";
+import type { DriverCapabilities } from "@bw/driver";
 import { renderSnapshot, type Snapshot } from "@bw/perception";
 import type { ActionTarget, GateDecision, PolicyEngine } from "@bw/policies";
 import type { AgentTool } from "@mariozechner/pi-agent-core";
@@ -35,6 +36,8 @@ export interface ToolContext {
   /** 当前最新快照 + 最近返回给 LLM 的全量渲染文本（工具间共享） */
   current: { snapshot: Snapshot | null; rendered: string | null };
   redact: (text: string) => string;
+  /** B14：inspect 通道（requests/cookies_all——chrome-only 工具的数据源） */
+  inspect?: (kind: "requests" | "cookies_all") => Promise<string>;
 }
 
 function targetOf(ctx: ToolContext, index: string | undefined): ActionTarget | undefined {
@@ -116,8 +119,12 @@ async function runAction(ctx: ToolContext, action: BrowserAction): Promise<Actio
 
 const idxSchema = (d: string) => Type.String({ description: d });
 
-/** 组装浏览器工具（navigate..wait，全 sequential） */
-export function buildBrowserTools(ctx: ToolContext): AgentTool<never>[] {
+/**
+ * 组装浏览器工具（全 sequential）。B14 起按 driver capabilities 动态注册：
+ * resize/reload 双后端；download/upload/requests/cookies_all 仅 chrome。
+ */
+export function buildBrowserTools(ctx: ToolContext, caps?: DriverCapabilities): AgentTool<never>[] {
+  const has = (k: keyof DriverCapabilities): boolean => caps?.[k] === true;
   const t = <P>(
     name: string,
     description: string,
@@ -152,6 +159,24 @@ export function buildBrowserTools(ctx: ToolContext): AgentTool<never>[] {
       const d = await ctx.policy.onNavigate(url);
       await gate(ctx, d, { kind: "navigate", url });
     };
+
+  /** inspect 类工具（引擎锁内直读；结果过 redact——不走 runAction/beforeStep） */
+  const inspectTool = (
+    name: string,
+    description: string,
+    kind: "requests" | "cookies_all",
+  ): AgentTool<never> =>
+    ({
+      name,
+      label: name,
+      description,
+      parameters: Type.Object({}),
+      executionMode: "sequential",
+      async execute() {
+        const text = await ctx.inspect?.(kind);
+        return { content: [{ type: "text", text: ctx.redact(text ?? "[]") }] };
+      },
+    }) as unknown as AgentTool<never>;
 
   return [
     t(
@@ -240,6 +265,66 @@ export function buildBrowserTools(ctx: ToolContext): AgentTool<never>[] {
       kind: "wait",
       seconds: p.seconds as number,
     })),
+    // ---- B14：视口/重载（双后端）----
+    t(
+      "resize",
+      "调整视口尺寸（1-16384；快照坐标随之刷新）",
+      Type.Object({ width: Type.Integer(), height: Type.Integer() }),
+      (p) => ({ kind: "resize", width: p.width as number, height: p.height as number }),
+    ),
+    t("reload", "重新加载当前页（POST 落点会走确认门）", Type.Object({}), () => ({
+      kind: "reload",
+    })),
+    // ---- B14：chrome-only（按能力注册）----
+    ...(has("download")
+      ? [
+          t(
+            "download",
+            "点击下载链接并把文件存到本地（60s 超时；单文件≤100MB）",
+            Type.Object({ index: idxSchema("下载链接元素") }),
+            (p) => ({ kind: "download", index: p.index as string }),
+          ),
+        ]
+      : []),
+    ...(has("upload")
+      ? [
+          t(
+            "upload",
+            "向文件输入框上传本地文件（仅允许 tmp/配置目录，目录外需确认）",
+            Type.Object({ index: idxSchema("文件输入框"), files: Type.Array(Type.String()) }),
+            (p) => ({
+              kind: "upload",
+              index: p.index as string,
+              files: (p.files ?? []) as string[],
+            }),
+            // 路径闸：目录外 → S2 确认门（realpath 在策略内解析——审查 P9）
+            async (p) => {
+              const files = ((p.files ?? []) as string[]).map((f) => f);
+              if (files.length === 0) {
+                throw new BWError("INVALID_TOOL_ARGS", "upload requires at least one file");
+              }
+              await gate(ctx, ctx.policy.checkUploadFiles(files), {
+                kind: "upload",
+                index: p.index as string,
+                files,
+              });
+            },
+          ),
+        ]
+      : []),
+    // ---- B14：inspect 类（chrome-only，直读不经 runAction）----
+    ...(has("networkEvents") && ctx.inspect !== undefined
+      ? [
+          inspectTool(
+            "requests",
+            "查看最近网络请求（url/方法/状态——找 API 端点；最近 50 条）",
+            "requests",
+          ),
+        ]
+      : []),
+    ...(has("httpOnlyCookies") && ctx.inspect !== undefined
+      ? [inspectTool("cookies_all", "全量 cookie 元数据（含 httpOnly；值不显示）", "cookies_all")]
+      : []),
   ];
 }
 

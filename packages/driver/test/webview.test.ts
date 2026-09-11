@@ -30,6 +30,10 @@ describe.skipIf(process.platform !== "darwin")("WebViewPage（真 webkit）", ()
       dialogEvents: false,
       userAgentOverride: false,
       pierceClick: false,
+      httpOnlyCookies: false,
+      networkEvents: false,
+      webp: false,
+      popups: false,
     });
   });
 

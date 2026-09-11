@@ -8,16 +8,24 @@ import type { ErrorCode } from "@bw/core";
 export interface DriverCapabilities {
   /** 可用 view.cdp() 直发 CDP 命令（仅 chrome 后端） */
   readonly cdp: boolean;
-  /** 支持文件上传（仅 chrome 后端，CDP DOM.setFileInputFiles） */
+  /** 支持文件上传（仅 chrome 后端，CDP DOM.setFileInputFiles；探针 p11） */
   readonly upload: boolean;
-  /** 支持下载（仅 chrome 后端） */
+  /** 支持下载（仅 chrome 后端；探针 p11 downloadWillBegin 实证） */
   readonly download: boolean;
   /** dialog 事件可观测（webkit 待 B1 探针定） */
   readonly dialogEvents: boolean;
-  /** 支持 UA 覆写（仅 chrome 后端） */
+  /** 支持 UA 覆写（仅 chrome 后端，Emulation.setUserAgentOverride；探针 p10） */
   readonly userAgentOverride: boolean;
   /** click(selector) 可穿透 shadow DOM / iframe（B1 探针定，预期 false） */
   readonly pierceClick: boolean;
+  /** httpOnly cookie 元数据可读（仅 chrome，Network.getCookies；B14） */
+  readonly httpOnlyCookies: boolean;
+  /** 网络请求可监听（仅 chrome，Network 域事件；探针 p10） */
+  readonly networkEvents: boolean;
+  /** webp 截图（仅 chrome） */
+  readonly webp: boolean;
+  /** window.open 弹窗成新页（webkit 探针 p2：静默丢弃；chrome 未实证——默认 false） */
+  readonly popups: boolean;
 }
 
 export interface ClickOptions {
@@ -27,7 +35,7 @@ export interface ClickOptions {
   clickCount?: 1 | 2 | 3;
 }
 
-export type ScreenshotFormat = "png" | "jpeg";
+export type ScreenshotFormat = "png" | "jpeg" | "webp";
 
 export type PressModifier = "Shift" | "Control" | "Alt" | "Meta";
 
@@ -63,6 +71,14 @@ export interface Page {
     opts?: { block?: "start" | "center" | "end" | "nearest"; timeoutMs?: number },
   ): Promise<void>;
   screenshot(opts?: ScreenshotOptions): Promise<Uint8Array>;
+  /** 视口尺寸（复合步后须重提取——缓存坐标全失效，B14 审查 P2-10） */
+  resize(width: number, height: number): Promise<void>;
+  /** 重新加载当前页（探针 p11：双后端 runtime 均有 reload；back/forward 未实现——Bun 1.4.2 上游限制） */
+  reload(): Promise<void>;
+  /** CDP 直发（仅 chrome；webkit 抛 DRIVER_ERROR；探针 p10/p11 实证） */
+  cdp<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T>;
+  /** 订阅 CDP 事件（仅 chrome；返回取消订阅函数） */
+  onCdpEvent(method: string, listener: (params: unknown) => void): () => void;
   /** 返回取消订阅函数 */
   onNavigated(listener: NavigationListener): () => void;
   onNavigationFailed(listener: NavigationFailedListener): () => void;

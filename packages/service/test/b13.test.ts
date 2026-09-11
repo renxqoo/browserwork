@@ -17,6 +17,7 @@ import {
   replayTrajectory,
   SessionLimitError,
   setupIdleExit,
+  startJanitor,
   sweepDir,
 } from "../src/index.ts";
 
@@ -28,6 +29,10 @@ const CAPS = {
   dialogEvents: false,
   userAgentOverride: false,
   pierceClick: false,
+  httpOnlyCookies: false,
+  networkEvents: false,
+  webp: false,
+  popups: false,
 };
 const makeFakeDriver = (extra?: Partial<FakePageOptions>): Driver =>
   new FakeDriver(CAPS, {
@@ -698,6 +703,25 @@ describe("B13 审查处置回归", () => {
     const out = replayTrajectory("task-esc", dir);
     expect(out.ok).toBe(true);
     expect(out.lines.join("")).not.toContain(esc);
+    rmSync(tmpRoot, { recursive: true, force: true });
+  });
+});
+
+describe("B14 janitor subdirs（审查 P1-6）", () => {
+  test("下载根一层子目录展开清扫", () => {
+    const root = freshDir("janitor-subdirs");
+    const sess = join(root, "sess-1");
+    mkdirSync(sess, { recursive: true });
+    const f = join(sess, "old.bin");
+    writeFileSync(f, "x");
+    const t0 = new Date(Date.now() - 8 * 24 * 3600 * 1000);
+    utimesSync(f, t0, t0);
+    const stop = startJanitor([{ dir: root, subdirs: true }], {
+      intervalMs: 1_000_000,
+      retentionDays: 7,
+    });
+    stop();
+    expect(readdirSync(sess)).toEqual([]);
     rmSync(tmpRoot, { recursive: true, force: true });
   });
 });

@@ -24,6 +24,8 @@ export interface JanitorTarget {
   dir: string;
   /** 该目录的后缀过滤（缺省 = 全部常规文件） */
   extensions?: string[];
+  /** 展开一层子目录逐个清扫（downloads 根 = 会话/任务子目录结构——B14 审查 P1-6） */
+  subdirs?: boolean;
 }
 
 const DEFAULT_RETENTION_DAYS = 7;
@@ -107,10 +109,22 @@ export function startJanitor(
   const intervalMs = opts?.intervalMs ?? 3600 * 1000;
   const sweepAll = (): void => {
     for (const t of targets) {
-      sweepDir(t.dir, {
+      const o = {
         ...opts,
         ...(t.extensions !== undefined ? { extensions: t.extensions } : {}),
-      });
+      };
+      sweepDir(t.dir, o);
+      if (t.subdirs === true) {
+        let names: string[] = [];
+        try {
+          names = readdirSync(t.dir, { withFileTypes: true })
+            .filter((e) => e.isDirectory())
+            .map((e) => e.name);
+        } catch {
+          continue;
+        }
+        for (const name of names) sweepDir(join(t.dir, name), o);
+      }
     }
   };
   sweepAll();

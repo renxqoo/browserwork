@@ -70,12 +70,13 @@ export const EXTRACT_EXPRESSION = `(() => {
   };
 
   const nodes = [];
-  window.__bwIdSeq = (window.__bwIdSeq || 0) + 1;
+  window.__bwIdSeq = (Number(window.__bwIdSeq) || 0) + 1; // Number 强制——页面预置字符串防毒化（B14 审查 P0-1）
   const nextId = () => {
     window.__bwIdSeq += 1;
     return String(window.__bwIdSeq);
   };
   let crossOriginFrames = 0;
+  let blankLinks = 0;
 
   /** rect 与所在 frame 盒求交（主文档 frame 盒 = 视口本身） */
   const clampToFrame = (x, y, w, h, box) => {
@@ -106,6 +107,9 @@ export const EXTRACT_EXPRESSION = `(() => {
       tag === "input" && (type === "checkbox" || type === "radio")
         ? el.checked === true
         : undefined;
+    // B14：target=_blank 标注（webkit 弹窗被丢弃——探针 p2；提示 agent 慎点）
+    const newTab = tag === "a" && (el.getAttribute("target") || "") === "_blank";
+    if (newTab) blankLinks += 1;
     const id = nextId();
     el.setAttribute("data-bw-id", id);
     nodes.push({
@@ -118,6 +122,7 @@ export const EXTRACT_EXPRESSION = `(() => {
       placeholder: clampText(el.getAttribute("placeholder"), 80),
       value,
       checked,
+      newTab: newTab || undefined,
       x: Math.round(clamped.x),
       y: Math.round(clamped.y),
       w: Math.round(clamped.w),
@@ -239,6 +244,9 @@ export const EXTRACT_EXPRESSION = `(() => {
   };
   walkHeadings(document);
   const warnings = [];
+  if (blankLinks > 0) {
+    warnings.push("target=_blank links: " + blankLinks + "（新标签页——本后端弹窗行为有限，慎点）");
+  }
   if (crossOriginFrames > 0) {
     warnings.push("cross-origin iframes: " + crossOriginFrames + "（占位节点，坐标轨交互）");
   }

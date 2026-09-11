@@ -281,6 +281,14 @@ export function createServer(config: ServiceConfig): {
           startUrl?: string;
           allowEval?: boolean;
           allowPrivateNetwork?: boolean;
+          backend?: "webkit" | "chrome";
+          dataDir?: string;
+          chromePath?: string;
+          width?: number;
+          height?: number;
+          userAgent?: string;
+          allowUploadDirs?: string[];
+          budget?: { maxSteps?: number; wallClockMs?: number };
         };
         // B13 审查 P1-3：S4 网络边界不给请求方——allowPrivateNetwork 需 serve 级
         // env BW_ALLOW_PRIVATE_NETWORK=1 显式开门（用户裁决，非持 token 方可自取）
@@ -289,10 +297,38 @@ export function createServer(config: ServiceConfig): {
             error: "allowPrivateNetwork requires the server to run with BW_ALLOW_PRIVATE_NETWORK=1",
           });
         }
+        // B14 审查 P1-4：本地路径面（chromePath/dataDir/allowUploadDirs）同 env 门——
+        // 不给持 token 方 spawn 任意可执行文件/读任意目录的原语
+        const driverPathsRequested = body.chromePath !== undefined || body.dataDir !== undefined;
+        const uploadDirsRequested =
+          Array.isArray(body.allowUploadDirs) && (body.allowUploadDirs as string[]).length > 0;
+        if (
+          (driverPathsRequested || uploadDirsRequested) &&
+          process.env.BW_ALLOW_DRIVER_PATHS !== "1"
+        ) {
+          return json(400, {
+            error:
+              "chromePath/dataDir/allowUploadDirs require the server to run with BW_ALLOW_DRIVER_PATHS=1",
+          });
+        }
         try {
           const info = await sessionManager.create(body.startUrl, {
             ...(body.allowEval === true ? { allowEval: true } : {}),
             ...(body.allowPrivateNetwork === true ? { allowPrivateNetwork: true } : {}),
+            ...(Array.isArray(body.allowUploadDirs)
+              ? { allowUploadDirs: body.allowUploadDirs as string[] }
+              : {}),
+            ...(body.budget !== undefined && typeof body.budget === "object"
+              ? { budget: body.budget as { maxSteps?: number; wallClockMs?: number } }
+              : {}),
+            driver: {
+              ...(body.backend !== undefined ? { backend: body.backend } : {}),
+              ...(body.dataDir !== undefined ? { dataStore: body.dataDir } : {}),
+              ...(body.chromePath !== undefined ? { chromePath: body.chromePath } : {}),
+              ...(body.width !== undefined ? { width: body.width } : {}),
+              ...(body.height !== undefined ? { height: body.height } : {}),
+              ...(body.userAgent !== undefined ? { userAgent: body.userAgent } : {}),
+            },
           });
           return json(201, info);
         } catch (e) {

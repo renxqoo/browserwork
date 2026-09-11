@@ -5,9 +5,12 @@
  * 共用同一套安全基线（S1-S6）与感知层。
  */
 
+import { realpathSync, rmSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { type ActionEngine, createActionEngine, type InspectKind } from "@bw/actions";
 import { type BrowserAction, BWError, type TaskEvent, type TrajectorySink } from "@bw/core";
-import { createWebViewDriver, type Driver, type Page } from "@bw/driver";
+import { type CreateDriverOptions, createWebViewDriver, type Driver, type Page } from "@bw/driver";
 import { renderSnapshot, type Snapshot } from "@bw/perception";
 import {
   createPolicyEngine,
@@ -68,6 +71,8 @@ interface ManagedSession {
   id: string;
   driver: Driver;
   engine: ActionEngine;
+  /** 本会话 driver 构造（create 与崩溃恢复共用；B14 透传选项） */
+  makeDriver: () => Driver;
   policy: PolicyEngine;
   snapshot: Snapshot | null;
   confirmations: Map<string, PendingConfirmation>;
@@ -109,6 +114,8 @@ export interface SessionManagerOptions {
   trajectory?: TrajectorySink | ((sessionId: string) => TrajectorySink);
   /** driver 工厂（测试注入 FakeDriver；崩溃恢复时再次调用——B13 §3.6） */
   driverFactory?: () => Driver;
+  /** 驱动构造默认项（B14：SDK 层 backend/视口/持久化/UA；可被 create 覆写） */
+  driverOptions?: CreateDriverOptions;
 }
 
 const DEFAULT_TTL = 30 * 60_000;
@@ -120,11 +127,19 @@ const RECOVERY_PROBE_TIMEOUT_MS = 2_000;
 const MAX_PROCESS_RECOVERIES = 2;
 /** 进程级恢复记账（模块级——跨 manager 实例共享；B13 审查 P2-7） */
 const processRecoveries: number[] = [];
+/** chrome 后端 dataStore 进程级目录（首 view 生效——Bun 限制，B14 告警用） */
+let firstChromeDataStore: string | undefined;
 
 /** 测试专用：清进程级恢复记账（同进程多场景矩阵互不挤占额度） */
 export function __resetRecoveryLedgerForTest(): void {
   processRecoveries.length = 0;
 }
+
+/** 下载根统一解析（B14 审查 P2-12：engine/janitor/cli 三处同源） */
+export function downloadsRoot(): string {
+  return process.env.BW_DOWNLOADS_DIR ?? join(homedir(), ".bw", "downloads");
+}
+const sessionDownloadsDir = (sessionId: string): string => join(downloadsRoot(), sessionId);
 
 /** 会话触顶（传输层语义——不进 core 错误分类法；server 映射 429，B12 审查 P16） */
 export class SessionLimitError extends Error {
@@ -134,11 +149,19 @@ export class SessionLimitError extends Error {
   }
 }
 
+export interface SessionCreateOptions {
+  allowEval?: boolean;
+  allowPrivateNetwork?: boolean;
+  /** B14 驱动构造覆写（backend/视口/持久化/Chrome 路径/UA） */
+  driver?: CreateDriverOptions;
+  /** B14：上传目录白名单（serve 级 env 门后经 HTTP 传入；SDK 直用） */
+  allowUploadDirs?: string[];
+  /** B14：会话级预算覆写（steps/wallClock） */
+  budget?: { maxSteps?: number; wallClockMs?: number };
+}
+
 export interface SessionManager {
-  create(
-    startUrl?: string,
-    opts?: { allowEval?: boolean; allowPrivateNetwork?: boolean },
-  ): Promise<SessionInfo>;
+  create(startUrl?: string, opts?: SessionCreateOptions): Promise<SessionInfo>;
   get(id: string): SessionInfo | undefined;
   list(): SessionInfo[];
   close(id: string): void;
@@ -163,6 +186,8 @@ const INSPECT_TOOLS: Record<string, InspectKind> = {
   storage: "storage",
   storage_set: "storage_set",
   storage_clear: "storage_clear",
+  requests: "requests",
+  cookies_all: "cookies_all",
 };
 
 export function createSessionManager(opts?: SessionManagerOptions): SessionManager {
@@ -200,6 +225,12 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
       s.driver.close();
     } catch {
       /* 幂等 */
+    }
+    // B14 审查 P1-6：会话结束清空本会话下载目录（敏感文件不留盘）
+    try {
+      rmSync(sessionDownloadsDir(s.id), { recursive: true, force: true });
+    } catch {
+      /* 尽力而为 */
     }
   };
 
@@ -354,6 +385,26 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
         if (typeof params.seconds !== "number")
           throw new BWError("INVALID_TOOL_ARGS", "wait requires seconds");
         return { kind: "wait", seconds: params.seconds };
+      case "resize":
+        if (typeof params.width !== "number" || typeof params.height !== "number") {
+          throw new BWError("INVALID_TOOL_ARGS", "resize requires width and height");
+        }
+        return { kind: "resize", width: params.width, height: params.height };
+      case "reload":
+        return { kind: "reload" };
+      case "download":
+        if (typeof params.index !== "string")
+          throw new BWError("INVALID_TOOL_ARGS", "download requires index");
+        return { kind: "download", index: params.index };
+      case "upload":
+        if (typeof params.index !== "string" || !Array.isArray(params.files)) {
+          throw new BWError("INVALID_TOOL_ARGS", "upload requires index and files[]");
+        }
+        return {
+          kind: "upload",
+          index: params.index,
+          files: params.files.map((f) => String(f)),
+        };
       default:
         throw new BWError("INVALID_TOOL_ARGS", `unknown tool: ${toolName}`);
     }
@@ -361,21 +412,26 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
 
   // B13 §3.5：生产档缺省——S4 生效（本地地址需 serve 级 env 放行，见 server.ts）；test 档仅显式
   const policyMode = opts?.policyMode ?? "production";
-  const driverFactory = opts?.driverFactory ?? ((): Driver => createWebViewDriver());
 
   /** 会话策略配置（create 与崩溃恢复共用；opts.policyConfig 显式优先——审查 P2-5） */
   const buildPolicyConfig = (
     startUrl: string | undefined,
     allowPrivateNetwork: boolean,
+    createOpts?: SessionCreateOptions,
   ): PolicyConfig => {
     const budget = {
-      maxSteps: 10_000,
+      maxSteps: createOpts?.budget?.maxSteps ?? 10_000,
       maxTokensInput: 100_000_000,
       maxTokensOutput: 10_000_000,
-      wallClockMs: 3_600_000,
+      wallClockMs: createOpts?.budget?.wallClockMs ?? 3_600_000,
     };
     if (policyMode === "test") {
-      return testPolicyConfig(startUrl !== undefined ? [startUrl] : [], { budget });
+      return testPolicyConfig(startUrl !== undefined ? [startUrl] : [], {
+        budget,
+        ...(createOpts?.allowUploadDirs !== undefined
+          ? { allowUploadDirs: createOpts.allowUploadDirs }
+          : {}),
+      });
     }
     const host = (() => {
       try {
@@ -387,6 +443,9 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
     return {
       allowedHosts: [...(host !== undefined ? [host] : [])],
       ...(allowPrivateNetwork ? { allowPrivateNetwork: true } : {}),
+      ...(createOpts?.allowUploadDirs !== undefined
+        ? { allowUploadDirs: createOpts.allowUploadDirs }
+        : {}),
       budget,
     };
   };
@@ -394,6 +453,7 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
   /** 会话动作引擎（create 与崩溃恢复共用——intentSink 闸接线一致） */
   const buildEngine = (s: ManagedSession, driver: Driver): ActionEngine =>
     createActionEngine(driver, {
+      downloadsDir: () => sessionDownloadsDir(s.id),
       resolveSecret: (name, origin) => s.policy.resolveSecret(name, origin),
       intentSink: async (intent, action) => {
         // 意图前检：S1②/S5 + S2（submit）
@@ -451,7 +511,7 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
     }
     let driver: Driver;
     try {
-      driver = driverFactory();
+      driver = s.makeDriver();
     } catch (e) {
       record(`recovery failed (driver factory): '${toolName}' crashed; ${String(e).slice(0, 80)}`);
       return false;
@@ -512,7 +572,8 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
       const id = `sess-${crypto.randomUUID().slice(0, 13)}`;
 
       const policy = createPolicyEngine(
-        opts?.policyConfig ?? buildPolicyConfig(startUrl, createOpts?.allowPrivateNetwork === true),
+        opts?.policyConfig ??
+          buildPolicyConfig(startUrl, createOpts?.allowPrivateNetwork === true, createOpts),
         {
           dns: {
             async resolve(hostname) {
@@ -529,10 +590,27 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
         },
       );
 
+      // B14 驱动选项合并（create 覆写管理器默认；driverFactory 测试注入优先）
+      const driverOpts: CreateDriverOptions = { ...opts?.driverOptions, ...createOpts?.driver };
+      // chrome dataStore 是进程级首 view 生效——后续实例目录不符时告警（Bun 限制）
+      if (
+        (driverOpts.backend ?? opts?.driverOptions?.backend) === "chrome" &&
+        driverOpts.dataStore !== undefined
+      ) {
+        if (firstChromeDataStore === undefined) {
+          firstChromeDataStore = driverOpts.dataStore;
+        } else if (firstChromeDataStore !== driverOpts.dataStore) {
+          driverOpts.dataStore = firstChromeDataStore; // 对齐实际生效目录，避免静默误解
+        }
+      }
+      const makeDriver = (): Driver =>
+        opts?.driverFactory !== undefined ? opts.driverFactory() : createWebViewDriver(driverOpts);
+
       const session: ManagedSession = {
         id,
         driver: null as unknown as Driver,
         engine: null as unknown as ActionEngine,
+        makeDriver,
         policy,
         snapshot: null,
         confirmations: new Map(),
@@ -548,7 +626,7 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
         eventWaiters: [],
         closed: false,
       };
-      const driver = driverFactory();
+      const driver = makeDriver();
       const engine = buildEngine(session, driver);
       session.driver = driver;
       session.engine = engine;
@@ -675,10 +753,31 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
         // ---- inspect 类工具（B11：console/errors/cookies/storage——无导航语义，锁内直读）
         const inspectKind = INSPECT_TOOLS[toolName];
         if (inspectKind !== undefined) {
-          const text = await s.engine.inspect(
+          // B14：chrome-only inspect 闸（能力不符 → INVALID_TOOL_ARGS）
+          const caps = s.driver.capabilities();
+          if (inspectKind === "requests" && !caps.networkEvents) {
+            return {
+              ok: false,
+              code: "INVALID_TOOL_ARGS",
+              error: "requests requires the chrome backend",
+            };
+          }
+          if (inspectKind === "cookies_all" && !caps.httpOnlyCookies) {
+            return {
+              ok: false,
+              code: "INVALID_TOOL_ARGS",
+              error: "cookies_all requires the chrome backend",
+            };
+          }
+          const rawText = await s.engine.inspect(
             inspectKind,
             params as { key?: string; value?: string },
           );
+          // requests/cookies_all 出域文本过 redact（B14 审查 P2-10 会话侧）
+          const text =
+            inspectKind === "requests" || inspectKind === "cookies_all"
+              ? s.policy.redact(rawText)
+              : rawText;
           s.policy.budget.consume("steps", 1);
           try {
             s.policy.budget.assert();
@@ -713,6 +812,45 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
         }
 
         const action = buildAction(toolName, params);
+
+        // B14：chrome-only 动作闸
+        const caps = s.driver.capabilities();
+        if (
+          (action.kind === "download" && !caps.download) ||
+          (action.kind === "upload" && !caps.upload)
+        ) {
+          return {
+            ok: false,
+            code: "INVALID_TOOL_ARGS",
+            error: `${action.kind} requires the chrome backend`,
+          };
+        }
+
+        // B14：upload 路径闸（目录外 → 确认门）；批准后 realpath 复核（分钟级审批窗内
+        // 的 symlink 偷换——B14 审查 P1-5 TOCTOU；不重跑 checkUploadFiles——那会
+        // 生成全新 cid 变成二次确认）
+        if (action.kind === "upload") {
+          const resolveAll = (): string[] =>
+            action.files.map((f) => {
+              try {
+                return realpathSync(f);
+              } catch {
+                return f;
+              }
+            });
+          const before = resolveAll();
+          const d = s.policy.checkUploadFiles(action.files);
+          const g = await gate(s, d, action);
+          if (g !== null) return g;
+          const after = resolveAll();
+          if (before.some((p, i) => p !== (after[i] ?? ""))) {
+            return {
+              ok: false,
+              code: "CONFIRMATION_DENIED",
+              error: "upload path changed during confirmation window",
+            };
+          }
+        }
 
         // 导航类工具 → S1① 前检
         if (action.kind === "navigate" || action.kind === "open_tab") {
