@@ -7,13 +7,15 @@
  * 常数时间 token 比对 · nosniff/no-store。
  */
 import { createHash, timingSafeEqual } from "node:crypto";
-import { type RunTaskOptions, runTask } from "@bw/agent";
-import type { TaskEvent, TaskHandle, TaskRequest, TaskResult } from "@bw/core";
+import { fileTrajectorySink, type RunTaskOptions, runTask } from "@bw/agent";
+import type { TaskEvent, TaskHandle, TaskRequest, TaskResult, TrajectorySink } from "@bw/core";
 import {
   createSessionManager,
+  SessionLimitError,
   type SessionManager,
   type SessionManagerOptions,
 } from "./sessions.ts";
+import { VERSION } from "./version.ts";
 
 export interface ServiceConfig {
   port: number;
@@ -63,6 +65,8 @@ export function createServer(config: ServiceConfig): {
   /** 实际生效的 token（config 未给时自动生成——调用方需取走告知用户） */
   token: string;
   sessionManager: SessionManager;
+  /** 运行状态（healthz/空闲退出消费，B13） */
+  stats(): { activeTasks: number; sessions: number; uptimeMs: number; lastRequestAt: number };
 } {
   const maxConcurrent = config.maxConcurrentTasks ?? 8;
   const tasks = new Map<string, ManagedTask>();
@@ -70,6 +74,8 @@ export function createServer(config: ServiceConfig): {
   const boundHost = config.host ?? "127.0.0.1";
   // P0-1：缺省自动生成——服务永不无鉴权运行
   const authToken = config.authToken ?? crypto.randomUUID();
+  const startedAt = Date.now();
+  let lastRequestAt = Date.now();
 
   const json = (status: number, body: unknown): Response =>
     new Response(JSON.stringify(body), {
@@ -107,12 +113,40 @@ export function createServer(config: ServiceConfig): {
     }
   };
 
-  const sessionManager = createSessionManager(config.sessionOptions);
+  // B13：轨迹工厂（config.trajectoryDir → `<dir>/<id>.jsonl`；任务与会话共用）
+  const trajectoryFactory: ((id: string) => TrajectorySink) | undefined =
+    config.trajectoryDir !== undefined
+      ? (id: string) => fileTrajectorySink(config.trajectoryDir as string, id)
+      : undefined;
+
+  const sessionManager = createSessionManager({
+    ...config.sessionOptions,
+    ...(trajectoryFactory !== undefined ? { trajectory: trajectoryFactory } : {}),
+  });
 
   const server = Bun.serve({
     port: config.port,
     hostname: boundHost,
     async fetch(req): Promise<Response> {
+      // B13 /healthz（审查 P2-4 处置）：不计入 lastRequestAt（匿名探活不喂活空闲时钟）、
+      // 不早于 Host 校验返回（rebinding 面一致）；仅 loopback 绑定暴露。
+      const isHealthz = req.method === "GET" && new URL(req.url).pathname === "/healthz";
+      if (isHealthz) {
+        if (!isAllowedHost(req.headers.get("host"), boundHost)) {
+          return json(403, { error: "host not allowed" });
+        }
+        if (LOOPBACK_HOSTS.has(boundHost)) {
+          return json(200, {
+            ok: true,
+            version: VERSION,
+            uptimeMs: Date.now() - startedAt,
+            sessions: sessionManager.list().length,
+            activeTasks: active,
+          });
+        }
+        return json(404, { error: "not found" });
+      }
+      lastRequestAt = Date.now();
       if (!checkAuth(req)) return unauthorized();
       // P0-5：loopback 绑定时校验 Host（DNS rebinding 纵深防御）
       if (!isAllowedHost(req.headers.get("host"), boundHost)) {
@@ -132,7 +166,10 @@ export function createServer(config: ServiceConfig): {
         if (typeof body.goal !== "string" || body.goal === "") {
           return json(400, { error: "goal is required" });
         }
-        const handle = runTask(body, config.runOptions);
+        const handle = runTask(body, {
+          ...config.runOptions,
+          ...(trajectoryFactory !== undefined ? { trajectory: trajectoryFactory } : {}),
+        });
         active += 1;
         tasks.set(handle.id, {
           handle,
@@ -240,13 +277,28 @@ export function createServer(config: ServiceConfig): {
       if (method === "POST" && path === "/sessions") {
         const parsed = await readJsonBody(req);
         if (parsed instanceof Response) return parsed;
-        const body = parsed.body as { startUrl?: string; allowEval?: boolean };
+        const body = parsed.body as {
+          startUrl?: string;
+          allowEval?: boolean;
+          allowPrivateNetwork?: boolean;
+        };
+        // B13 审查 P1-3：S4 网络边界不给请求方——allowPrivateNetwork 需 serve 级
+        // env BW_ALLOW_PRIVATE_NETWORK=1 显式开门（用户裁决，非持 token 方可自取）
+        if (body.allowPrivateNetwork === true && process.env.BW_ALLOW_PRIVATE_NETWORK !== "1") {
+          return json(400, {
+            error: "allowPrivateNetwork requires the server to run with BW_ALLOW_PRIVATE_NETWORK=1",
+          });
+        }
         try {
           const info = await sessionManager.create(body.startUrl, {
             ...(body.allowEval === true ? { allowEval: true } : {}),
+            ...(body.allowPrivateNetwork === true ? { allowPrivateNetwork: true } : {}),
           });
           return json(201, info);
         } catch (e) {
+          if (e instanceof SessionLimitError) {
+            return json(429, { error: e.message });
+          }
           return json(400, { error: e instanceof Error ? e.message : String(e) });
         }
       }
@@ -338,5 +390,11 @@ export function createServer(config: ServiceConfig): {
     url: `http://${boundHost}:${server.port}`,
     token: authToken,
     sessionManager,
+    stats: () => ({
+      activeTasks: active,
+      sessions: sessionManager.list().length,
+      uptimeMs: Date.now() - startedAt,
+      lastRequestAt,
+    }),
   };
 }

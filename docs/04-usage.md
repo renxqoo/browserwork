@@ -64,7 +64,7 @@ bw run "..." --json               # 机器可读输出（任务事件流）
 
 - 服务只绑 `127.0.0.1`，鉴权 token 自动生成，经环境变量传给子进程（`ps` 不可见）
 - 状态文件在 `~/.bw/`（`serve.pid` / `serve.token`，权限 0600）
-- 全部会话关闭后 60s 无操作自动退出
+- 无会话、无活动任务、且 60s 无（非 healthz）请求后自动退出
 
 ```bash
 bw s stop          # 手动停掉后台服务
@@ -99,7 +99,7 @@ $ bw s close sess-1fbd1489-3d34
 
 | 会话/页面 | |
 |---|---|
-| `create [--url U] [--allow-eval]` | 建会话；`--allow-eval` 显式开启 eval |
+| `create [--url U] [--allow-eval] [--allow-private-network]` | 建会话；`--allow-eval` 显式开启 eval；`--allow-private-network` 放行本地/内网地址——需 serve 进程 `BW_ALLOW_PRIVATE_NETWORK=1` 开门（生产档 S4 默认封锁） |
 | `list` | 活跃会话清单 |
 | `snap <id>` | 当前快照 |
 | `extract <id>` | 页面正文文本（≤4000 字） |
@@ -192,6 +192,10 @@ $ bw s confirm <id> sc-8h2k1x9p --yes    # 或 --no
 
 **约束**：POST 请求体必须 `content-type: application/json` 且 ≤1MB（415/413）；服务只绑 127.0.0.1。
 
+**健康检查**：`GET /healthz`（免 Bearer，仅 loopback 绑定时暴露）→ `{ok, version, uptimeMs, sessions, activeTasks}`。
+
+**运维**：SIGTERM/SIGINT 优雅退出（abort 任务/关会话/清 PID 文件）；轨迹默认落盘 `~/.bw/trajectories/<id>.jsonl`（`--trajectory-dir` 可改），janitor 每 7 天/512MB 清理（含 `~/.bw/downloads`）；`bw replay <taskId|file>` 只读回放轨迹。会话触顶返回 **429**（本地 http://127.0.0.1 与内网地址默认被 S4 封锁——serve 进程设 `BW_ALLOW_PRIVATE_NETWORK=1` 后 create 传 `"allowPrivateNetwork": true` 才放行：网络边界归运维，不归持 token 的请求方）。
+
 ### 自治任务
 
 ```
@@ -275,6 +279,7 @@ console.log(await handle.result());
 | `BW_HOME` | 状态目录（默认 `~/.bw`；测试隔离用） |
 | `GLM_API_KEY` / `GLM_BASE_URL` / `GLM_MODEL` | 自治模式 LLM 凭据 |
 | `GLM_STRONG_MODEL` | 卡死升级用强模型 id（B12：连续 3 步页面同态时切换续跑） |
+| `BW_ALLOW_PRIVATE_NETWORK` | `=1` 时才接受 create 的 allowPrivateNetwork（本地/内网 S4 放行的总闸） |
 | `BW_PRICES_JSON` | 价目表 `{"模型id":{"input":USD,"output":USD}}`（每 1M token；CLI 也认 .env）；配了才有 `cost` 计量 |
 
 > 注意：serve 进程的 env 里有 `GLM_API_KEY` 时，`POST /tasks` 会自动装配模型——上下文窗口治理（0.5×窗口压缩、50%/80% 预警、contextWindow 硬预算）随之生效，长任务可能以 `budget_exceeded(contextWindow)` 提前终局（B12 起的行为）。

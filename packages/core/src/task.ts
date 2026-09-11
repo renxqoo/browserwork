@@ -104,7 +104,11 @@ export interface TaskHandle {
 export interface TrajectoryEntry {
   ts: number;
   step: number;
-  action: BrowserAction | { kind: "llm"; text: string };
+  action:
+    | BrowserAction
+    | { kind: "llm"; text: string }
+    /** B13：崩溃恢复审计事件（动作静默消失 + 页面跳变的事后可解释性） */
+    | { kind: "__recovery"; reason: string };
   resultText: string;
   url: string;
   domHash: string;

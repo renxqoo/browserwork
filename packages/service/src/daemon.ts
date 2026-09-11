@@ -12,7 +12,8 @@ const PID_FILE = (): string => join(pidDir(), "serve.pid");
 const TOKEN_FILE = (): string => join(pidDir(), "serve.token");
 const DEFAULT_PORT = 3456;
 const STARTUP_TIMEOUT_MS = 5000;
-const IDLE_EXIT_MS = 60_000; // 无会话 60s 后自动退出
+/** 无会话/任务/请求 60s 后自动退出（B13：由 serve 侧组装进 isIdle 谓词） */
+export const IDLE_EXIT_MS = 60_000;
 
 export interface DaemonInfo {
   url: string;
@@ -45,6 +46,8 @@ function writePidFile(info: DaemonInfo): void {
 function removePidFile(): void {
   if (existsSync(PID_FILE())) unlinkSync(PID_FILE());
 }
+
+export { removePidFile };
 
 /** 检查服务器是否在运行（发一个轻量请求） */
 export async function isServerRunning(url: string, token?: string): Promise<boolean> {
@@ -191,20 +194,38 @@ export async function stopServer(): Promise<boolean> {
   return false;
 }
 
-/** 服务端空闲自动退出（由 createServer 调用） */
-export function setupIdleExit(getSessionCount: () => number): void {
-  let lastActiveTime = Date.now();
-  const timer = setInterval(() => {
-    if (getSessionCount() === 0 && Date.now() - lastActiveTime > IDLE_EXIT_MS) {
+/**
+ * 服务端空闲自动退出（B13 重签——此前死代码转正）：
+ * isIdle 谓词由调用方组装（无会话 ∧ 无活动任务 ∧ 距最近请求 > idleMs）；
+ * 返回停止函数。默认 onExit 清 PID 文件后 exit(0)。
+ */
+export function setupIdleExit(
+  isIdle: () => boolean,
+  opts?: { intervalMs?: number; onExit?: () => void },
+): () => void {
+  const intervalMs = opts?.intervalMs ?? 10_000;
+  const onExit =
+    opts?.onExit ??
+    ((): void => {
       removePidFile();
       process.exit(0);
-    }
-    if (getSessionCount() > 0) {
-      lastActiveTime = Date.now();
-    }
-  }, 10_000);
+    });
+  const timer = setInterval(() => {
+    if (isIdle()) onExit();
+  }, intervalMs);
   if (typeof timer.unref === "function") timer.unref();
+  return () => clearInterval(timer);
 }
+
+/** serve 空闲谓词工厂（无会话 ∧ 无任务 ∧ 距最近请求 > IDLE_EXIT_MS）——导出供测试 */
+export const isServeIdle =
+  (
+    stats: () => { activeTasks: number; sessions: number; lastRequestAt: number },
+  ): (() => boolean) =>
+  () => {
+    const s = stats();
+    return s.sessions === 0 && s.activeTasks === 0 && Date.now() - s.lastRequestAt > IDLE_EXIT_MS;
+  };
 
 export function getDaemonInfo(): DaemonInfo | undefined {
   return readPidFile();

@@ -235,9 +235,12 @@ Env:
     const urlIdx = rest.indexOf("--url");
     const startUrl = urlIdx !== -1 ? rest[urlIdx + 1] : undefined;
     const allowEval = rest.includes("--allow-eval");
+    // B13：生产档 S4 生效——本地/内网地址需显式放行
+    const allowPrivate = rest.includes("--allow-private-network");
     const { status, data } = await api(cfg, "POST", "/sessions", {
       ...(startUrl !== undefined ? { startUrl } : {}),
       ...(allowEval ? { allowEval: true } : {}),
+      ...(allowPrivate ? { allowPrivateNetwork: true } : {}),
     });
     if (status === 201) {
       const p: Record<string, unknown> = { sessionId: String(data.id) };

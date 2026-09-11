@@ -73,7 +73,11 @@ describe.skipIf(process.platform !== "darwin")("外部会话模式", () => {
 
   test("生命周期：创建→快照→工具→关闭", async () => {
     fixture = await startFixtureServer();
-    mgr = createSessionManager({ sessionTtlMs: 60_000, confirmationTimeoutMs: 2000 });
+    mgr = createSessionManager({
+      policyMode: "test",
+      sessionTtlMs: 60_000,
+      confirmationTimeoutMs: 2000,
+    });
     const info = await mgr.create(fixture.origin);
     expect(info.id).toBeTruthy();
     expect(info.url).toContain(fixture.origin);
@@ -95,7 +99,11 @@ describe.skipIf(process.platform !== "darwin")("外部会话模式", () => {
 
   test("工具矩阵：navigate/click/type/press/scroll/extract_text/look/wait/select/scroll_to", async () => {
     fixture = await startFixtureServer();
-    mgr = createSessionManager({ sessionTtlMs: 60_000, confirmationTimeoutMs: 2000 });
+    mgr = createSessionManager({
+      policyMode: "test",
+      sessionTtlMs: 60_000,
+      confirmationTimeoutMs: 2000,
+    });
     const s = await mgr.create(fixture.origin);
 
     // 1. extract_text
@@ -163,13 +171,21 @@ describe.skipIf(process.platform !== "darwin")("外部会话模式", () => {
 
   test("安全 S4：file:// → POLICY_BLOCKED", async () => {
     fixture = await startFixtureServer();
-    mgr = createSessionManager({ sessionTtlMs: 30_000, confirmationTimeoutMs: 1000 });
+    mgr = createSessionManager({
+      policyMode: "test",
+      sessionTtlMs: 30_000,
+      confirmationTimeoutMs: 1000,
+    });
     await expect(mgr.create("file:///etc/passwd")).rejects.toThrow();
   }, 15_000);
 
   test("安全 S1：新域导航 → CONFIRMATION_REQUIRED → 批准后执行", async () => {
     fixture = await startFixtureServer();
-    mgr = createSessionManager({ sessionTtlMs: 30_000, confirmationTimeoutMs: 5000 });
+    mgr = createSessionManager({
+      policyMode: "test",
+      sessionTtlMs: 30_000,
+      confirmationTimeoutMs: 5000,
+    });
     const s = await mgr.create(fixture.origin);
 
     // 异步发起新域导航
@@ -199,7 +215,11 @@ describe.skipIf(process.platform !== "darwin")("外部会话模式", () => {
 
   test("安全 S1：新域导航 → 拒绝 → CONFIRMATION_DENIED", async () => {
     fixture = await startFixtureServer();
-    mgr = createSessionManager({ sessionTtlMs: 30_000, confirmationTimeoutMs: 5000 });
+    mgr = createSessionManager({
+      policyMode: "test",
+      sessionTtlMs: 30_000,
+      confirmationTimeoutMs: 5000,
+    });
     const s = await mgr.create(fixture.origin);
 
     const navPromise = mgr.executeTool(s.id, "navigate", { url: "https://example.com" });
@@ -222,7 +242,11 @@ describe.skipIf(process.platform !== "darwin")("外部会话模式", () => {
 
   test("安全 S2：敏感词按钮 → 确认门", async () => {
     fixture = await startFixtureServer();
-    mgr = createSessionManager({ sessionTtlMs: 30_000, confirmationTimeoutMs: 2000 });
+    mgr = createSessionManager({
+      policyMode: "test",
+      sessionTtlMs: 30_000,
+      confirmationTimeoutMs: 2000,
+    });
     const s = await mgr.create(fixture.origin);
 
     const snap = mgr.snapshot(s.id);
@@ -250,6 +274,7 @@ describe.skipIf(process.platform !== "darwin")("外部会话模式", () => {
   test("并发会话：3 个同时运行互不干扰", async () => {
     fixture = await startFixtureServer();
     mgr = createSessionManager({
+      policyMode: "test",
       sessionTtlMs: 30_000,
       confirmationTimeoutMs: 2000,
       maxSessions: 5,
@@ -282,7 +307,11 @@ describe.skipIf(process.platform !== "darwin")("外部会话模式", () => {
 
   test("错误处理：不存在的工具/无效参数/不存在的会话", async () => {
     fixture = await startFixtureServer();
-    mgr = createSessionManager({ sessionTtlMs: 30_000, confirmationTimeoutMs: 1000 });
+    mgr = createSessionManager({
+      policyMode: "test",
+      sessionTtlMs: 30_000,
+      confirmationTimeoutMs: 1000,
+    });
     const s = await mgr.create(fixture.origin);
 
     // 不存在的工具
@@ -308,7 +337,11 @@ describe.skipIf(process.platform !== "darwin")("外部会话模式", () => {
 
   test("快照格式验证：含页头/索引/元素标注", async () => {
     fixture = await startFixtureServer();
-    mgr = createSessionManager({ sessionTtlMs: 30_000, confirmationTimeoutMs: 1000 });
+    mgr = createSessionManager({
+      policyMode: "test",
+      sessionTtlMs: 30_000,
+      confirmationTimeoutMs: 1000,
+    });
     const s = await mgr.create(fixture.origin);
     const snap = mgr.snapshot(s.id);
 
@@ -328,6 +361,7 @@ describe.skipIf(process.platform !== "darwin")("外部会话模式", () => {
   test("会话列表与 maxSessions 限制", async () => {
     fixture = await startFixtureServer();
     mgr = createSessionManager({
+      policyMode: "test",
       sessionTtlMs: 30_000,
       confirmationTimeoutMs: 1000,
       maxSessions: 2,
@@ -392,7 +426,11 @@ describe.skipIf(process.platform !== "darwin")("外部会话模式", () => {
         return new Response("nf", { status: 404 });
       },
     });
-    mgr = createSessionManager({ sessionTtlMs: 30_000, confirmationTimeoutMs: 1000 });
+    mgr = createSessionManager({
+      policyMode: "test",
+      sessionTtlMs: 30_000,
+      confirmationTimeoutMs: 1000,
+    });
     const s = await mgr.create(`http://127.0.0.1:${bounceServer.port}`);
 
     const bounce = /\[(\d+)\] link "Bounce"/.exec(mgr.snapshot(s.id));
@@ -424,7 +462,11 @@ describe.skipIf(process.platform !== "darwin")("外部会话模式", () => {
 
   test("新工具：console/errors/cookies/storage/eval（默认禁用→opt-in）", async () => {
     fixture = await startFixtureServer();
-    mgr = createSessionManager({ sessionTtlMs: 60_000, confirmationTimeoutMs: 1000 });
+    mgr = createSessionManager({
+      policyMode: "test",
+      sessionTtlMs: 60_000,
+      confirmationTimeoutMs: 1000,
+    });
 
     // eval 默认禁用
     const s2 = await mgr.create(`${fixture.origin}/devtools`);
@@ -476,7 +518,11 @@ describe.skipIf(process.platform !== "darwin")("外部会话模式", () => {
 
   test("会话 ID 随机（无时间戳/序号模式）", async () => {
     fixture = await startFixtureServer();
-    mgr = createSessionManager({ sessionTtlMs: 30_000, confirmationTimeoutMs: 1000 });
+    mgr = createSessionManager({
+      policyMode: "test",
+      sessionTtlMs: 30_000,
+      confirmationTimeoutMs: 1000,
+    });
     const a = await mgr.create(fixture.origin);
     const b = await mgr.create(fixture.origin);
     expect(a.id).not.toBe(b.id);
@@ -488,7 +534,11 @@ describe.skipIf(process.platform !== "darwin")("外部会话模式", () => {
 
   test("tabs 清单 + extract 不清空快照缓存（B11 冒烟修复回归）", async () => {
     fixture = await startFixtureServer();
-    mgr = createSessionManager({ sessionTtlMs: 30_000, confirmationTimeoutMs: 1000 });
+    mgr = createSessionManager({
+      policyMode: "test",
+      sessionTtlMs: 30_000,
+      confirmationTimeoutMs: 1000,
+    });
     const s = await mgr.create(fixture.origin);
 
     // tabs：单页清单
@@ -520,7 +570,7 @@ describe.skipIf(process.platform !== "darwin")("HTTP 会话端点", () => {
     const server = createServer({
       port: 0,
       authToken: "test",
-      sessionOptions: { sessionTtlMs: 30_000, confirmationTimeoutMs: 2000 },
+      sessionOptions: { policyMode: "test", sessionTtlMs: 30_000, confirmationTimeoutMs: 2000 },
     });
 
     // 创建
@@ -590,7 +640,7 @@ describe.skipIf(process.platform !== "darwin")("HTTP 会话端点", () => {
     const server = createServer({
       port: 0,
       authToken: "t",
-      sessionOptions: { sessionTtlMs: 30_000, confirmationTimeoutMs: 5000 },
+      sessionOptions: { policyMode: "test", sessionTtlMs: 30_000, confirmationTimeoutMs: 5000 },
     });
 
     const rc = await fetch(`${server.url}/sessions`, {

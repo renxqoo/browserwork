@@ -41,7 +41,8 @@ export interface RunTaskOptions {
     model: Model<never>,
     context: { systemPrompt?: string; messages: unknown[]; tools?: unknown[] },
   ) => unknown;
-  trajectory?: TrajectorySink;
+  /** 轨迹 sink 或按任务 id 的工厂（B13：serve 落盘 `<dir>/<taskId>.jsonl`） */
+  trajectory?: TrajectorySink | ((taskId: string) => TrajectorySink);
   confirmationTimeoutMs?: number;
   /** 测试档：fixture origin 白名单 + 内网放宽（默认自动判定 127.0.0.1 起始 URL） */
   testMode?: boolean;
@@ -191,7 +192,10 @@ export function runTask(req: TaskRequest, opts?: RunTaskOptions): TaskHandle {
     settleCapMs: opts?.settleCapMs ?? 8000,
   });
   toolCtxLate.engine = engine;
-  const trajectory = opts?.trajectory ?? memoryTrajectorySink();
+  const trajectory: TrajectorySink =
+    typeof opts?.trajectory === "function"
+      ? opts.trajectory(id)
+      : (opts?.trajectory ?? memoryTrajectorySink());
   const confirmationTimeoutMs = opts?.confirmationTimeoutMs ?? 120_000;
 
   // ---- 事件总线（出域 redact）

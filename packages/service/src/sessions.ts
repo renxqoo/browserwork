@@ -76,10 +76,14 @@ interface ManagedSession {
   steps: number;
   /** eval 工具开关（默认关——显式 opt-in，B11） */
   allowEval: boolean;
-  /** S1③：最近一次通过 onNavigationSettled 的 URL（违规回滚目标） */
+  /** S1③：最近一次通过 onNavigationSettled 的 URL（违规回滚目标/崩溃恢复目标） */
   lastAllowedUrl: string;
   /** 最近一次返回的快照渲染文本（unchanged 判定 + 渲染缓存，05 §3.1） */
   lastRendered: string | null;
+  /** 上次成功恢复时刻（限次窗口） */
+  lastRecoveryAt: number;
+  /** 本会话轨迹 sink（create 时经工厂解析） */
+  trajectorySink: TrajectorySink | undefined;
   /** 事件流（外部 agent 可选订阅） */
   events: TaskEvent[];
   eventWaiters: Array<() => void>;
@@ -93,18 +97,48 @@ export interface SessionManagerOptions {
   confirmationTimeoutMs?: number;
   /** 最大并发会话数 */
   maxSessions?: number;
-  /** 策略配置（缺省测试档） */
+  /**
+   * 策略档（B13 §3.5）：production（缺省——S4 生效/确认门全开，本地地址需
+   * create 显式 allowPrivateNetwork）或 test（fixture 白名单 + 内网放宽）。
+   * 不可经 HTTP 注入。
+   */
+  policyMode?: "production" | "test";
+  /** 显式策略配置（优先于 policyMode；测试用） */
   policyConfig?: PolicyConfig;
-  /** 轨迹 sink */
-  trajectory?: TrajectorySink;
+  /** 轨迹 sink 或按会话 id 的工厂（B13：serve 落盘） */
+  trajectory?: TrajectorySink | ((sessionId: string) => TrajectorySink);
+  /** driver 工厂（测试注入 FakeDriver；崩溃恢复时再次调用——B13 §3.6） */
+  driverFactory?: () => Driver;
 }
 
 const DEFAULT_TTL = 30 * 60_000;
 const DEFAULT_CONFIRM_TIMEOUT = 120_000;
 const DEFAULT_MAX_SESSIONS = 16;
+/** 崩溃恢复限次窗口（05 §4-3：会话级 ≤1 / 进程级 ≤2） */
+const RECOVERY_WINDOW_MS = 5 * 60_000;
+const RECOVERY_PROBE_TIMEOUT_MS = 2_000;
+const MAX_PROCESS_RECOVERIES = 2;
+/** 进程级恢复记账（模块级——跨 manager 实例共享；B13 审查 P2-7） */
+const processRecoveries: number[] = [];
+
+/** 测试专用：清进程级恢复记账（同进程多场景矩阵互不挤占额度） */
+export function __resetRecoveryLedgerForTest(): void {
+  processRecoveries.length = 0;
+}
+
+/** 会话触顶（传输层语义——不进 core 错误分类法；server 映射 429，B12 审查 P16） */
+export class SessionLimitError extends Error {
+  constructor(readonly max: number) {
+    super(`max sessions reached (${max})`);
+    this.name = "SessionLimitError";
+  }
+}
 
 export interface SessionManager {
-  create(startUrl?: string, opts?: { allowEval?: boolean }): Promise<SessionInfo>;
+  create(
+    startUrl?: string,
+    opts?: { allowEval?: boolean; allowPrivateNetwork?: boolean },
+  ): Promise<SessionInfo>;
   get(id: string): SessionInfo | undefined;
   list(): SessionInfo[];
   close(id: string): void;
@@ -325,59 +359,180 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
     }
   };
 
+  // B13 §3.5：生产档缺省——S4 生效（本地地址需 serve 级 env 放行，见 server.ts）；test 档仅显式
+  const policyMode = opts?.policyMode ?? "production";
+  const driverFactory = opts?.driverFactory ?? ((): Driver => createWebViewDriver());
+
+  /** 会话策略配置（create 与崩溃恢复共用；opts.policyConfig 显式优先——审查 P2-5） */
+  const buildPolicyConfig = (
+    startUrl: string | undefined,
+    allowPrivateNetwork: boolean,
+  ): PolicyConfig => {
+    const budget = {
+      maxSteps: 10_000,
+      maxTokensInput: 100_000_000,
+      maxTokensOutput: 10_000_000,
+      wallClockMs: 3_600_000,
+    };
+    if (policyMode === "test") {
+      return testPolicyConfig(startUrl !== undefined ? [startUrl] : [], { budget });
+    }
+    const host = (() => {
+      try {
+        return startUrl !== undefined ? new URL(startUrl).hostname : undefined;
+      } catch {
+        return "__invalid__";
+      }
+    })();
+    return {
+      allowedHosts: [...(host !== undefined ? [host] : [])],
+      ...(allowPrivateNetwork ? { allowPrivateNetwork: true } : {}),
+      budget,
+    };
+  };
+
+  /** 会话动作引擎（create 与崩溃恢复共用——intentSink 闸接线一致） */
+  const buildEngine = (s: ManagedSession, driver: Driver): ActionEngine =>
+    createActionEngine(driver, {
+      resolveSecret: (name, origin) => s.policy.resolveSecret(name, origin),
+      intentSink: async (intent, action) => {
+        // 意图前检：S1②/S5 + S2（submit）
+        const nav = await s.policy.onNavigationIntent(intent, action);
+        const g = await gate(s, nav, action);
+        if (g !== null && g.ok === false && "error" in g) {
+          throw new BWError(g.code as "POLICY_BLOCKED", g.error);
+        }
+      },
+      settleQuietMs: 400,
+      settleCapMs: 8000,
+    });
+
+  /**
+   * 崩溃恢复（B13 §3.6，审查 P1-1/P2-7 处置后）：driver 死亡（host 崩溃/OOM）→
+   * 重建 driver+engine、回 lastAllowedUrl 单页化。语义边界：tab 拓扑重置；挂起确认
+   * 一律 deny；**尝试即记账**（claim-at-entry——并发第二路径在窗口检查处被拦，
+   * driverFactory 持续抛错也不会循环重试）；会话级 5min ≤1 + 进程级（模块级）5min ≤2；
+   * 恢复成败均入轨迹（审计链，core TrajectoryEntry __recovery）。
+   */
+  const recoverSession = async (s: ManagedSession, toolName: string): Promise<boolean> => {
+    const now = Date.now();
+    if (now - s.lastRecoveryAt < RECOVERY_WINDOW_MS) return false;
+    while (processRecoveries.length > 0 && now - (processRecoveries[0] ?? 0) > RECOVERY_WINDOW_MS) {
+      processRecoveries.shift();
+    }
+    if (processRecoveries.length >= MAX_PROCESS_RECOVERIES) return false;
+    // claim-at-entry：并发恢复互斥 + 失败尝试同样占额度（退避语义）
+    s.lastRecoveryAt = now;
+    processRecoveries.push(now);
+    const record = (reason: string): void => {
+      if (s.trajectorySink !== undefined) {
+        void s.trajectorySink
+          .append({
+            ts: Date.now(),
+            step: s.steps,
+            action: { kind: "__recovery", reason },
+            resultText: reason.slice(0, 2000),
+            url: s.lastAllowedUrl,
+            domHash: s.snapshot?.domHash ?? "",
+          })
+          .catch(() => {});
+      }
+    };
+    // 挂起确认一律 deny
+    for (const [, pc] of s.confirmations) {
+      clearTimeout(pc.timer);
+      pc.resolve(false);
+    }
+    s.confirmations.clear();
+    try {
+      s.driver.close();
+    } catch {
+      /* 幂等 */
+    }
+    let driver: Driver;
+    try {
+      driver = driverFactory();
+    } catch (e) {
+      record(`recovery failed (driver factory): '${toolName}' crashed; ${String(e).slice(0, 80)}`);
+      return false;
+    }
+    const engine = buildEngine(s, driver);
+    s.driver = driver;
+    s.engine = engine;
+    try {
+      const r = await engine.act({ kind: "open_tab", url: s.lastAllowedUrl });
+      s.snapshot = r.snapshot;
+      s.lastRendered = null; // 渲染缓存失效（单页化重载）
+      wireSettledCheck(s, engine.activePage());
+    } catch (e) {
+      // 只销毁「自己装上的 engine 仍是在役 engine」的会话——并发路径互不误杀（审查 P1-1）
+      if (s.engine === engine && !s.closed) {
+        record(
+          `recovery failed (reload): '${toolName}' crashed; ${String(e instanceof Error ? e.message : e).slice(0, 80)}`,
+        );
+        destroySession(s);
+        sessions.delete(s.id);
+      }
+      return false;
+    }
+    record(`recovered: '${toolName}' crashed; reloaded ${s.lastAllowedUrl}`);
+    return true;
+  };
+
+  /** driver 死亡探测：活动页最小求值 2s 超时（无活动页 ≠ 死——close_tab 场景） */
+  const isDriverDead = async (s: ManagedSession): Promise<boolean> => {
+    let page: Page;
+    try {
+      page = s.engine.activePage();
+    } catch {
+      return false;
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        page.evaluate("1"),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error("probe timeout")), RECOVERY_PROBE_TIMEOUT_MS);
+        }),
+      ]);
+      return false;
+    } catch {
+      return true;
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
+  };
+
   return {
     async create(startUrl, createOpts) {
       if (sessions.size >= maxSessions) {
-        throw new BWError("DRIVER_ERROR", `max sessions reached (${maxSessions})`);
+        throw new SessionLimitError(maxSessions);
       }
       // P1-8：随机 ID——时间戳+序号可预测
       const id = `sess-${crypto.randomUUID().slice(0, 13)}`;
 
-      const policyConfig =
-        opts?.policyConfig ??
-        testPolicyConfig(startUrl !== undefined ? [startUrl] : [], {
-          budget: {
-            maxSteps: 10_000,
-            maxTokensInput: 100_000_000,
-            maxTokensOutput: 10_000_000,
-            wallClockMs: 3_600_000,
+      const policy = createPolicyEngine(
+        opts?.policyConfig ?? buildPolicyConfig(startUrl, createOpts?.allowPrivateNetwork === true),
+        {
+          dns: {
+            async resolve(hostname) {
+              const { lookup } = await import("node:dns/promises");
+              return (await lookup(hostname, { all: true })).map((a) => a.address);
+            },
           },
-        });
-
-      const policy = createPolicyEngine(policyConfig, {
-        dns: {
-          async resolve(hostname) {
-            const { lookup } = await import("node:dns/promises");
-            return (await lookup(hostname, { all: true })).map((a) => a.address);
+          secrets: {
+            async resolve() {
+              throw new Error("secrets not configured for session mode");
+            },
           },
+          newCid: () => `sc-${Math.random().toString(36).slice(2, 10)}`,
         },
-        secrets: {
-          async resolve() {
-            throw new Error("secrets not configured for session mode");
-          },
-        },
-        newCid: () => `sc-${Math.random().toString(36).slice(2, 10)}`,
-      });
-
-      const driver = createWebViewDriver();
-      const engine = createActionEngine(driver, {
-        resolveSecret: (name, origin) => policy.resolveSecret(name, origin),
-        intentSink: async (intent, action) => {
-          // 意图前检：S1②/S5 + S2（submit）
-          const nav = await policy.onNavigationIntent(intent, action);
-          const g = await gate(sessions.get(id) as ManagedSession, nav, action);
-          if (g !== null && g.ok === false && "error" in g) {
-            throw new BWError(g.code as "POLICY_BLOCKED", g.error);
-          }
-        },
-        settleQuietMs: 400,
-        settleCapMs: 8000,
-      });
+      );
 
       const session: ManagedSession = {
         id,
-        driver,
-        engine,
+        driver: null as unknown as Driver,
+        engine: null as unknown as ActionEngine,
         policy,
         snapshot: null,
         confirmations: new Map(),
@@ -387,31 +542,51 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
         allowEval: createOpts?.allowEval === true,
         lastAllowedUrl: startUrl ?? "about:blank",
         lastRendered: null,
+        lastRecoveryAt: 0,
+        trajectorySink: undefined,
         events: [],
         eventWaiters: [],
         closed: false,
       };
+      const driver = driverFactory();
+      const engine = buildEngine(session, driver);
+      session.driver = driver;
+      session.engine = engine;
+      session.trajectorySink =
+        typeof opts?.trajectory === "function"
+          ? opts.trajectory(id)
+          : (opts?.trajectory ?? undefined);
       sessions.set(id, session);
 
-      // 打开起始页（或 about:blank）
+      // 打开起始页（或 about:blank——无 startUrl 不过策略闸：about: 不是导航语义，
+      // S1① 只对显式 URL 生效；B13 审查 P2-12a 处置）
       const targetUrl = startUrl ?? "about:blank";
-      const navCheck = await policy.onNavigate(targetUrl);
-      const navGate = await gate(session, navCheck, { kind: "navigate", url: targetUrl });
-      if (navGate !== null) {
+      if (startUrl !== undefined) {
+        const navCheck = await policy.onNavigate(targetUrl);
+        const navGate = await gate(session, navCheck, { kind: "navigate", url: targetUrl });
+        if (navGate !== null) {
+          destroySession(session);
+          sessions.delete(id);
+          if (navGate.ok === false && "error" in navGate) {
+            return Promise.reject(new BWError(navGate.code as "POLICY_BLOCKED", navGate.error));
+          }
+          return Promise.reject(new BWError("DRIVER_ERROR", "unexpected session gate result"));
+        }
+      }
+      try {
+        const r = await engine.act({ kind: "open_tab", url: targetUrl });
+        session.snapshot = r.snapshot;
+        // S1③ 接线：起始页（后续 open_tab/switch_tab 的新页在 executeTool 里接线）
+        try {
+          wireSettledCheck(session, engine.activePage());
+        } catch {
+          /* 无活动页 */
+        }
+      } catch (e) {
+        // 起始导航失败：清场防 maxSessions 泄漏（B13 审查 P2-12b 处置）
         destroySession(session);
         sessions.delete(id);
-        if (navGate.ok === false && "error" in navGate) {
-          return Promise.reject(new BWError(navGate.code as "POLICY_BLOCKED", navGate.error));
-        }
-        return Promise.reject(new BWError("DRIVER_ERROR", "unexpected session gate result"));
-      }
-      const r = await engine.act({ kind: "open_tab", url: targetUrl });
-      session.snapshot = r.snapshot;
-      // S1③ 接线：起始页（后续 open_tab/switch_tab 的新页在 executeTool 里接线）
-      try {
-        wireSettledCheck(session, engine.activePage());
-      } catch {
-        /* 无活动页 */
+        throw e;
       }
 
       return info(session);
@@ -593,9 +768,9 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
             : {}),
         };
 
-        // 轨迹
-        if (opts?.trajectory !== undefined) {
-          void opts.trajectory
+        // 轨迹（per-session sink，B13 工厂解析）
+        if (s.trajectorySink !== undefined) {
+          void s.trajectorySink
             .append({
               ts: Date.now(),
               step: s.steps,
@@ -623,14 +798,32 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
 
         return response;
       } catch (e) {
-        if (BWError.is(e)) {
-          return { ok: false, code: e.code, error: e.message };
+        const code = BWError.is(e) ? e.code : "DRIVER_ERROR";
+        const message = e instanceof Error ? e.message : String(e);
+        // B13 §3.6：DRIVER_ERROR → 探测 driver 死亡 → 单页化恢复
+        if (code === "DRIVER_ERROR" && !s.closed) {
+          if (await isDriverDead(s)) {
+            const recovered = await recoverSession(s, toolName);
+            if (recovered) {
+              const rendered = s.snapshot !== null ? renderSnapshot(s.snapshot) : "";
+              if (rendered !== "") s.lastRendered = rendered; // 与常规路径一致回写缓存
+              return {
+                ok: true,
+                text: `driver crashed during '${toolName}'; recovered and reloaded ${s.lastAllowedUrl} (tabs reset to single page)`,
+                snapshot: rendered,
+                unchanged: false,
+              };
+            }
+            if (s.closed) {
+              return {
+                ok: false,
+                code: "DRIVER_ERROR",
+                error: `${message} (recovery failed; session closed)`,
+              };
+            }
+          }
         }
-        return {
-          ok: false,
-          code: "DRIVER_ERROR",
-          error: e instanceof Error ? e.message : String(e),
-        };
+        return { ok: false, code, error: message };
       }
     },
   };
