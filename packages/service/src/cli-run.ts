@@ -1,9 +1,8 @@
 /** bw run：CLI 单任务执行（读 .env 或环境变量配置 LLM）。B18：紧凑双行过程输出 + 轨迹默认落盘。 */
 
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { fileTrajectorySink, glmModelsFromEnv, runTask } from "@bw/agent";
 import type { TaskEvent } from "@bw/core";
+import { trajectoryDir as trajectoryDirFromCore } from "@bw/core";
 
 export interface RunCliArgs {
   goal: string;
@@ -19,9 +18,9 @@ export interface RunCliArgs {
   ua?: string;
 }
 
-/** 轨迹目录（与 serve 同源默认；env BW_TRAJECTORY_DIR 可改） */
+/** 轨迹目录（B17：BW_HOME 单源——@bw/core fsx；env BW_TRAJECTORY_DIR 可改） */
 export function runTrajectoryDir(): string {
-  return process.env.BW_TRAJECTORY_DIR ?? join(homedir(), ".bw", "trajectories");
+  return trajectoryDirFromCore();
 }
 
 async function loadEnvFile(path: string): Promise<Record<string, string>> {

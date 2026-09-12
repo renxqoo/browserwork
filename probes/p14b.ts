@@ -10,8 +10,13 @@ import { rmSync } from "node:fs";
 let pass = 0;
 let fail = 0;
 const check = (name: string, ok: boolean, detail = ""): void => {
-  ok ? (pass++, console.log(`  ✓ ${name}${detail !== "" ? ` — ${detail}` : ""}`))
-     : (fail++, console.log(`  ✗ ${name}${detail !== "" ? ` — ${detail}` : ""}`));
+  if (ok) {
+    pass++;
+    console.log(`  ✓ ${name}${detail !== "" ? ` — ${detail}` : ""}`);
+  } else {
+    fail++;
+    console.log(`  ✗ ${name}${detail !== "" ? ` — ${detail}` : ""}`);
+  }
 };
 
 /** 本地 HTTP：/set 设普通+httpOnly cookie；/get 回显收到的 Cookie 头；/ 反射页 */
@@ -64,7 +69,9 @@ process.exit(0);
 async function child(mode: "write" | "read", dir: string, backend: string): Promise<string> {
   const tmp = `/tmp/p14b-child-${Date.now()}.ts`;
   await Bun.write(tmp, CHILD_SRC);
-  const proc = spawn(process.execPath, [tmp, mode, dir, ORIGIN, backend], { stdio: ["ignore", "pipe", "inherit"] });
+  const proc = spawn(process.execPath, [tmp, mode, dir, ORIGIN, backend], {
+    stdio: ["ignore", "pipe", "inherit"],
+  });
   let out = "";
   proc.stdout.on("data", (c) => (out += c));
   const code = await new Promise<number>((r) => proc.on("exit", r));
@@ -87,8 +94,16 @@ async function run(backend: "webkit" | "chrome"): Promise<void> {
     check("进程B 输出可解析", false, r.slice(0, 120));
     return;
   }
-  check("进程B 普通cookie 跨进程持久", parsed.header.includes("plain_cookie=visible"), parsed.header);
-  check("进程B httpOnly cookie 跨进程持久", parsed.header.includes("http_cookie=hidden"), parsed.header);
+  check(
+    "进程B 普通cookie 跨进程持久",
+    parsed.header.includes("plain_cookie=visible"),
+    parsed.header,
+  );
+  check(
+    "进程B httpOnly cookie 跨进程持久",
+    parsed.header.includes("http_cookie=hidden"),
+    parsed.header,
+  );
   check("进程B localStorage 跨进程持久", parsed.ls === "persisted", JSON.stringify(parsed.ls));
   rmSync(dir, { recursive: true, force: true });
 }

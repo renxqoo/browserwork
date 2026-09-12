@@ -30,8 +30,9 @@ Bun.listen({
   socket: {
     data(socket, chunk) {
       buf += new TextDecoder().decode(chunk);
-      let nl: number;
-      while ((nl = buf.indexOf("\n")) >= 0) {
+      for (;;) {
+        const nl = buf.indexOf("\n");
+        if (nl < 0) break;
         const line = buf.slice(0, nl);
         buf = buf.slice(nl + 1);
         if (line.trim() === "") continue;
@@ -78,4 +79,5 @@ writeFileSync(`${sockPath}.ready`, String(process.pid));
 
 // 活跃定时器：WebView 空闲时事件循环不保活（bun 文档语义），显式保持
 setInterval(() => {}, 60_000);
-export { spawn, conns };
+
+export { conns, spawn };

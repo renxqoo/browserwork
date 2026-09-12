@@ -100,12 +100,6 @@ const processGroupAlive = (pid: number): boolean => {
   }
 };
 
-const listBwProcs = (): string => {
-  const r = spawn("/bin/sh", ["-c", "ps -axo pid,pgid,command | grep -E 'p14a-helper|bun-webview|Google Chrome' | grep -v grep | head -8 || true"], { stdio: ["ignore", "pipe", "inherit"] });
-  return "（见异步检查）";
-};
-export { listBwProcs };
-
 async function runBackend(backend: "webkit" | "chrome"): Promise<void> {
   OUT(`\n== p14a ${backend} ==`);
   const pid = startHelper(backend);
@@ -125,8 +119,7 @@ async function runBackend(backend: "webkit" | "chrome"): Promise<void> {
     {
       method: "eval",
       params: {
-        expr:
-          "(() => { document.getElementById('q').value = 'typed-by-proc-1'; return document.title })()",
+        expr: "(() => { document.getElementById('q').value = 'typed-by-proc-1'; return document.title })()",
       },
     },
   ]);
@@ -134,12 +127,16 @@ async function runBackend(backend: "webkit" | "chrome"): Promise<void> {
 
   // 进程 2（全新进程）：读回同一页面的 DOM 态 —— 跨进程连续性
   const got = await rpcFromNewProcess([
-    { method: "eval", params: { expr: "document.getElementById('q').value + '|' + document.title" } },
+    {
+      method: "eval",
+      params: { expr: "document.getElementById('q').value + '|' + document.title" },
+    },
   ]);
   const g = got as { ok: boolean; result?: string };
   check(
     "进程2 读回活 DOM 态（跨进程连续）",
-    g.ok === true && g.result === "typed-by-proc-1|" + (backend === "chrome" ? "p14a-chrome" : "p14a-webkit"),
+    g.ok === true &&
+      g.result === `typed-by-proc-1|${backend === "chrome" ? "p14a-chrome" : "p14a-webkit"}`,
     JSON.stringify(g.result),
   );
 
@@ -177,7 +174,8 @@ async function runBackend(backend: "webkit" | "chrome"): Promise<void> {
   let cn = "";
   chromeLeft.stdout.on("data", (c) => (cn += c));
   await new Promise((r) => chromeLeft.on("exit", r));
-  if (backend === "chrome") check("chrome 子进程被组 kill 带走", cn.trim() === "0", `residual=${cn.trim()}`);
+  if (backend === "chrome")
+    check("chrome 子进程被组 kill 带走", cn.trim() === "0", `residual=${cn.trim()}`);
   rmSync(SOCK, { force: true });
   rmSync(`${SOCK}.ready`, { force: true });
 }

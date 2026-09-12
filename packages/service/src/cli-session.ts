@@ -1,3 +1,4 @@
+import { mapCliCommand } from "./cli-commands.ts";
 /**
  * bw s —— 外部 agent 会话 CLI（连接 bw serve 实例）。
  * 命令即工具名，位置参数即工具参数；统一 JSON 输出（ok/error/code/hint）。
@@ -87,113 +88,6 @@ async function api(
   }
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   return { status: res.status, data };
-}
-
-/** CLI 命令名 → REST 工具名（服务端 buildAction 的规范名；B11 修复 5 个失配命令） */
-const WIRE_NAMES: Record<string, string> = {
-  scrollto: "scroll_to",
-  opentab: "open_tab",
-  switchtab: "switch_tab",
-  closetab: "close_tab",
-  extract: "extract_text",
-  "cookies-set": "cookies_set",
-  "cookies-clear": "cookies_clear",
-  "storage-set": "storage_set",
-  "storage-clear": "storage_clear",
-  "cookies-all": "cookies_all",
-};
-
-/** 工具名 → 参数映射（位置参数 → JSON 参数） */
-function mapToolArgs(
-  tool: string,
-  args: string[],
-): { params: Record<string, unknown>; hint: string } | { error: string } {
-  switch (tool) {
-    case "click":
-    case "scrollto":
-      if (args.length < 1) return { error: `usage: bw s ${tool} <sessionId> <index>` };
-      return { params: { index: args[0] }, hint: "" };
-    case "type":
-      if (args.length < 2) return { error: "usage: bw s type <sessionId> <index> <text>" };
-      return { params: { index: args[0], text: args[1] }, hint: "" };
-    case "navigate":
-    case "opentab":
-      if (args.length < 1) return { error: `usage: bw s ${tool} <sessionId> <url>` };
-      return { params: { url: args[0] }, hint: "" };
-    case "press":
-      if (args.length < 1) return { error: `usage: bw s press <sessionId> <key>` };
-      return { params: { key: args[0] }, hint: "" };
-    case "scroll":
-      if (args.length < 1)
-        return { error: "usage: bw s scroll <sessionId> <up|down|left|right> [amount]" };
-      return {
-        params: {
-          direction: args[0],
-          ...(args[1] !== undefined ? { amount: Number(args[1]) } : {}),
-        },
-        hint: "",
-      };
-    case "select":
-      if (args.length < 2) return { error: "usage: bw s select <sessionId> <index> <value>" };
-      return { params: { index: args[0], value: args[1] }, hint: "" };
-    case "extract":
-    case "look":
-    case "closetab":
-    case "console":
-    case "errors":
-    case "tabs":
-    case "cookies":
-    case "cookies_all":
-    case "cookies-all":
-    case "requests":
-    case "reload":
-    case "storage_clear":
-    case "storage-clear":
-      return { params: {}, hint: "" };
-    case "cookies_set":
-    case "cookies-set":
-    case "storage_set":
-    case "storage-set":
-      if (args.length < 2) return { error: `usage: bw s ${tool} <sessionId> <key> <value>` };
-      return { params: { key: args[0], value: args[1] }, hint: "" };
-    case "storage":
-      return { params: args.length >= 1 ? { key: args[0] } : {}, hint: "" };
-    case "eval":
-      if (args.length < 1) return { error: "usage: bw s eval <sessionId> <expression>" };
-      return { params: { expression: args.join(" ") }, hint: "" };
-    case "wait":
-      if (args.length < 1) return { error: "usage: bw s wait <sessionId> <seconds> [networkIdle]" };
-      return {
-        params: {
-          seconds: Number(args[0]),
-          ...(args[1] === "networkIdle" ? { until: "networkIdle" } : {}),
-        },
-        hint: "",
-      };
-    case "resize":
-      if (args.length < 2) return { error: "usage: bw s resize <sessionId> <width> <height>" };
-      return { params: { width: Number(args[0]), height: Number(args[1]) }, hint: "" };
-    case "download":
-      if (args.length < 1) return { error: "usage: bw s download <sessionId> <index>" };
-      return { params: { index: args[0] }, hint: "" };
-    case "upload":
-      if (args.length < 2)
-        return { error: "usage: bw s upload <sessionId> <index> <file> [file...]" };
-      return { params: { index: args[0], files: args.slice(1) }, hint: "" };
-    case "batch":
-      if (args.length < 1) return { error: "usage: bw s batch <sessionId> '<json steps array>'" };
-      try {
-        const steps = JSON.parse(args.join(" ")) as unknown;
-        return { params: { steps }, hint: "" };
-      } catch {
-        return { error: "steps must be a JSON array of actions" };
-      }
-    case "switchtab":
-      if (args.length < 1) return { error: "usage: bw s switchtab <sessionId> <tabNumber>" };
-      return { params: { tab: Number(args[0]) }, hint: "" };
-    default:
-      return { error: `unknown tool "${tool}" — run 'bw s --help' for list` };
-  }
 }
 
 export async function runSessionCli(argv: string[]): Promise<number> {
@@ -395,16 +289,16 @@ Env:
   }
 
   // ---- 其余工具（统一走 /tools/:toolName）
-  const mapped = mapToolArgs(cmd, args);
+  const mapped = mapCliCommand(cmd, args);
   if ("error" in mapped) {
     fail(sessionId, "INVALID_ARGS", mapped.error);
   }
 
-  const wire = WIRE_NAMES[cmd] ?? cmd; // REST 规范名（scrollto → scroll_to 等）
+  // 映射层单源于 cli-commands.ts——B22 S0
   const { status, data } = await api(
     cfg,
     "POST",
-    `/sessions/${sessionId}/tools/${wire}`,
+    `/sessions/${sessionId}/tools/${mapped.tool}`,
     mapped.params,
   );
 

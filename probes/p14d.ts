@@ -6,14 +6,20 @@
  *  3) 持锁进程被 SIGKILL → 锁自动释放（fd 关闭）——惰性回收安全性的底座
  *  4) 再次抢锁成功
  */
+
+import { dlopen } from "bun:ffi";
 import { spawn } from "node:child_process";
-import { dlopen, suffix } from "bun:ffi";
 
 let pass = 0;
 let fail = 0;
 const check = (name: string, ok: boolean, detail = ""): void => {
-  ok ? (pass++, console.log(`  ✓ ${name}${detail !== "" ? ` — ${detail}` : ""}`))
-     : (fail++, console.log(`  ✗ ${name}${detail !== "" ? ` — ${detail}` : ""}`));
+  if (ok) {
+    pass++;
+    console.log(`  ✓ ${name}${detail !== "" ? ` — ${detail}` : ""}`);
+  } else {
+    fail++;
+    console.log(`  ✗ ${name}${detail !== "" ? ` — ${detail}` : ""}`);
+  }
 };
 
 // libc
@@ -36,7 +42,7 @@ const openLock = (path: string): { fd: number; acquired: boolean } => {
 
 /** 子进程：抢锁 → 打印结果退出 */
 const CHILD = `
-import { dlopen, suffix } from "bun:ffi";
+import { dlopen } from "bun:ffi";
 const lib = dlopen("/usr/lib/libSystem.B.dylib", {
   open: { args: ["pointer", "int"], returns: "int" },
   flock: { args: ["int", "int"], returns: "int" },
@@ -66,13 +72,16 @@ check("父进程抢到锁", mine.acquired);
 check("锁被持有时子进程被拒（非阻塞）", (await childTry()) === "denied");
 
 // 2. 父释放 → 子可得
-lib.symbols.fclose ?? null; // （无此符号——用 close）
 lib.symbols.close(mine.fd);
 check("父释放后子进程可得", (await childTry()) === "acquired");
 
 // 3. 持锁进程 SIGKILL → 锁自动释放
-const holder = spawn(process.execPath, ["-e", `
-import { dlopen, suffix } from "bun:ffi";
+const holder = spawn(
+  process.execPath,
+  [
+    "-e",
+    `
+import { dlopen } from "bun:ffi";
 const lib = dlopen("/usr/lib/libSystem.B.dylib", {
   open: { args: ["pointer", "int"], returns: "int" },
   flock: { args: ["int", "int"], returns: "int" },
@@ -82,7 +91,11 @@ const fd = lib.symbols.open(enc.encode(process.argv[1] + "\\0"), 2 | 0x200, 0o60
 if (lib.symbols.flock(fd, 2 | 4) !== 0) { console.log("cannot lock"); process.exit(1); }
 console.log("locked");
 setInterval(() => {}, 1000);
-`, LOCK], { stdio: ["ignore", "pipe", "inherit"] });
+`,
+    LOCK,
+  ],
+  { stdio: ["ignore", "pipe", "inherit"] },
+);
 await new Promise((r) => holder.stdout.on("data", r));
 holder.kill("SIGKILL");
 await new Promise((r) => holder.on("exit", r));

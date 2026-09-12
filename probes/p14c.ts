@@ -6,8 +6,13 @@
 let pass = 0;
 let fail = 0;
 const check = (name: string, ok: boolean, detail = ""): void => {
-  ok ? (pass++, console.log(`  ✓ ${name}${detail !== "" ? ` — ${detail}` : ""}`))
-     : (fail++, console.log(`  ✗ ${name}${detail !== "" ? ` — ${detail}` : ""}`));
+  if (ok) {
+    pass++;
+    console.log(`  ✓ ${name}${detail !== "" ? ` — ${detail}` : ""}`);
+  } else {
+    fail++;
+    console.log(`  ✗ ${name}${detail !== "" ? ` — ${detail}` : ""}`);
+  }
 };
 
 async function two(backend: "webkit" | "chrome"): Promise<void> {
@@ -40,7 +45,7 @@ await two("chrome");
   let threw = false;
   try {
     await v.evaluate("1");
-  } catch (e) {
+  } catch {
     threw = true;
   }
   await p;
@@ -50,3 +55,5 @@ await two("chrome");
 
 console.log(`\np14c 结论: ${pass} pass / ${fail} fail`);
 process.exit(fail > 0 ? 1 : 0);
+
+export {};

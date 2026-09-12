@@ -41,6 +41,7 @@ bug 不再可达，但教训进第三节）/ `随迁移修` / `本波修` / `挂
 | B20 | shutdown.ts:23-31 | 一般 | `stop()` 抛错被吞后仍 `exit(0)`——优雅关闭失败与成功同退出码；错误静默（注释自认「尽力而为」但至少应非零退出或 stderr）。静态阅读 | **随迁移修**：信号路径退出码应反映任务结果（进规格 G4/bw run 信号语义） |
 | B21 | server.ts:440-444 + cli.ts:179-183 | 数据丢失（轻） | stop() 对每个任务 `void handle.abort(...)` **不等待** finalize（轨迹终态写入是异步的）即 closeAll+exit——SIGTERM 时运行中任务的轨迹**缺终态行**，违反「终态事件最后且恰好一次」的收敛语义。静态阅读 | **随删除核销**。**教训直接进 G4**：bw run 的 Ctrl+C 必须等 abort→finalize 落盘再退出 |
 | B22 | janitor.ts:88-100,117-127 + cli.ts:169-173 | 一般 | 容量策略按**每个目录**独立计量：downloads 根 `subdirs:true` 时每个会话子目录各得 512MB 预算，**总量无界**（直到年龄策略触发）；且 keep 会话（TTL 豁免可长活）目录内 >7 天的下载文件会被**在活跃会话脚下删掉**。静态阅读 | **随迁移修**：janitor 保留（DESIGN §2.1 gc）——改按根聚合计量 + 活跃会话目录豁免（可从 lock 存在性判断） |
+| B24 | cli-session.ts mapToolArgs（旧 switch 原始名匹配） | 一般（潜伏，S0 金测试实证） | `bw s cookies-clear` 客户端报 unknown tool——旧 switch 覆盖了 raw `cookies-all` 却漏 raw `cookies-clear`（B11 wire 修复的漏网第 6 个）；help 文档有此命令 → 意图明确是支持 | **随迁移修**（已在 S0 映射层修复：cli-commands.ts cookies_clear case + 金测试锚） |
 | B23 | packages/service/package.json + sessions.ts:11-14 | 一般（④依赖方向） | 包声明只列 `core/agent/policies`，但 sessions.ts 实际 import `@bw/actions`、`@bw/driver`、`@bw/perception`——**未声明依赖**靠 workspace 提升侥幸工作；包边界失真。静态阅读 | **随迁移修**：包重组（SDK 根包导出）时补齐或重排依赖 |
 
 **测试已覆盖（非 bug，锚定事实）**：鉴权矩阵/401/202/409/429、healthz loopback-only、

@@ -6,10 +6,16 @@
  */
 
 import { realpathSync, rmSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { type ActionEngine, createActionEngine, type InspectKind } from "@bw/actions";
-import { type BrowserAction, BWError, type TaskEvent, type TrajectorySink } from "@bw/core";
+import {
+  type BrowserAction,
+  BWError,
+  buildAction as buildActionFromRegistry,
+  resolveBwHome,
+  type TaskEvent,
+  type TrajectorySink,
+} from "@bw/core";
 import { type CreateDriverOptions, createWebViewDriver, type Driver, type Page } from "@bw/driver";
 import { renderSnapshot, type Snapshot } from "@bw/perception";
 import {
@@ -142,9 +148,9 @@ export function __resetRecoveryLedgerForTest(): void {
   processRecoveries.length = 0;
 }
 
-/** 下载根统一解析（B14 审查 P2-12：engine/janitor/cli 三处同源） */
+/** 下载根统一解析（B14 P2-12 三处同源 + B22 B17：BW_HOME 对齐——run/replay/serve 同根） */
 export function downloadsRoot(): string {
-  return process.env.BW_DOWNLOADS_DIR ?? join(homedir(), ".bw", "downloads");
+  return process.env.BW_DOWNLOADS_DIR ?? join(resolveBwHome(), "downloads");
 }
 const sessionDownloadsDir = (sessionId: string): string => join(downloadsRoot(), sessionId);
 
@@ -341,120 +347,9 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
   };
 
   /** 构造 BrowserAction（参数校验） */
-  const buildAction = (toolName: string, params: Record<string, unknown>): BrowserAction => {
-    switch (toolName) {
-      case "navigate":
-        if (typeof params.url !== "string")
-          throw new BWError("INVALID_TOOL_ARGS", "navigate requires url");
-        return { kind: "navigate", url: params.url };
-      case "click":
-        if (typeof params.index !== "string")
-          throw new BWError("INVALID_TOOL_ARGS", "click requires index");
-        return { kind: "click", index: params.index };
-      case "type":
-        if (typeof params.index !== "string" || typeof params.text !== "string") {
-          throw new BWError("INVALID_TOOL_ARGS", "type requires index and text");
-        }
-        return { kind: "type", index: params.index, text: params.text };
-      case "type_text_secret":
-        if (typeof params.index !== "string" || typeof params.secretName !== "string") {
-          throw new BWError("INVALID_TOOL_ARGS", "type_text_secret requires index and secretName");
-        }
-        return { kind: "type_text_secret", index: params.index, secretName: params.secretName };
-      case "press":
-        if (typeof params.key !== "string")
-          throw new BWError("INVALID_TOOL_ARGS", "press requires key");
-        return { kind: "press", key: params.key };
-      case "scroll":
-        if (typeof params.direction !== "string")
-          throw new BWError("INVALID_TOOL_ARGS", "scroll requires direction");
-        return {
-          kind: "scroll",
-          direction: params.direction as "up" | "down" | "left" | "right",
-          ...(params.amount !== undefined ? { amount: params.amount as number } : {}),
-        };
-      case "scroll_to":
-        if (typeof params.index !== "string")
-          throw new BWError("INVALID_TOOL_ARGS", "scroll_to requires index");
-        return { kind: "scroll_to", index: params.index };
-      case "select":
-        if (typeof params.index !== "string" || typeof params.value !== "string") {
-          throw new BWError("INVALID_TOOL_ARGS", "select requires index and value");
-        }
-        return { kind: "select", index: params.index, value: params.value };
-      case "extract_text":
-        return { kind: "extract_text" };
-      case "look":
-        return { kind: "look" };
-      case "open_tab":
-        if (typeof params.url !== "string")
-          throw new BWError("INVALID_TOOL_ARGS", "open_tab requires url");
-        return { kind: "open_tab", url: params.url };
-      case "switch_tab":
-        if (typeof params.tab !== "number")
-          throw new BWError("INVALID_TOOL_ARGS", "switch_tab requires tab (number)");
-        return { kind: "switch_tab", tab: params.tab };
-      case "close_tab":
-        return { kind: "close_tab" };
-      case "wait":
-        if (typeof params.seconds !== "number")
-          throw new BWError("INVALID_TOOL_ARGS", "wait requires seconds");
-        return {
-          kind: "wait",
-          seconds: params.seconds,
-          ...(params.until === "networkIdle" ? { until: "networkIdle" as const } : {}),
-        };
-      case "extract_code":
-        if (typeof params.code !== "string" || params.code === "") {
-          throw new BWError("INVALID_TOOL_ARGS", "extract_code requires code");
-        }
-        return { kind: "extract_code", code: params.code };
-      case "batch": {
-        if (!Array.isArray(params.steps)) {
-          throw new BWError("INVALID_TOOL_ARGS", "batch requires steps[]");
-        }
-        if (params.steps.length > 10) {
-          throw new BWError("INVALID_TOOL_ARGS", "batch steps exceed limit (10)");
-        }
-        const steps = (params.steps as Record<string, unknown>[]).map((sp, i) => {
-          const kind = sp.kind;
-          if (typeof kind !== "string") {
-            throw new BWError("INVALID_TOOL_ARGS", `batch step ${i} missing kind`);
-          }
-          if (kind === "done") {
-            throw new BWError("INVALID_TOOL_ARGS", "batch steps must not contain done");
-          }
-          if (kind === "batch") {
-            throw new BWError("INVALID_TOOL_ARGS", "batch steps must not contain nested batch");
-          }
-          return buildAction(kind, sp);
-        });
-        return { kind: "batch", steps };
-      }
-      case "resize":
-        if (typeof params.width !== "number" || typeof params.height !== "number") {
-          throw new BWError("INVALID_TOOL_ARGS", "resize requires width and height");
-        }
-        return { kind: "resize", width: params.width, height: params.height };
-      case "reload":
-        return { kind: "reload" };
-      case "download":
-        if (typeof params.index !== "string")
-          throw new BWError("INVALID_TOOL_ARGS", "download requires index");
-        return { kind: "download", index: params.index };
-      case "upload":
-        if (typeof params.index !== "string" || !Array.isArray(params.files)) {
-          throw new BWError("INVALID_TOOL_ARGS", "upload requires index and files[]");
-        }
-        return {
-          kind: "upload",
-          index: params.index,
-          files: params.files.map((f) => String(f)),
-        };
-      default:
-        throw new BWError("INVALID_TOOL_ARGS", `unknown tool: ${toolName}`);
-    }
-  };
+  // B22 S0（D1 单源）：构造/校验唯一实现迁 @bw/core toolRegistry——本层不再持有词汇表
+  const buildAction = (toolName: string, params: Record<string, unknown>): BrowserAction =>
+    buildActionFromRegistry(toolName, params);
 
   // B13 §3.5：生产档缺省——S4 生效（本地地址需 serve 级 env 放行，见 server.ts）；test 档仅显式
   const policyMode = opts?.policyMode ?? "production";

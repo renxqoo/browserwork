@@ -129,3 +129,19 @@ create(url?) → mkdir 会话目录（经 ~/.bw/session/.create.lock 全局锁�
 ## 8. 实施记录
 
 （每门收口追加）
+
+## 9. S0 实施记录（2026-09-13）
+
+交付：toolRegistry 单源（@bw/core；agent 16 mapper 委托 + sessions buildAction 委托，
+B8 空 batch 拒绝落地，25 用例）· fsx（BW_HOME 单源——B17 修复：cli-run/cli/replay/
+downloadsRoot 四点归一；0600 原子写+撕裂防护用例）· flock（node-fd + ffi-flock(int,int)
+最小面——ffi 指针编组 open 在 bun test 下不稳定，S0 实测改道；SIGKILL 自释放用例）·
+cli-commands 纯映射层抽出 + 13 金测试（wire 名/参数映射/usage 逐字锚）。
+
+发现并修复：**B24**（`bw s cookies-clear` 客户端 unknown——旧 switch 按原始名匹配漏
+第 6 个 wire 名；金测试首跑即抓到，已修 + 锚定）。
+
+门禁：tsc ✓ biome 0 error ✓ build ✓ 579 tests 0 fail（1 skip 沿袭）。
+ ffi 勾稽：p14d 探针的 ffi-open+closeSync 组合在 bun test 环境不稳定——生产探针
+ 结论不变（跨进程互斥/自释放），flock.ts 采用 node:fs fd + 纯整数 ffi flock。
+

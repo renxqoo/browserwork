@@ -6,7 +6,7 @@
  */
 
 import type { ActionResult } from "@bw/actions";
-import { type BrowserAction, BWError, type NavigationIntent } from "@bw/core";
+import { type BrowserAction, BWError, buildAction, type NavigationIntent } from "@bw/core";
 import type { DriverCapabilities } from "@bw/driver";
 import { renderSnapshot, type Snapshot } from "@bw/perception";
 import type { ActionTarget, GateDecision, PolicyEngine } from "@bw/policies";
@@ -240,23 +240,17 @@ export function buildBrowserTools(ctx: ToolContext, caps?: DriverCapabilities): 
       "navigate",
       "导航当前 tab 到 URL",
       Type.Object({ url: Type.String({ description: "绝对 URL（http/https）" }) }),
-      (p) => ({ kind: "navigate", url: p.url as string }),
+      (p) => buildAction("navigate", p),
       navGate((p) => p.url as string),
     ),
-    t(
-      "click",
-      "点击快照中指定索引的元素",
-      Type.Object({ index: idxSchema("要点击的元素") }),
-      (p) => ({
-        kind: "click",
-        index: p.index as string,
-      }),
+    t("click", "点击快照中指定索引的元素", Type.Object({ index: idxSchema("要点击的元素") }), (p) =>
+      buildAction("click", p),
     ),
     t(
       "type",
       "向输入框输入文本（不按键——需要时跟 press Enter）",
       Type.Object({ index: idxSchema("输入框"), text: Type.String() }),
-      (p) => ({ kind: "type", index: p.index as string, text: p.text as string }),
+      (p) => buildAction("type", p),
     ),
     t(
       "type_text_secret",
@@ -265,16 +259,11 @@ export function buildBrowserTools(ctx: ToolContext, caps?: DriverCapabilities): 
         index: idxSchema("密码框"),
         secretName: Type.String({ description: "secrets 里的名称" }),
       }),
-      (p) => ({
-        kind: "type_text_secret",
-        index: p.index as string,
-        secretName: p.secretName as string,
-      }),
+      (p) => buildAction("type_text_secret", p),
     ),
-    t("press", "按键（Enter/Tab/Escape/ArrowDown…）", Type.Object({ key: Type.String() }), (p) => ({
-      kind: "press",
-      key: p.key as string,
-    })),
+    t("press", "按键（Enter/Tab/Escape/ArrowDown…）", Type.Object({ key: Type.String() }), (p) =>
+      buildAction("press", p),
+    ),
     t(
       "scroll",
       "滚动页面",
@@ -287,22 +276,16 @@ export function buildBrowserTools(ctx: ToolContext, caps?: DriverCapabilities): 
         ]),
         amount: Type.Optional(Type.Number({ description: "像素，默认 600" })),
       }),
-      (p): BrowserAction => {
-        const direction = p.direction as "up" | "down" | "left" | "right";
-        return p.amount !== undefined
-          ? { kind: "scroll", direction, amount: p.amount as number }
-          : { kind: "scroll", direction };
-      },
+      (p) => buildAction("scroll", p),
     ),
-    t("scroll_to", "滚动到指定元素", Type.Object({ index: idxSchema("目标元素") }), (p) => ({
-      kind: "scroll_to",
-      index: p.index as string,
-    })),
+    t("scroll_to", "滚动到指定元素", Type.Object({ index: idxSchema("目标元素") }), (p) =>
+      buildAction("scroll_to", p),
+    ),
     t(
       "select",
       "选择下拉框选项",
       Type.Object({ index: idxSchema("select 元素"), value: Type.String() }),
-      (p) => ({ kind: "select", index: p.index as string, value: p.value as string }),
+      (p) => buildAction("select", p),
     ),
     t("extract_text", "提取页面正文文本", Type.Object({}), () => ({ kind: "extract_text" })),
     t("look", "截图查看当前页面（视觉兜底）", Type.Object({}), () => ({ kind: "look" })),
@@ -310,23 +293,18 @@ export function buildBrowserTools(ctx: ToolContext, caps?: DriverCapabilities): 
       "open_tab",
       "打开新 tab 并导航",
       Type.Object({ url: Type.String() }),
-      (p) => ({ kind: "open_tab", url: p.url as string }),
+      (p) => buildAction("open_tab", p),
       navGate((p) => p.url as string),
     ),
-    t("switch_tab", "切换活动 tab（从 0 开始）", Type.Object({ tab: Type.Integer() }), (p) => ({
-      kind: "switch_tab",
-      tab: p.tab as number,
-    })),
+    t("switch_tab", "切换活动 tab（从 0 开始）", Type.Object({ tab: Type.Integer() }), (p) =>
+      buildAction("switch_tab", p),
+    ),
     t("close_tab", "关闭当前 tab", Type.Object({}), () => ({ kind: "close_tab" })),
     t(
       "wait",
       "等待秒数（0-30；可加 until=networkIdle 等网络静默）",
       Type.Object({ seconds: Type.Number(), until: Type.Optional(Type.Literal("networkIdle")) }),
-      (p) => ({
-        kind: "wait",
-        seconds: p.seconds as number,
-        ...(p.until !== undefined ? { until: p.until as "networkIdle" } : {}),
-      }),
+      (p) => buildAction("wait", p),
     ),
     t(
       "batch",
@@ -334,10 +312,7 @@ export function buildBrowserTools(ctx: ToolContext, caps?: DriverCapabilities): 
       Type.Object({
         steps: Type.Array(Type.Record(Type.String(), Type.Unknown()), { maxItems: 10 }),
       }),
-      async (p) => {
-        const steps = (p.steps ?? []) as unknown as BrowserAction[];
-        return { kind: "batch", steps };
-      },
+      (p) => buildAction("batch", p),
       // 参数校验前置：done 不可入、kind 合法性（engine 二次校验兜底）
       async (p) => {
         const steps = (p.steps ?? []) as Array<{ kind?: string }>;
@@ -362,7 +337,7 @@ export function buildBrowserTools(ctx: ToolContext, caps?: DriverCapabilities): 
       "resize",
       "调整视口尺寸（1-16384；快照坐标随之刷新）",
       Type.Object({ width: Type.Integer(), height: Type.Integer() }),
-      (p) => ({ kind: "resize", width: p.width as number, height: p.height as number }),
+      (p) => buildAction("resize", p),
     ),
     t("reload", "重新加载当前页（POST 落点会走确认门）", Type.Object({}), () => ({
       kind: "reload",
@@ -371,7 +346,7 @@ export function buildBrowserTools(ctx: ToolContext, caps?: DriverCapabilities): 
       "extract_code",
       "结构化数据提取：写一个纯函数 (tree) => ...，tree 是整页 DOM 的冻结 JSON 树（{tag, attrs, text, value, children}；密码已掩码）。任意 filter/map/正则。返回值 JSON 化后回传。适用于列表/表格/商品数据等结构化抓取——比逐元素读快照省 token。无网络/computed style/canvas（那些用 extract_text 或 eval）",
       Type.Object({ code: Type.String({ description: "函数表达式 (tree) => {...}" }) }),
-      (p) => ({ kind: "extract_code", code: p.code as string }),
+      (p) => buildAction("extract_code", p),
     ),
     // ---- B14：chrome-only（按能力注册）----
     ...(has("download")
@@ -380,7 +355,7 @@ export function buildBrowserTools(ctx: ToolContext, caps?: DriverCapabilities): 
             "download",
             "点击下载链接并把文件存到本地（60s 超时；单文件≤100MB）",
             Type.Object({ index: idxSchema("下载链接元素") }),
-            (p) => ({ kind: "download", index: p.index as string }),
+            (p) => buildAction("download", p),
           ),
         ]
       : []),
@@ -390,11 +365,7 @@ export function buildBrowserTools(ctx: ToolContext, caps?: DriverCapabilities): 
             "upload",
             "向文件输入框上传本地文件（仅允许 tmp/配置目录，目录外需确认）",
             Type.Object({ index: idxSchema("文件输入框"), files: Type.Array(Type.String()) }),
-            (p) => ({
-              kind: "upload",
-              index: p.index as string,
-              files: (p.files ?? []) as string[],
-            }),
+            (p) => buildAction("upload", p),
             // 路径闸：目录外 → S2 确认门（realpath 在策略内解析——审查 P9）
             async (p) => {
               const files = ((p.files ?? []) as string[]).map((f) => f);

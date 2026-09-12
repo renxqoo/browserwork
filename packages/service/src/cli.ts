@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { trajectoryDir as trajectoryDirFromCore } from "@bw/core";
 import { runCliTask } from "./cli-run.ts";
 /**
  * bw CLI 入口 —— build 门禁的真实打包产物（bun build 的 target）。
@@ -203,8 +204,7 @@ export async function main(argv?: string[]): Promise<number> {
       return 2;
     }
     const { replayTrajectory } = await import("./replay.ts");
-    const bwHome = process.env.BW_HOME ?? process.env.HOME ?? "/tmp";
-    const baseDir = process.env.BW_TRAJECTORY_DIR ?? `${bwHome}/.bw/trajectories`;
+    const baseDir = trajectoryDirFromCore();
     const outcome = replayTrajectory(target, baseDir);
     if (!outcome.ok) {
       console.error(outcome.error);
