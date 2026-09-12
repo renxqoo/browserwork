@@ -195,22 +195,7 @@ export interface PolicyEngine {
 interface ConfirmRecord {
   kind: "origin" | "action";
   host?: string;
-  /** action 类：批准后重发匹配此签名时一次性放行（U6 契约 P1-10/P1-4） */
-  actionSignature?: string;
   cid: string;
-}
-
-/** 动作签名：kind + 参数规范化（决定「同一动作」的批准语义） */
-function _actionSignatureOf(action: BrowserAction): string {
-  const { kind } = action;
-  const parts: string[] = [kind];
-  if ("index" in action && action.index !== undefined) parts.push(action.index);
-  if ("text" in action && action.text !== undefined) parts.push(action.text);
-  if ("secretName" in action && action.secretName !== undefined) parts.push(action.secretName);
-  if ("value" in action && action.value !== undefined) parts.push(action.value);
-  if ("url" in action && action.url !== undefined) parts.push(action.url);
-  if ("key" in action && action.key !== undefined) parts.push(action.key);
-  return parts.join("|");
 }
 
 /** S2 词面归一化：NFC + 剥离零宽字符与分隔符（B5 审查 P1-5——页面内容不可信） */
@@ -225,7 +210,6 @@ export function createPolicyEngine(config: PolicyConfig, deps: PolicyDeps): Poli
   const words = config.sensitiveWords ?? DEFAULT_SENSITIVE_WORDS;
   const dnsCache = new Map<string, string[]>();
   const confirmations = new Map<string, ConfirmRecord>();
-  const approvedActionSignatures = new Set<string>();
   /** S1③ 判过违规的主机：其挂起确认不再可批准（迟到批准防护，B5 审查 P2-7） */
   const violatedHosts = new Set<string>();
   /** S6 redact 集：secret 值及其变体 */
@@ -505,9 +489,6 @@ export function createPolicyEngine(config: PolicyConfig, deps: PolicyDeps): Poli
       if (record.kind === "origin" && record.host !== undefined) {
         if (violatedHosts.has(record.host)) return;
         allowed.add(record.host); // 会话级放行（host 粒度：任意 scheme/端口——确认文案已告知）
-      }
-      if (record.kind === "action" && record.actionSignature !== undefined) {
-        approvedActionSignatures.add(record.actionSignature); // 一次性放行令牌
       }
     },
 

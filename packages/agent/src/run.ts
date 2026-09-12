@@ -17,7 +17,7 @@ import {
   type TrajectorySink,
 } from "@bw/core";
 import { type CreateDriverOptions, createWebViewDriver, type Driver } from "@bw/driver";
-import { isSameView, renderSnapshot, type Snapshot } from "@bw/perception";
+import { renderSnapshot, type Snapshot } from "@bw/perception";
 import {
   createPolicyEngine,
   type PolicyConfig,
@@ -27,7 +27,6 @@ import {
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import { Agent } from "@mariozechner/pi-agent-core";
 import type { Model } from "@mariozechner/pi-ai";
-import type { GlmEnv } from "./llm.ts";
 import { glmModelsFromEnv } from "./llm.ts";
 import { systemPrompt } from "./prompt.ts";
 import { buildBrowserTools, buildDoneTool, SNAPSHOT_MARKER } from "./tools.ts";
@@ -52,7 +51,6 @@ export interface RunTaskOptions {
   /** settle 静默窗（默认 400ms；测试可调小加速） */
   settleQuietMs?: number;
   settleCapMs?: number;
-  env?: GlmEnv;
   /** 价目表（每 1M token USD；05 §3.4；缺省读 env BW_PRICES_JSON） */
   prices?: Record<string, { input: number; output: number }>;
 }
@@ -408,11 +406,9 @@ export function runTask(req: TaskRequest, opts?: RunTaskOptions): TaskHandle {
 
   // ---- S1③ 事后复检（P0-3 处置）：最终 URL 落定即查，违规 → 回滚 + 终止
   let settledViolation: string | null = null;
-  let _lastSettledUrl = req.startUrl ?? "about:blank";
   const wireSettledCheck = (page: import("@bw/driver").Page): void => {
     page.onNavigated(async (url) => {
       if (settledViolation !== null || finished) return;
-      _lastSettledUrl = url;
       try {
         const verdict = await policy.onNavigationSettled(url);
         if (!verdict.ok) {
@@ -920,5 +916,3 @@ export function compactSnapshots(messages: AgentMessage[], opts?: CompactOptions
     return m;
   });
 }
-
-export { isSameView };

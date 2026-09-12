@@ -14,12 +14,26 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.4",
-    "@opentelemetry/api": "^1.9.1",
     "@types/bun": "^1.2.25",
     "typescript": "^5.9.3",
     "@bw/service": "workspace:*",
     "@bw/agent": "workspace:*",
     "@bw/eval": "workspace:*"
   },
-  "packageManager": "bun@1.4.2"
+  "packageManager": "bun@1.4.2",
+  "license": "MIT",
+  "description": "Browser-use agent for LLMs on Bun.WebView — token-lean DOM snapshots, policy-enforced automation, zero browser download on macOS",
+  "keywords": [
+    "browser-use",
+    "agent",
+    "llm",
+    "bun",
+    "webview",
+    "automation",
+    "cdp",
+    "mcp-client"
+  ],
+  "authors": [
+    "wangrenren"
+  ]
 }

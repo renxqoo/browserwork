@@ -115,7 +115,8 @@ describe.skipIf(process.platform !== "darwin")("B8 评测集（fixture · 假 LL
 
       // 报告落档
       const report = printEvalReport(results);
-      writeFileSync("docs/eval-report-fixture.md", report);
+      // 报告默认只打印——BW_WRITE_REPORT=1 才落盘（避免每次测试重写已提交文件）
+      if (process.env.BW_WRITE_REPORT === "1") writeFileSync("docs/eval-report-fixture.md", report);
       console.log(report);
 
       // 整体指标断言
