@@ -3,7 +3,7 @@
  * 平台矩阵（03-units）：不可用项用 describe.skipIf 显式跳过（bun 输出 skip 计数），
  * 不静默降级；Chrome 探测覆盖 BUN_CHROME_PATH 与常见安装位（B2 审查 P1-4）。
  */
-import { describe } from "bun:test";
+import { afterAll, describe } from "bun:test";
 import { existsSync } from "node:fs";
 import { withFixtureServer } from "@bw/testing";
 import { createWebViewDriver, FakeDriver, type FakePageOptions } from "../src/index.ts";
@@ -37,6 +37,49 @@ runPageContractSuite(
       },
       fakeOptions,
     ),
+  { real: false },
+);
+
+// ---- B22 S1 第四行：helper RPC 远程代理（进程内 server + FakeDriver 内芯 + 真 unix socket）----
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { connectHelper, runHelperServer } from "../src/index.ts";
+
+const helperCleanup: Array<() => Promise<void>> = [];
+afterAll(async () => {
+  for (const c of helperCleanup.splice(0)) await c();
+});
+
+runPageContractSuite(
+  "helper(RPC)",
+  async () => {
+    const dir = mkdtempSync(join(tmpdir(), "bw-helper-contract-"));
+    const sock = join(dir, "h.sock");
+    const server = await runHelperServer(
+      new FakeDriver(
+        {
+          cdp: false,
+          upload: false,
+          download: false,
+          dialogEvents: false,
+          userAgentOverride: false,
+          pierceClick: false,
+          httpOnlyCookies: false,
+          networkEvents: false,
+          webp: false,
+          popups: false,
+        },
+        fakeOptions,
+      ),
+      sock,
+    );
+    helperCleanup.push(async () => {
+      await server.close();
+      rmSync(dir, { recursive: true, force: true });
+    });
+    return connectHelper(sock);
+  },
   { real: false },
 );
 

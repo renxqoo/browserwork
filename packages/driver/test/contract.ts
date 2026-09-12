@@ -16,12 +16,12 @@ export interface ContractEnv {
 
 export function runPageContractSuite(
   suiteName: string,
-  createDriver: () => Driver,
+  createDriver: () => Driver | Promise<Driver>,
   env: ContractEnv,
 ): void {
   describe(`${suiteName} Page/Driver 契约`, () => {
     test("evaluate：表达式 + undefined→null + 并发互斥", async () => {
-      const driver = createDriver();
+      const driver = await createDriver();
       try {
         const page = await driver.createPage();
         await page.navigate("about:blank");
@@ -36,7 +36,7 @@ export function runPageContractSuite(
     test(
       "click：未知 selector → ELEMENT_NOT_ACTIONABLE",
       async () => {
-        const driver = createDriver();
+        const driver = await createDriver();
         try {
           const page = await driver.createPage();
           await page.navigate("about:blank");
@@ -55,7 +55,7 @@ export function runPageContractSuite(
     );
 
     test("close：幂等；close 后全方法矩阵抛 DRIVER_ERROR（U2 测试口径）", async () => {
-      const driver = createDriver();
+      const driver = await createDriver();
       try {
         const page = await driver.createPage();
         expect(typeof page.url).toBe("string");
@@ -88,7 +88,7 @@ export function runPageContractSuite(
     });
 
     test("navigate 互斥：并发 navigate 全部完成且按序落定（U2 契约回归）", async () => {
-      const driver = createDriver();
+      const driver = await createDriver();
       try {
         const page = await driver.createPage();
         await page.navigate("about:blank");
@@ -106,7 +106,7 @@ export function runPageContractSuite(
     });
 
     test("createPage({url})：初始导航完成且 url 正确（真/fake 对齐，B2 审查 P1-3）", async () => {
-      const driver = createDriver();
+      const driver = await createDriver();
       try {
         if (env.real && env.withFixture !== undefined) {
           await env.withFixture(async (origin) => {
@@ -125,7 +125,7 @@ export function runPageContractSuite(
     });
 
     test("onNavigated：订阅收事件，退订后零新事件（精确）", async () => {
-      const driver = createDriver();
+      const driver = await createDriver();
       try {
         const page = await driver.createPage();
         const seen: string[] = [];
@@ -143,7 +143,7 @@ export function runPageContractSuite(
     test(
       "navigate：失败 → NAVIGATION_FAILED",
       async () => {
-        const driver = createDriver();
+        const driver = await createDriver();
         try {
           const page = await driver.createPage();
           try {
@@ -163,7 +163,7 @@ export function runPageContractSuite(
     );
 
     test("Driver：pages() 注册表随 page.close 收缩；driver.close 后 createPage 抛", async () => {
-      const driver = createDriver();
+      const driver = await createDriver();
       const p1 = await driver.createPage();
       await driver.createPage();
       expect(driver.pages().length).toBe(2);
@@ -184,7 +184,7 @@ export function runPageContractSuite(
     if (env.real && withFixture !== undefined) {
       test("真 view：fixture 导航 + 重定向终态 + 截图 PNG + 坐标点击生效 + 导航超时", async () => {
         await withFixture(async (origin) => {
-          const driver = createDriver();
+          const driver = await createDriver();
           try {
             const page = await driver.createPage();
             await page.navigate(`${origin}/index.html`);
@@ -238,7 +238,7 @@ export function runPageContractSuite(
       }, 45_000);
     } else {
       test("fake：navigate timeoutMs 快路径不受影响", async () => {
-        const driver = createDriver();
+        const driver = await createDriver();
         try {
           const page = await driver.createPage();
           await page.navigate("about:blank", { timeoutMs: 5000 });

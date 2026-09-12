@@ -9,3 +9,6 @@ coverage/
 .claude/
 .playwright-mcp/
 packages/eval/test/tmp-*/
+
+# 测试残留（supervisor 测试工作目录）
+packages/service/test/tmp-sup/

@@ -6,12 +6,37 @@ import { describe, expect, test } from "bun:test";
 import type { SessionManager } from "../src/sessions.ts";
 import { createSessionManager } from "../src/sessions.ts";
 
+/** 第二源：当「未批准的新域」用（不同端口=不同 origin；免外网依赖——webkit 外网 TLS 在
+ * 部分网络态下不可用，B22 S1 门期间实测；沿 B12 修存量 flaky 的同一手法） */
+function startSecondOrigin(): Promise<{ origin: string; stop(): void }> {
+  // 绑 localhost 而非 127.0.0.1：127.0.0.1 走 S4 私网路径直接 BLOCK（不进确认门）；
+  // localhost 与会话源（127.0.0.1）不同 host = 不同 origin = S1「新域」——B12 同款配方
+  const server = Bun.serve({
+    port: 0,
+    hostname: "localhost",
+    fetch: () =>
+      new Response(
+        `<!doctype html><html><head><title>Example Replacement</title></head><body><h1>Example</h1></body></html>`,
+        { headers: { "content-type": "text/html; charset=utf-8" } },
+      ),
+  });
+  return Promise.resolve({
+    origin: `http://localhost:${server.port}`,
+    stop: () => server.stop(true),
+  });
+}
+
 /** 测试用 fixture 站（内联——避免依赖外部 fixture 目录） */
 function startFixtureServer(): Promise<{ origin: string; stop(): void }> {
   const server = Bun.serve({
     port: 0,
     fetch(req) {
       const p = new URL(req.url).pathname;
+      if (p === "/bounce") {
+        // S1③ 违规跳转目标——默认外域；测试可用 ?to= 指定第二源
+        const to = new URL(req.url).searchParams.get("to");
+        return Response.redirect(to ?? "https://example.invalid/", 302);
+      }
       if (p === "/") {
         return new Response(
           `<!doctype html><html lang="en"><head><title>Test Home</title></head><body>
@@ -30,7 +55,7 @@ function startFixtureServer(): Promise<{ origin: string; stop(): void }> {
       }
       if (p === "/bounce") {
         // S1③ 场景：同源链接 → 302 到未批准域（预检看不到最终目标）
-        return Response.redirect("https://example.com", 302);
+        return Response.redirect("https://example.invalid/", 302);
       }
       if (p === "/devtools") {
         return new Response(
@@ -181,6 +206,7 @@ describe.skipIf(process.platform !== "darwin")("外部会话模式", () => {
 
   test("安全 S1：新域导航 → CONFIRMATION_REQUIRED → 批准后执行", async () => {
     fixture = await startFixtureServer();
+    const second = await startSecondOrigin();
     mgr = createSessionManager({
       policyMode: "test",
       sessionTtlMs: 30_000,
@@ -189,7 +215,7 @@ describe.skipIf(process.platform !== "darwin")("外部会话模式", () => {
     const s = await mgr.create(fixture.origin);
 
     // 异步发起新域导航
-    const navPromise = mgr.executeTool(s.id, "navigate", { url: "https://example.com" });
+    const navPromise = mgr.executeTool(s.id, "navigate", { url: second.origin });
 
     // 等确认事件
     await new Promise((res) => setTimeout(res, 500));
@@ -211,10 +237,12 @@ describe.skipIf(process.platform !== "darwin")("外部会话模式", () => {
     if (result.ok) expect(result.snapshot).toContain("Example");
 
     mgr.close(s.id);
+    second.stop();
   }, 30_000);
 
   test("安全 S1：新域导航 → 拒绝 → CONFIRMATION_DENIED", async () => {
     fixture = await startFixtureServer();
+    const second = await startSecondOrigin();
     mgr = createSessionManager({
       policyMode: "test",
       sessionTtlMs: 30_000,
@@ -222,7 +250,7 @@ describe.skipIf(process.platform !== "darwin")("外部会话模式", () => {
     });
     const s = await mgr.create(fixture.origin);
 
-    const navPromise = mgr.executeTool(s.id, "navigate", { url: "https://example.com" });
+    const navPromise = mgr.executeTool(s.id, "navigate", { url: second.origin });
 
     let cid = "";
     for await (const e of mgr.events(s.id)) {
@@ -238,6 +266,7 @@ describe.skipIf(process.platform !== "darwin")("外部会话模式", () => {
     if (!result.ok) expect(result.code).toBe("CONFIRMATION_DENIED");
 
     mgr.close(s.id);
+    second.stop();
   }, 30_000);
 
   test("安全 S2：敏感词按钮 → 确认门", async () => {
@@ -637,6 +666,7 @@ describe.skipIf(process.platform !== "darwin")("HTTP 会话端点", () => {
   test("HTTP 确认流：navigate 到新域 → 202 confirmation_required → confirm → 200", async () => {
     const { createServer } = await import("../src/server.ts");
     const fixture = await startFixtureServer();
+    const second = await startSecondOrigin();
     const server = createServer({
       port: 0,
       authToken: "t",
@@ -654,7 +684,7 @@ describe.skipIf(process.platform !== "darwin")("HTTP 会话端点", () => {
     const navPromise = fetch(`${server.url}/sessions/${id}/tools/navigate`, {
       method: "POST",
       headers: { authorization: "Bearer t", "content-type": "application/json" },
-      body: JSON.stringify({ url: "https://example.com" }),
+      body: JSON.stringify({ url: second.origin }),
     });
 
     // 等确认事件从 SSE 流到达——或者直接轮询 confirm 端点

@@ -145,3 +145,25 @@ cli-commands 纯映射层抽出 + 13 金测试（wire 名/参数映射/usage 逐
  ffi 勾稽：p14d 探针的 ffi-open+closeSync 组合在 bun test 环境不稳定——生产探针
  结论不变（跨进程互斥/自释放），flock.ts 采用 node:fs fd + 纯整数 ffi flock。
 
+
+
+### S1 实施记录（2026-09-13，helper 层）
+
+交付：helperProtocol（行式 JSON 帧 + 流式 TextDecoder）· helper.ts（driver 级 RPC
+服务端：页面注册表/导航事件环+oldest 缺口信号/事件广播集合/优雅退出）· helperClient
+（Page/Driver 远程代理：state 搭车缓存/syncPages 跨连接收养/release-close 语义分离/
+Set 订阅键）· helperSpawn（detached 进程组/就绪/组杀含超时杀/RPC 探活走 pages）·
+契约套件第四行（真 unix socket + FakeDriver 内芯 36/36）+ 生命周期 7 用例。
+
+对抗审查（独立会话，6 项本机复现）：P1×7 全修——订阅键碰撞、探活短连接劫持事件流、
+多字节 UTF-8 跨 chunk 腐坏、socket 0600 落地、readyTimeout 进程泄漏、shutdown 不退出
+/closeDriver 半死、navEvents 环溢出无缺口信号（附 oldest）；P2×8 修 6 挂 2（screenshot
+内存放大登记、HELPER_ARGV 构建产物路径归 S5——bun build 单文件下 import.meta.url 指向
+bundle，helper.ts 需第二构建产物，S5 冒烟前登记）。补回归锚：0600/多连接/订阅精度/
+shutdown 退出/超时杀进程。
+
+环境事件：本机 webkit 外网 TLS 在会话中途开始全挂（curl/bun fetch 正常、本地 HTTP
+正常——网络态变化非代码回归）。按 B12 先例把 sessions.test 三处 example.com 依赖
+本地化（第二源 localhost 绑定=不同 origin；127.0.0.1 会走 S4 私网 BLOCK 不进确认门）。
+
+门禁：tsc ✓ biome ✓ build ✓ 596 tests 0 fail ✓

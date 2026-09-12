@@ -3,6 +3,10 @@
  * message 为英文中性语言；面向用户的文案由消费方按 code 本地化。
  */
 export const ERROR_CODES = [
+  // B22 文件会话新增（IMPLEMENTATION §3 错误码目录）
+  "SESSION_BUSY",
+  "SESSION_LIMIT",
+  "BROWSER_DEAD",
   "ELEMENT_NOT_FOUND",
   "ELEMENT_NOT_ACTIONABLE",
   "NAVIGATION_FAILED",

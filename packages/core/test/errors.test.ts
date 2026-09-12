@@ -1,10 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { BWError, ERROR_CODES, isErrorCode } from "../src/index.ts";
 
-/** 词表封闭性：导出枚举 == 基线文档 §4.3 词表（双向） */
+/** 词表封闭性：导出枚举 == 基线文档 §4.3 词表（双向）
+ * B22 增补三码（IMPLEMENTATION §3 错误码目录裁决）：SESSION_BUSY/SESSION_LIMIT/BROWSER_DEAD */
 describe("ERROR_CODES 词表封闭", () => {
   test("与文档词表逐项相等", () => {
     expect([...ERROR_CODES]).toEqual([
+      "SESSION_BUSY",
+      "SESSION_LIMIT",
+      "BROWSER_DEAD",
       "ELEMENT_NOT_FOUND",
       "ELEMENT_NOT_ACTIONABLE",
       "NAVIGATION_FAILED",

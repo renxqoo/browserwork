@@ -82,6 +82,9 @@ runTask(req: TaskRequest, opts?: RunOptions): TaskHandle
 
 | 码 | 含义 | LLM 可自纠 |
 |---|---|---|
+| `SESSION_BUSY` | 会话 flock 被占（同会话并发命令第二持有者） | ✅ 稍后重试（B22） |
+| `SESSION_LIMIT` | 会话数触顶（默认 16，`BW_MAX_SESSIONS`） | ❌ 先 close/gc |
+| `BROWSER_DEAD` | helper/浏览器端点死（可恢复——下次命令自动恢复） | ✅ 重试即恢复（B22） |
 | `ELEMENT_NOT_FOUND` | bw-id 深度定位失败（元素已被替换/移除） | ✅ 重提取 |
 | `ELEMENT_NOT_ACTIONABLE` | 遮挡/不可见（message 含 actionable 的 click 失败） | ✅ 滚动后重试 |
 | `NAVIGATION_FAILED` | 加载失败/DNS/非法 URL | ✅ |
