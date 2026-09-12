@@ -1,5 +1,5 @@
 {
-  "name": "bun-browser",
+  "name": "browserwork",
   "private": true,
   "workspaces": [
     "packages/*"
@@ -22,7 +22,7 @@
   },
   "packageManager": "bun@1.4.2",
   "license": "MIT",
-  "description": "A browser for LLM agents on Bun.WebView — token-lean DOM snapshots, policy-enforced automation, zero browser download on macOS (community project, not affiliated with Oven)",
+  "description": "bw — a browser for LLM agents: token-lean DOM snapshots, policy-enforced automation, built on Bun.WebView",
   "keywords": [
     "browser-use",
     "agent",
@@ -35,5 +35,8 @@
   ],
   "authors": [
     "wangrenren"
-  ]
+  ],
+  "bin": {
+    "bw": "dist/cli/cli.js"
+  }
 }

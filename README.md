@@ -1,8 +1,8 @@
-# bw — a browser for LLM agents, built on Bun.WebView
+# browserwork
+
+> **bw** — a browser for LLM agents, built on Bun.WebView
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-
-> 社区项目，与 Oven（Bun 官方）无关联 · community project, not affiliated with Oven
 
 给 LLM 用的浏览器。一句话目标 → agent 自己看页面、做决策、跑完任务；或把浏览器工具按步交给任意外部 LLM。
 
