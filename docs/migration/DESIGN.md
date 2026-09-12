@@ -27,7 +27,8 @@ SDK（根包 browserwork 直接导出）
  ├─ bw.sessions.executeTool(id, tool, params) → ToolResult
  ├─ bw.sessions.list/close/rename/keep/gc …
  ├─ bw.profiles.save/list/delete
- └─ bw.run({ goal, startUrl, profile }) → TaskHandle{ events, result, abort }
+ └─ bw.run({ goal, startUrl, profile }) → TaskHandle{ events, result, abort, steer }
+                                    （events 单消费者流——多订阅互抢，SDK 文档明示）
 ```
 
 - 无 HTTP、无 TCP 端口、无 token；每会话 1 个 helper 进程（双后端同构，unix socket 0600，U10）
@@ -44,14 +45,19 @@ SDK（根包 browserwork 直接导出）
  │   ├─ pending/<cid>.json       # 确认门队列（120s 惰性过期）
  │   └─ downloads/               # 每会话下载
  ├─ profiles/<name>.json         # 登录态快照（cookies+localStorage，0600）
- ├─ secrets                      # secret 声明（0600；或 env）
+ ├─ secrets                      # secret 声明 JSON（0600）：{ "<name>": {"source":"env","ref":"VAR"} | {"source":"literal","value":"…"} }
+ │                               #   与策略层 SecretsConfig 同形；唯一明文来源（U4）
+ ├─ tasks/<taskId>/downloads/    # bw run 任务下载（原 ~/.bw/downloads/<taskId> 迁此）
  └─ trajectories/                # bw run 任务轨迹（现状延续）
 ```
 
 - session.json 字段：schemaVersion、id、name、backend、createdAt/lastActiveAt、
-  keep、当前 URL、快照缓存（lastRendered）、策略状态（origin 白名单、预算累计）、
-  helper 端点（socket 路径 + pid + 进程组 id）、dataStore 目录、
-  下载字节累计。
+  keep、当前 URL、**lastAllowedUrl**（S1③ 回滚/恢复导航目标——与「当前 URL」不同义：
+  违规跳转后当前 URL 是违规页）、快照缓存（lastRendered）、
+  **navEventSeq**（已消费的 helper 导航事件序号——S1③ 跨命令检测用）、
+  策略状态（mode/allowEval/allowPrivateNetwork/allowUploadDirs/allowedHosts/
+  violatedHosts/budget.steps/recoveries[] 时间戳）、
+  helper 端点（socket 路径 + pid + 进程组 id）、dataStore 目录、下载字节累计。
 - **secret 明文永不在 session 目录落盘**【用户裁决：secret 无状态重解析】
 
 ### 1.3 行为契约
@@ -61,7 +67,16 @@ SDK（根包 browserwork 直接导出）
 - **确认门**：动作被闸 → 写 `pending/<cid>.json` 返回 cid；`bw s confirm <id> <cid> --yes`
   取锁执行并返回结果；120s 未确认 = 惰性拒绝（下次触接过期）。
 - **浏览器崩溃/机器重启**：下次命令探测端点死 → 标记 → 恢复（重拉浏览器 + 导航回
-  当前 URL；登录态视 backend/dataDir 尽力保留）。
+  lastAllowedUrl；登录态视 backend/dataDir 尽力保留）。
+- **S1③ 违规检测（跨命令模型）**：helper 常驻并记录导航事件环（url+ts，容量 100，
+  不做判定——策略不进 driver 层）；每次命令触接时，executor 取 `navEventSeq` 之后
+  的事件逐条对照 allowedHosts——违规即回滚导航 lastAllowedUrl + 记 violatedHosts +
+  响应附 `[S1③] rolled back` 行。与旧常驻形态的差：**检测从即时退化为下次触接**
+  （窗口=相邻命令间隔），行为变更显式登记迁移矩阵。
+- **快照获取规则**：每条索引类命令开始时**现提取**一次 Snapshot（经 helper evaluate，
+  与引擎页锁同量级 ~10-30ms）——S2 词面闸/索引查找/unchanged 判定全部用此快照；
+  lastRendered 落盘做 unchanged 字符串比对（语义保持）；extract_text/look/wait 仍
+  返回 null 快照（不刷 lastRendered，语义保持）。
 - **事件时序**（bw run / SDK run）：终态事件保证最后且恰好一次；事件词表封闭（现状延续）。
 
 ### 1.4 消费方
@@ -75,7 +90,11 @@ SDK（根包 browserwork 直接导出）
 ### 2.1 处理（逐动词）
 
 - 会话：create / list / close / rename / keep / status / gc（惰性回收 + 显式清扫）
-- 执行：executeTool（全工具面，含 batch / extract_code）+ 确认门
+- 执行：executeTool（全工具面，含 batch / extract_code）+ 确认门（非阻塞：
+  动作+完整上下文写入 `pending/<cid>.json` 同步返回 cid；120s 惰性过期；确认即执行）
+- 会话事件流（events/SSE 环形缓冲）：**删除**（无消费方；确认 cid 由工具同步响应携带）
+- 会话预算：**单维度 steps**（wallClock/tokens/cost 只属任务面）；恢复限次：会话级
+  滑动窗 5min ≤1（进程级限次随常驻进程消亡）
 - 浏览器生命周期：统一 helper（每会话 1 进程持 WebView；启动/就绪/健康探测/组清理/崩溃恢复）
 - 登录态：profiles save / inject（storageState 快照模型）
 - secret：按名解析 + origin 绑定 + 全链路脱敏（每命令从配置全量重建脱敏集合）
@@ -95,15 +114,16 @@ SDK（根包 browserwork 直接导出）
 
 ## 3. 并发与性能预算（违反 = 缺陷）
 
-- 命令热路径：CLI 进程 spawn + session.json 读 + attach（chrome CDP ws 或 unix socket）
+- 命令热路径：CLI 进程 spawn + session.json 读 + attach（helper unix socket，双后端同构）
   + 动作 + 写回 ≤ 300ms（不含页面自身渲染等待）；attach 本身 ≤ 50ms
+  （§0 的「~100ms 量级」是热路径理想值，此处 ≤300ms 是预算硬约束——违反即缺陷）
 - session.json：单次原子写 ≤ 100KB（快照缓存计入；超限即缺陷）
 - flock：同会话命令串行；锁等待不排队（立即失败）；锁必须带超时自动释放（进程死锁兜底：lockfile 内写 pid+时间戳，过期可夺锁）
 - 无 TCP 监听于工具路径（chrome 走 pipe、helper 走 unix socket）——bw 全程零端口【用户裁决 U1 引申】
 - 出域文本脱敏全工具面对齐（审计 B1：旧会话面仅 requests/cookies_all/extract_code 过 redact，console/errors/storage/extract_text/eval 裸奔——新实现以 agent 面全量 redact 为准）
 - 每会话独立进程：一个会话崩溃不得影响其他会话（进程级隔离验证）
-- 批量执行器 --jobs N：N 台浏览器并发；单机默认上限 8（可配）；失败汇总不中断批次
-- SDK 单进程并发 run：Promise.all N 个 runTask 各持 driver；上限受内存约束（探针 p14c 验证多 WebView）
+- 批量执行器 --jobs N：**每任务一个子进程**（bun cli.js run …），并发闸只管进程数——chrome 进程级单例（审计 B2）下这是每任务独立浏览器/profile 的唯一隔离形态；单机默认上限 8（可配 BW_MAX_JOBS）；失败汇总不中断批次
+- SDK 单进程并发 run：webkit 后端 Promise.all 各持 driver（p14c 实证）；**chrome 后端每任务经专属 helper**（进程级单例约束，否则多任务共享一 Chrome 一 profile 违背 U7）；上限受内存约束
 
 ## 4. 关键技术分叉（已由 p14 探针 + 审计裁决定稿）
 
