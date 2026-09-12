@@ -28,6 +28,10 @@ export interface SnapNode {
   checked?: boolean;
   /** target=_blank 链接（B14：弹窗行为有限——webkit 丢弃，标注提示） */
   newTab?: boolean;
+  /** 跨域 iframe 内节点（B20：CDP 并入；定位走坐标轨，页面脚本不可定位） */
+  crossOrigin?: boolean;
+  /** 稳定 loc（B20 §9.4）：#id / [data-testid=x] / [aria-label=y]——命中才带（防噪） */
+  loc?: string;
   /** 主视口坐标系（同源 iframe 内元素含递归 frame 偏移 + frame 盒裁剪） */
   x: number;
   y: number;
@@ -143,6 +147,8 @@ function renderNode(n: SnapNode): string {
   if (n.value !== undefined) parts.push(`[value: ${n.value}]`);
   if (n.checked === true) parts.push("[checked]");
   if (n.newTab === true) parts.push("↗new-tab");
+  if (n.loc !== undefined) parts.push(`loc=${n.loc}`);
+  if (n.crossOrigin === true) parts.push("⟂cross-frame");
   if (n.href !== undefined) parts.push(`-> ${n.href}`);
   if (n.below) parts.push("↓below-viewport");
   if (n.above) parts.push("↑above-viewport");
@@ -247,7 +253,52 @@ export async function extractSnapshot(page: Page, opts?: ExtractOptions): Promis
   if (raw === null || typeof raw !== "object" || !Array.isArray(raw.nodes)) {
     throw new BWError("DRIVER_ERROR", "extract: unexpected page result shape", { detail: raw });
   }
+  // B20 §9.2：chrome 轨并入跨域 iframe 节点（JS shim 不可达面；探针 p12）。
+  // id 用 "x" 前缀独立命名空间；坐标 = viewport 系（CDP quads）。
+  // P2-8：shim 报告无跨域 iframe 时跳过 CDP 全树提取（DOM.getDocument{depth:-1}
+  // 是整页序列化，每步都付的代价只在有跨帧面时才值）
+  const crossNodes = await (async () => {
+    const hasCrossFrames = (raw.warnings ?? []).some((w) =>
+      String(w).startsWith("cross-origin iframes:"),
+    );
+    if (!hasCrossFrames) return [];
+    const pierce = (page as { cdpPierceNodes?: () => Promise<Array<Record<string, unknown>>> })
+      .cdpPierceNodes;
+    if (pierce === undefined) return [];
+    try {
+      return await pierce.call(page);
+    } catch {
+      return [];
+    }
+  })();
   const snapshot = normalize(raw, warnings);
+  // 跨域 iframe 节点并入（Chrome-only；下方视口/上方标志沿用同一口径）
+  const vh = snapshot.scroll.viewportH;
+  let xseq = 0;
+  for (const c of crossNodes) {
+    xseq += 1;
+    const x = Number(c.x ?? 0);
+    const y = Number(c.y ?? 0);
+    const w = Number(c.w ?? 0);
+    const h = Number(c.h ?? 0);
+    snapshot.nodes.push({
+      id: `x${xseq}`,
+      tag: String(c.tag ?? "unknown"),
+      ...(c.role !== undefined ? { role: String(c.role) } : {}),
+      ...(c.text !== undefined ? { text: String(c.text) } : {}),
+      ...(c.href !== undefined ? { href: String(c.href) } : {}),
+      x,
+      y,
+      w,
+      h,
+      below: y > vh,
+      above: y + h <= 0,
+      crossOrigin: true,
+    });
+  }
+  if (xseq > 0) {
+    snapshot.warnings.push(`cross-origin iframe nodes: ${xseq}（坐标轨交互，页面脚本不可定位）`);
+  }
   const plan = renderPlan(snapshot, opts?.budgetChars ?? SNAPSHOT_BUDGET_DEFAULT);
   snapshot.truncated = plan.truncated;
   return snapshot;

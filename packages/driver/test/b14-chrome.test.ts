@@ -6,6 +6,7 @@ import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { extractSnapshot, renderSnapshot } from "@bw/perception";
 import { createWebViewDriver } from "../src/backends.ts";
 
 const CHROME_CANDIDATES = [
@@ -129,6 +130,83 @@ describe.skipIf(!chromeAvailable)("B14 chrome 真视图", () => {
       }
       expect(content).toContain("hello-b14-download");
       rmSync(dlDir, { recursive: true, force: true });
+    } finally {
+      driver.close();
+      f.stop();
+    }
+  }, 60_000);
+});
+
+describe.skipIf(!chromeAvailable)("B20 chrome 真视图（pierce/loc/batch）", () => {
+  function startPierceFixture(): { origin: string; stop(): void } {
+    const serverB = Bun.serve({
+      port: 0,
+      fetch(req) {
+        if (new URL(req.url).pathname === "/frame") {
+          return new Response(
+            '<!doctype html><title>XF</title><button id="cross-btn" data-testid="cross-submit">Cross Btn</button>',
+            { headers: { "content-type": "text/html; charset=utf-8" } },
+          );
+        }
+        return new Response("nf", { status: 404 });
+      },
+    });
+    const portB = serverB.port;
+    const serverA = Bun.serve({
+      port: 0,
+      fetch(req) {
+        if (new URL(req.url).pathname === "/") {
+          return new Response(
+            `<!doctype html><title>P20</title>
+<input id="email" type="text">
+<button data-testid="submit-btn">Go</button>
+<iframe src="http://127.0.0.1:${portB}/frame"></iframe>`,
+            { headers: { "content-type": "text/html; charset=utf-8" } },
+          );
+        }
+        return new Response("nf", { status: 404 });
+      },
+    });
+    return {
+      origin: `http://127.0.0.1:${serverA.port}`,
+      stop: () => {
+        serverA.stop(true);
+        serverB.stop(true);
+      },
+    };
+  }
+
+  test("cdpPierceNodes 返回跨域 iframe 节点（几何+锚点）", async () => {
+    const f = startPierceFixture();
+    const driver = createWebViewDriver({ backend: "chrome" });
+    try {
+      const page = await driver.createPage({ url: `${f.origin}/` });
+      await new Promise((r) => setTimeout(r, 1500));
+      const nodes = await page.cdpPierceNodes?.();
+      expect(nodes).toBeTruthy();
+      const cross = (nodes ?? []).find((n) => n.tag === "button");
+      expect(cross).toBeTruthy();
+      expect(cross?.text).toContain("Cross Btn");
+      expect(cross?.w ?? 0).toBeGreaterThan(0);
+    } finally {
+      driver.close();
+      f.stop();
+    }
+  }, 60_000);
+
+  test("extractSnapshot 并入 ⟂cross-frame 节点；主文档节点带 loc=", async () => {
+    const f = startPierceFixture();
+    const driver = createWebViewDriver({ backend: "chrome" });
+    try {
+      const page = await driver.createPage({ url: `${f.origin}/` });
+      await new Promise((r) => setTimeout(r, 1500));
+      const snap = await extractSnapshot(page);
+      const text = renderSnapshot(snap);
+      expect(text).toContain("⟂cross-frame");
+      expect(text).toContain("Cross Btn");
+      expect(text).toContain("loc=#email");
+      expect(text).toContain('loc=[data-testid="submit-btn"]');
+      expect(snap.warnings.join("\n")).toContain("cross-origin iframe nodes");
     } finally {
       driver.close();
       f.stop();

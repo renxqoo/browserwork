@@ -110,6 +110,14 @@ export const EXTRACT_EXPRESSION = `(() => {
     // B14：target=_blank 标注（webkit 弹窗被丢弃——探针 p2；提示 agent 慎点）
     const newTab = tag === "a" && (el.getAttribute("target") || "") === "_blank";
     if (newTab) blankLinks += 1;
+    // B20 §9.4：稳定 loc——命中优先级 #id > [data-testid] > [aria-label]（防噪：不造脆弱路径）
+    // P3-13 修正：a 也用 #id（原 tag!=='a' 排除无依据）；属性值转义 ] 与换行
+    const loc =
+      el.id ||
+      el.getAttribute("data-testid") ||
+      el.getAttribute("data-test") ||
+      el.getAttribute("aria-label") ||
+      undefined;
     const id = nextId();
     el.setAttribute("data-bw-id", id);
     nodes.push({
@@ -123,6 +131,22 @@ export const EXTRACT_EXPRESSION = `(() => {
       value,
       checked,
       newTab: newTab || undefined,
+      ...(loc !== undefined && loc !== ""
+        ? {
+            loc:
+              el.id && loc === el.id
+                ? "#" + CSS.escape(loc)
+                : "[" +
+                  (el.getAttribute("data-testid")
+                    ? "data-testid"
+                    : el.getAttribute("data-test")
+                      ? "data-test"
+                      : "aria-label") +
+                  '="' +
+                  encodeURIComponent(String(loc)) +
+                  '"]',
+          }
+        : {}),
       x: Math.round(clamped.x),
       y: Math.round(clamped.y),
       w: Math.round(clamped.w),

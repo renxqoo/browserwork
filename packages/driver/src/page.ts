@@ -289,6 +289,151 @@ export class WebViewPage implements Page {
     return () => view.removeEventListener(method, wrapped as EventListener);
   }
 
+  /**
+   * B20 §9.2：跨域 iframe 可交互节点（chrome-only；webkit 下可选方法不存在）。
+   * 探针 p12 实证：pierce 树含 contentDocument 且节点几何可取；closed shadow 不可达。
+   * 实现要点：getDocument 全树一次 → 只走 contentDocument 子树（主文档归 JS shim）→
+   * interactive 标签集合 → 每节点 getContentQuads（viewport CSS 坐标）→ ≤30 节点。
+   */
+  async cdpPierceNodes(): Promise<
+    Array<{
+      tag: string;
+      text?: string;
+      href?: string;
+      role?: string;
+      frameUrl: string;
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+    }>
+  > {
+    const view = this.#require();
+    const INTERACTIVE = new Set(["A", "BUTTON", "INPUT", "SELECT", "TEXTAREA"]);
+    interface CdpNode {
+      nodeId?: number;
+      nodeName?: string;
+      nodeValue?: string;
+      attributes?: number[];
+      children?: CdpNode[];
+      shadowRootChildNodes?: CdpNode[];
+      contentDocument?: CdpNode;
+      currentValue?: string;
+    }
+    const attrOf = (n: CdpNode, name: string): string | undefined => {
+      const attrs = n.attributes;
+      if (!Array.isArray(attrs)) return undefined;
+      for (let i = 0; i < attrs.length; i += 2) {
+        if (String(attrs[i]) === name) return String(attrs[i + 1]);
+      }
+      return undefined;
+    };
+    const textOf = (n: CdpNode): string | undefined => {
+      // 子文本节点拼接（取首 80 字符）
+      const parts: string[] = [];
+      for (const c of n.children ?? []) {
+        if (c.nodeName === "#text" && c.nodeValue !== undefined) parts.push(c.nodeValue);
+        if (parts.join("").length >= 80) break;
+      }
+      const t = parts.join("").replace(/\s+/g, " ").trim();
+      return t === "" ? undefined : t.slice(0, 80);
+    };
+    interface Collected {
+      nodeId: number;
+      tag: string;
+      text?: string;
+      href?: string;
+      role?: string;
+      frameUrl: string; // P2-7：随节点携带（原帧循环后复位的可变量恒读到空串）
+    }
+    const collect: Collected[] = [];
+    const walkFrame = (n: CdpNode, url: string): void => {
+      if (collect.length >= 30) return;
+      const tag = String(n.nodeName ?? "").toUpperCase();
+      if (INTERACTIVE.has(tag) && n.nodeId !== undefined) {
+        const text = textOf(n);
+        const href = tag === "A" ? attrOf(n, "href") : undefined;
+        const role = attrOf(n, "role");
+        const entry: Collected = {
+          nodeId: n.nodeId,
+          tag: tag.toLowerCase(),
+          frameUrl: url,
+          ...(text !== undefined ? { text } : {}),
+          ...(href !== undefined ? { href } : {}),
+          ...(role !== undefined ? { role } : {}),
+        };
+        collect.push(entry);
+      }
+      for (const c of n.children ?? []) walkFrame(c, url);
+      for (const c of n.shadowRootChildNodes ?? []) walkFrame(c, url);
+      // P2-7：帧内嵌帧下钻
+      if (n.contentDocument !== undefined) walkFrame(n.contentDocument, url);
+    };
+    try {
+      const doc = (await view.cdp("DOM.getDocument", { depth: -1, pierce: true })) as {
+        root?: CdpNode;
+      };
+      const walkTop = (n: CdpNode): void => {
+        if (n.nodeName === "IFRAME") {
+          const frame = n.contentDocument;
+          if (frame !== undefined) {
+            walkFrame(frame, attrOf(n, "src") ?? "");
+          }
+          return; // 不深入 iframe 的普通子树（contentDocument 已处理）
+        }
+        for (const c of n.children ?? []) walkTop(c);
+        for (const c of n.shadowRootChildNodes ?? []) walkTop(c);
+      };
+      if (doc.root !== undefined) walkTop(doc.root);
+      if (collect.length === 0) return [];
+      // 几何：每节点一次 getContentQuads（失败跳过）
+      const out: Array<{
+        tag: string;
+        text?: string;
+        href?: string;
+        role?: string;
+        frameUrl: string;
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+      }> = [];
+      for (const e of collect) {
+        try {
+          const quads = (await view.cdp("DOM.getContentQuads", { nodeId: e.nodeId })) as {
+            quads?: number[][];
+          };
+          const q = quads?.quads?.[0];
+          if (q === undefined || q.length < 8) continue;
+          // quad = [x1,y1, x2,y2, x3,y3, x4,y4]（顺时针）——取包围盒
+          const xs = [q[0], q[2], q[4], q[6]] as number[];
+          const ys = [q[1], q[3], q[5], q[7]] as number[];
+          const x = Math.min(...xs);
+          const y = Math.min(...ys);
+          const w = Math.max(...xs) - x;
+          const h = Math.max(...ys) - y;
+          if (w <= 0 || h <= 0) continue;
+          out.push({
+            tag: e.tag,
+            frameUrl: e.frameUrl,
+            ...(e.text !== undefined ? { text: e.text } : {}),
+            ...(e.href !== undefined ? { href: e.href } : {}),
+            ...(e.role !== undefined ? { role: e.role } : {}),
+            x: Math.round(x),
+            y: Math.round(y),
+            w: Math.round(w),
+            h: Math.round(h),
+          });
+        } catch {
+          /* 节点已变——跳过 */
+        }
+      }
+      return out;
+    } catch {
+      return []; // CDP 不可用（非 chrome 后端调用方不应调；防御）
+    }
+  }
+
   onNavigated(listener: NavigationListener): () => void {
     this.#navListeners.add(listener);
     return () => this.#navListeners.delete(listener);

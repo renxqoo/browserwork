@@ -79,6 +79,24 @@ export interface Page {
   cdp<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T>;
   /** 订阅 CDP 事件（仅 chrome；返回取消订阅函数） */
   onCdpEvent(method: string, listener: (params: unknown) => void): () => void;
+  /**
+   * B20 §9.2（chrome-only）：DOM.getDocument{depth:-1} 树遍历取**跨域 iframe 内**
+   * 可交互节点（JS shim 不可达面）——viewport 坐标经 DOM.getContentQuads；≤30 节点。
+   * closed shadow 不在 pierce 树（探针 p12 实证）——不可达，勿承诺。
+   */
+  cdpPierceNodes?(): Promise<
+    Array<{
+      tag: string;
+      text?: string;
+      href?: string;
+      role?: string;
+      frameUrl: string;
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+    }>
+  >;
   /** 返回取消订阅函数 */
   onNavigated(listener: NavigationListener): () => void;
   onNavigationFailed(listener: NavigationFailedListener): () => void;

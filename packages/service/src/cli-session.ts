@@ -162,8 +162,14 @@ function mapToolArgs(
       if (args.length < 1) return { error: "usage: bw s eval <sessionId> <expression>" };
       return { params: { expression: args.join(" ") }, hint: "" };
     case "wait":
-      if (args.length < 1) return { error: "usage: bw s wait <sessionId> <seconds>" };
-      return { params: { seconds: Number(args[0]) }, hint: "" };
+      if (args.length < 1) return { error: "usage: bw s wait <sessionId> <seconds> [networkIdle]" };
+      return {
+        params: {
+          seconds: Number(args[0]),
+          ...(args[1] === "networkIdle" ? { until: "networkIdle" } : {}),
+        },
+        hint: "",
+      };
     case "resize":
       if (args.length < 2) return { error: "usage: bw s resize <sessionId> <width> <height>" };
       return { params: { width: Number(args[0]), height: Number(args[1]) }, hint: "" };
@@ -174,6 +180,14 @@ function mapToolArgs(
       if (args.length < 2)
         return { error: "usage: bw s upload <sessionId> <index> <file> [file...]" };
       return { params: { index: args[0], files: args.slice(1) }, hint: "" };
+    case "batch":
+      if (args.length < 1) return { error: "usage: bw s batch <sessionId> '<json steps array>'" };
+      try {
+        const steps = JSON.parse(args.join(" ")) as unknown;
+        return { params: { steps }, hint: "" };
+      } catch {
+        return { error: "steps must be a JSON array of actions" };
+      }
     case "switchtab":
       if (args.length < 1) return { error: "usage: bw s switchtab <sessionId> <tabNumber>" };
       return { params: { tab: Number(args[0]) }, hint: "" };
@@ -219,7 +233,10 @@ Usage:
   bw s scroll <id> <dir> [amount]        scroll up/down/left/right
   bw s scrollto <id> <index>             scroll to element
   bw s select <id> <index> <value>       select dropdown option
-  bw s wait <id> <seconds>               wait
+  bw s wait <id> <seconds> [networkIdle]  wait (networkIdle=chrome 网络静默)
+  bw s batch <id> '<json steps>'         run a typed action sequence (B20)
+  bw s keep <id>                         mark session kept (TTL exempt)
+  bw s rename <id> <name>                rename session
   bw s opentab <id> <url>                open new tab
   bw s switchtab <id> <n>                switch tab
   bw s closetab <id>                     close current tab
@@ -262,6 +279,7 @@ Env:
     // B13：生产档 S4 生效——本地/内网地址需显式放行
     const allowPrivate = rest.includes("--allow-private-network");
     // B14：驱动构造透传
+    const name = flagValue("--name");
     const backend = flagValue("--backend");
     const dataDir = flagValue("--data-dir");
     const chromePath = flagValue("--chrome-path");
@@ -271,6 +289,7 @@ Env:
     const { status, data } = await api(cfg, "POST", "/sessions", {
       ...(startUrl !== undefined ? { startUrl } : {}),
       ...(allowEval ? { allowEval: true } : {}),
+      ...(name !== undefined ? { name } : {}),
       ...(allowPrivate ? { allowPrivateNetwork: true } : {}),
       ...(backend !== undefined ? { backend: backend as "webkit" | "chrome" } : {}),
       ...(dataDir !== undefined ? { dataDir } : {}),
@@ -315,6 +334,20 @@ Env:
       ok({ sessionId, snapshot: String(data.snapshot) });
     }
     fail(sessionId, "NOT_FOUND", String(data.error ?? "session not found"));
+  }
+
+  // ---- B20 §9.5：keep / rename
+  if (cmd === "keep") {
+    const { status, data } = await api(cfg, "POST", `/sessions/${sessionId}/keep`, {});
+    if (status === 200) ok({ sessionId, result: "session kept (TTL exempt)" });
+    fail(sessionId, "KEEP_FAILED", String(data.error ?? "failed"));
+  }
+  if (cmd === "rename") {
+    const name = args[0];
+    if (name === undefined) fail(sessionId, "INVALID_ARGS", "usage: bw s rename <id> <name>");
+    const { status, data } = await api(cfg, "POST", `/sessions/${sessionId}/rename`, { name });
+    if (status === 200) ok({ sessionId, result: `renamed to ${name}` });
+    fail(sessionId, "RENAME_FAILED", String(data.error ?? "failed"));
   }
 
   // ---- close

@@ -17,11 +17,12 @@ export type BrowserAction =
   | { kind: "open_tab"; url: string }
   | { kind: "switch_tab"; tab: number }
   | { kind: "close_tab" }
-  | { kind: "wait"; seconds: number }
+  | { kind: "wait"; seconds: number; until?: "networkIdle" }
   | { kind: "resize"; width: number; height: number }
   | { kind: "reload" }
   | { kind: "download"; index: string }
   | { kind: "upload"; index: string; files: string[] }
+  | { kind: "batch"; steps: BrowserAction[] }
   | { kind: "done"; answer?: string };
 
 export const BROWSER_ACTION_KINDS = [
@@ -39,6 +40,7 @@ export const BROWSER_ACTION_KINDS = [
   "switch_tab",
   "close_tab",
   "wait",
+  "batch",
   "resize",
   "reload",
   "download",

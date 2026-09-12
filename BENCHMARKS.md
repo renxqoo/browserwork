@@ -31,7 +31,7 @@
 | Bun | 1.4.2 |
 | Chrome（pwmcp 侧） | 系统安装版（bunx 拉起 headless） |
 | GLM 端点 | `https://open.bigmodel.cn/api/paas/v4` |
-| 任务数 | 5（真实公开站点）× 1 轮 × 2 端 |
+| 任务数 | 5（对打基准口径，保持不变）× 1 轮 × 2 端；任务集现 7 任务（B20 增 httpbin 表单 + changelog，对打复跑沿用 5 任务口径） |
 
 ## 3. 任务集
 
@@ -110,3 +110,12 @@ BW_REAL=1 bun scripts/eval-b16.ts --tasks 20 --runs 3    # 全量口径（20+ �
 3. **提示词不对称**：见 §1 披露——端到端产品对比，非工具面孤立对比。
 4. **墙钟未比**：bw 侧事件流消费未计时；pwmcp 含串行模型等待。后续补双端墙钟。
 5. **装置修正历史**：首跑评级误用答案前 100 字截断（pwmcp 一项误判未中）——已修为全文评级并复跑，本文档即复跑数据；首跑结果废弃，修正记录见 eval-report-B16.md 头部。
+
+## 9. B20 batch 生效观察（2026-09-12 · 本方侧）
+
+| task | status | 锚点 | steps | in | out | batch 使用 |
+|---|---|---|---|---|---|---|
+| example-title | done | ✅ | 2 | 8,388 | 407 | 0 |
+| httpbin-form-fill | done | ✅ | 9 | 56,255 | 1,674 | 0 |
+
+**如实结论**：glm-5.3-flash 在一句 prompt 指引下**未自发使用 batch**（batchUses=0）——工具已实现且测试全绿（类型化序列/首错即停/确认挂起/预算不绕过），但模型采用需要更强的引导（few-shot 示例或任务描述显式要求）。表单任务 9 步 56K input 即「未用 batch 的基线」——后续复跑同任务对比可量化 batch 收益。复现：`BW_REAL=1 bun scripts/eval-b20.ts`。

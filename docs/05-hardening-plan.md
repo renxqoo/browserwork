@@ -194,3 +194,32 @@
 3. **轨迹默认落盘**（`~/.bw/trajectories/<taskId>.jsonl`，与 serve 同目录同 janitor；`bw replay` 可回放）
 
 实现要点：core TaskEvent 追加可选字段 `args`/`resultText`/`ms`/`pageState`/`snapshotHead`（词表=事件类型集合不变，字段加法）；run.ts 从 pi 事件透传（resultText/snapshotHead 过 redact）；cli-run 渲染器抽纯函数可测。`--max-steps` 顺带补（显示 [n/max] 需要 max）。
+
+## 9. B20：吸收 ego（lite）验证过的效率机制（2026-09-12 · 用户裁决「实现」）
+
+对比分析（ego lite 实站调研，见会话记录）确认吸收五项 + 一项数字验证；**不吸收**：裸 JS heredoc（与逐步闸冲突——用类型化 batch 替代）、Chrome profile 导入/人机共用桌面（不同物种）、fork Chromium（CDP 轨替代）、label 高亮/接管 UI（无头无观察者）。
+
+### 9.1 batch 工具（agent + 会话双模式）
+- 契约：`{kind:"batch", steps: BrowserAction[≤10]}`（core 词表加法）；`done` 不可入 steps
+- 语义：顺序执行（每步过全部既有闸：S2 词面/导航前检/upload 路径闸/beforeStep 计步/settle）；**首错即停**返回 `{completedK, error, 最终快照}`；**确认门挂起整个 batch**（批准→续行剩余步；拒绝→终止余步=deny 语义）；POLICY_BLOCKED 即终止
+- token 语义：中间步只留动作行摘要，仅末步附快照（含 unchanged 标记）——往返红利来源
+- 每步入轨迹/卡死环（既有钩子不绕过）
+
+### 9.2 chrome 后端引擎级提取（不 fork）
+- p12 探针先行：(a) `DOM.getDocument{depth:-1,pierce:true}` 能否见 closed shadow 与 iframe 树；(b) `Target.setAutoAttach`+子会话 Runtime.evaluate 能否进 OOPIF
+- 探针通过项接线：chrome 轨在 JS shim 快照外**增量并入** CDP 可见而 shim 不可见节点（closed shadow/跨域 iframe），几何用 `DOM.getContentQuads`，**上限 30 节点**（widget 级）；不通过项登记 Bun 限制
+
+### 9.3 waitForNetworkIdle
+- `wait` 动作加 `{until?: "networkIdle"}`：网络缓冲（B14 requests）无新增持续 1500ms 即返回（上限既有 settleCap）；chrome-only（webkit 无网络事件——capability 判定，文档化）
+
+### 9.4 快照附稳定 loc
+- 提取脚本为节点计算稳定 selector：`#id` > `[data-testid]` > `[aria-label]` > 无（不造脆弱路径）；渲染行追加 `#id`/`[data-testid=x]`（仅命中时——防噪）
+- 价值：外部 agent 跨步复用（索引重排后仍可操作），减 ELEMENT_NOT_FOUND 重试环
+
+### 9.5 命名会话 + keep（Space 人体工学）
+- `create --name "3-6 词任务名"`；`list` 显示；`bw s keep <id>` = 标记保留（TTL 不回收，人可回看）vs `close`（销毁清下载目录）；REST `POST /sessions/:id/keep`；SessionInfo 加 `name`/`kept`
+
+### 9.6 评测：表单类任务 + batch 数字
+- 任务集加 httpbin.org/forms/post 填表任务（**不提交**——敏感动作确认门本来会拦，双重保障）；评测装置读轨迹检测 batch 使用率；B20 收口小规模真跑（2 任务×1 轮）落档
+
+预算增量：batch ≤10 步/次、CDP 并入 ≤30 节点、networkIdle 静默 1500ms、keep 会话数计入 maxSessions 但免 TTL。

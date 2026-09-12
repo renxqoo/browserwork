@@ -106,7 +106,7 @@ $ bw s close sess-1fbd1489-3d34
 
 | 会话/页面 | |
 |---|---|
-| `create [--url U] [--allow-eval] [--allow-private-network]` | 建会话；`--allow-eval` 显式开启 eval；`--allow-private-network` 放行本地/内网地址——需 serve 进程 `BW_ALLOW_PRIVATE_NETWORK=1` 开门（生产档 S4 默认封锁） |
+| `create [--url U] [--name 任务名] [--allow-eval] [--allow-private-network]` | 建会话（--name 3-6 词任务名）；`--allow-eval` 显式开启 eval；`--allow-private-network` 放行本地/内网地址——需 serve 进程 `BW_ALLOW_PRIVATE_NETWORK=1` 开门（生产档 S4 默认封锁） |
 | `list` | 活跃会话清单 |
 | `snap <id>` | 当前快照 |
 | `extract <id>` | 页面正文文本（≤4000 字） |
@@ -124,6 +124,9 @@ $ bw s close sess-1fbd1489-3d34
 | `scrollto <id> <index>` | 滚到某元素 |
 | `wait <id> <seconds>` | 等待 |
 | `navigate <id> <url>` | 导航（过安全闸） |
+| `batch <id> '<json>'` | 类型化动作序列（≤10 步；首错即停带进度；仅末步附快照） |
+| `keep <id>` | 标记保留（TTL 不回收，显式 close 才销毁） |
+| `rename <id> <name>` | 会话改名（任务记账） |
 | `resize <id> <w> <h>` | 视口尺寸（快照坐标刷新） |
 | `reload <id>` | 重新加载（POST 落点过确认门） |
 | `download <id> <index>` | 点下载链接存文件（仅 chrome；单文件≤100MB） |

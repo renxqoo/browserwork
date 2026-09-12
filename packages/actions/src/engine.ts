@@ -347,6 +347,27 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
     }
   };
 
+  /** B20 §9.3：网络静默等待——requests 缓冲无新增持续 1500ms（上限 settleCap 照常继续） */
+  const waitForNetworkIdle = (page: Page): Promise<void> => {
+    const quietMs = 1500;
+    const deadline = Date.now() + settleCapMs;
+    // P2-6 处置：空/缺失缓冲 = 已静默（立即返回）——否则 about:blank/零请求页白等满 cap
+    const lastEntryTs = (): number | null => {
+      const entries = netBuffers.get(page);
+      if (entries === undefined || entries.length === 0) return null;
+      return entries[entries.length - 1]?.ts ?? null;
+    };
+    if (lastEntryTs() === null) return Promise.resolve();
+    return (async () => {
+      for (;;) {
+        if (Date.now() >= deadline) return; // 上限到点照常继续（非错误——与 settle 同语义）
+        const last = lastEntryTs();
+        if (last === null || Date.now() - last >= quietMs) return;
+        await sleep(120);
+      }
+    })();
+  };
+
   // ---- B14 下载（chrome；预算：并发≤1 / 单文件≤100MB / 累计≤1GB）----
   let downloadInFlight = false;
   let downloadTotalBytes = 0;
@@ -690,6 +711,34 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
               throw new BWError("INVALID_TOOL_ARGS", "click requires a snapshot (extract first)");
             }
             const node = findNode(snapshot, action.index);
+            // B20 §9.2：跨域 iframe 节点——页面 JS 定位不可达（同源策略），坐标轨直达。
+            // 意图前检跳过（跨域目标的 href 页面侧拿不到——S1③ 落定复检兜底）。
+            if (node.crossOrigin === true) {
+              if (node.below || node.above) {
+                throw new BWError(
+                  "ELEMENT_NOT_ACTIONABLE",
+                  `cross-frame element ${node.id} outside viewport — scroll the parent page first`,
+                );
+              }
+              // P1-2 处置：跨帧节点也过意图闸——submit 类（button/input[type=submit|button]）
+              // 强制确认（跨帧内导航主帧 onNavigated 兜不住，事前闸是唯一防线）；
+              // 带(href,#)的 crossOrigin a 不存在（shim 只给跨域 iframe 占位，不给 href）——
+              // CDP 并入节点 href 是帧内绝对地址，作为 link 意图上报
+              const isSubmitish =
+                node.tag === "button" ||
+                (node.tag === "input" && (node.type === "submit" || node.type === "button"));
+              if (isSubmitish) {
+                await opts?.intentSink?.({ kind: "submit" }, action);
+              } else if (node.href !== undefined && node.href !== "") {
+                await opts?.intentSink?.({ kind: "link", href: node.href }, action);
+              }
+              await page.clickAt(Math.round(node.x + node.w / 2), Math.round(node.y + node.h / 2));
+              const snap = await settleAndExtract(page);
+              return {
+                text: `clicked [${node.id}] ${node.text ?? node.tag} (cross-frame, coordinate track)`,
+                snapshot: snap,
+              };
+            }
             const located = await locateAndValidate(page, node);
             const intent = intentFrom(located);
             if (intent !== null) {
@@ -847,9 +896,25 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
           case "wait": {
             const seconds = Math.min(Math.max(action.seconds, 0), WAIT_MAX_SECONDS);
             await sleep(seconds * 1000);
+            // B20 §9.3：networkIdle——requests 缓冲无新增持续 1500ms 即返回（chrome-only）
+            if (action.until === "networkIdle") {
+              if (!driver.capabilities().networkEvents) {
+                throw new BWError(
+                  "INVALID_TOOL_ARGS",
+                  "networkIdle requires the chrome backend (no network events on webkit)",
+                );
+              }
+              await waitForNetworkIdle(page);
+            }
             const snap =
               snapshot !== undefined && snapshot !== null ? await settleAndExtract(page) : null;
-            return { text: `waited ${seconds}s`, snapshot: snap };
+            return {
+              text:
+                action.until === "networkIdle"
+                  ? `waited ${seconds}s + network idle`
+                  : `waited ${seconds}s`,
+              snapshot: snap,
+            };
           }
           case "resize": {
             // 复合步强制重提取——缓存坐标全失效（B14 审查 P2-10）
@@ -909,6 +974,14 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
           }
           case "done": {
             return { text: action.answer ?? "", snapshot: null, done: true };
+          }
+          case "batch": {
+            // B20：引擎不执行 batch——agent/sessions 两层各自逐步闸执行（B20 审查 P3-14
+            // 删除三份重复循环；此分支防御「直调引擎的调用方」并给出可自纠错误）
+            throw new BWError(
+              "INVALID_TOOL_ARGS",
+              "batch must go through the tool layer (agent batch tool / sessions batch) — not the engine",
+            );
           }
           default: {
             const never: never = action;

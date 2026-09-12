@@ -13,6 +13,7 @@ export interface EvalTask {
   maxSteps: number;
 }
 
+/** B20 后为 7 任务（含 1 表单任务——batch 效果观察位） */
 export const SMALL_TASKS: EvalTask[] = [
   {
     id: "bun-docs-3points",
@@ -48,6 +49,20 @@ export const SMALL_TASKS: EvalTask[] = [
     startUrl: "https://bun.com/docs",
     expectAny: ["webkit", "chrome"],
     maxSteps: 15,
+  },
+  {
+    id: "httpbin-form-fill",
+    goal: "打开起始页的表单，填写 custname=Agent Test、custtel=555-0100、size=medium、comments=batch form test，填完即止【不要提交】，用 done 报告你填了哪些字段。",
+    startUrl: "https://httpbin.org/forms/post",
+    expectAny: ["custname", "custtel", "字段", "size"],
+    maxSteps: 10,
+  },
+  {
+    id: "bun-changelog-latest",
+    goal: "在起始页找到更新日志/版本列表，报告最新一个版本的版本号与日期，用 done 给出答案。",
+    startUrl: "https://bun.com/blog",
+    expectAny: ["v1", "v2", "bun", "2026"],
+    maxSteps: 12,
   },
 ];
 

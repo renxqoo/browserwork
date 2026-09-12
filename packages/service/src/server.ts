@@ -289,6 +289,7 @@ export function createServer(config: ServiceConfig): {
           userAgent?: string;
           allowUploadDirs?: string[];
           budget?: { maxSteps?: number; wallClockMs?: number };
+          name?: string;
         };
         // B13 审查 P1-3：S4 网络边界不给请求方——allowPrivateNetwork 需 serve 级
         // env BW_ALLOW_PRIVATE_NETWORK=1 显式开门（用户裁决，非持 token 方可自取）
@@ -314,6 +315,9 @@ export function createServer(config: ServiceConfig): {
         try {
           const info = await sessionManager.create(body.startUrl, {
             ...(body.allowEval === true ? { allowEval: true } : {}),
+            ...(typeof body.name === "string" && body.name.trim() !== ""
+              ? { name: body.name.trim().slice(0, 80) }
+              : {}),
             ...(body.allowPrivateNetwork === true ? { allowPrivateNetwork: true } : {}),
             ...(Array.isArray(body.allowUploadDirs)
               ? { allowUploadDirs: body.allowUploadDirs as string[] }
@@ -354,6 +358,21 @@ export function createServer(config: ServiceConfig): {
         if (method === "DELETE" && subPath === "") {
           sessionManager.close(sessionId);
           return json(200, { ok: true });
+        }
+        // B20 §9.5：keep（TTL 免回收）/ rename（任务名）
+        if (method === "POST" && subPath === "/keep") {
+          const ok = sessionManager.keep(sessionId);
+          return ok ? json(200, { ok: true }) : json(404, { error: "session not found" });
+        }
+        if (method === "POST" && subPath === "/rename") {
+          const parsed = await readJsonBody(req);
+          if (parsed instanceof Response) return parsed;
+          const body = parsed.body as { name?: string };
+          if (typeof body.name !== "string" || body.name.trim() === "") {
+            return json(400, { error: "name is required" });
+          }
+          const ok = sessionManager.rename(sessionId, body.name.trim().slice(0, 80));
+          return ok ? json(200, { ok: true }) : json(404, { error: "session not found" });
         }
         if (method === "GET" && subPath === "/snapshot") {
           const snap = sessionManager.snapshot(sessionId);

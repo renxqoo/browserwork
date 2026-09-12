@@ -273,6 +273,22 @@ export function runTask(req: TaskRequest, opts?: RunTaskOptions): TaskHandle {
   };
   const hooks = {
     onEvent: emit,
+    // B20：batch 整体入轨迹（审查 P1-4——子步条目之外，batch 使用率可测）
+    onBatchComplete: (count: number, ok: boolean): void => {
+      void trajectory
+        .append({
+          ts: Date.now(),
+          step: steps,
+          action: {
+            kind: "llm",
+            text: `batch: ${count} steps in one call (${ok ? "ok" : "stopped early"})`,
+          },
+          resultText: `batch ${count} steps`,
+          url: current.snapshot?.url ?? "",
+          domHash: current.snapshot?.domHash ?? "",
+        })
+        .catch(() => {});
+    },
     awaitConfirmation,
     onActionResult: (action: BrowserAction, r: { text: string }) => {
       const snap = current.snapshot;

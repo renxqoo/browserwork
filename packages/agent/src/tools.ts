@@ -18,6 +18,8 @@ export const SNAPSHOT_MARKER = "[SNAPSHOT]";
 export const SNAPSHOT_MARKER_UNCHANGED = "[SNAPSHOT-UNCHANGED]";
 
 export interface ToolHooks {
+  /** B20：batch 完成回调（轨迹/评测消费——子步各自 onActionResult 之外的整体条目） */
+  onBatchComplete?: (count: number, ok: boolean) => void;
   onEvent: (event: {
     type: "confirmation_required";
     cid: string;
@@ -90,6 +92,13 @@ interface ActionOutput {
 
 async function runAction(ctx: ToolContext, action: BrowserAction): Promise<ActionOutput> {
   ctx.hooks.beforeStep(action);
+  // S1① 导航前检（P0-1 处置：原只在单动作工具 preGate——batch 子步绕过，实证复现；
+  // 移入 runAction 后 batch/单动作共用同一闸面）
+  if (action.kind === "navigate" || action.kind === "open_tab") {
+    const url = action.url;
+    const d = await ctx.policy.onNavigate(url);
+    await gate(ctx, d, action);
+  }
   // S2 词面闸（无意图面：submit 意图在 sink 二次拦）
   if (action.kind !== "navigate" && action.kind !== "open_tab") {
     const index = "index" in action ? (action as { index?: string }).index : undefined;
@@ -117,6 +126,31 @@ async function runAction(ctx: ToolContext, action: BrowserAction): Promise<Actio
   };
 }
 
+/** B20 §9.1：batch 执行——逐步过同一闸面（runAction），首错即停；仅末步附快照。
+ * 失败不 throw 空：带已完成步清单 + 失败步原因（BWError 语义保留——code 透传），
+ * 并附失败时刻的当前快照（runAction 已更新 ctx.current）——LLM 从断点自纠。 */
+async function runBatch(
+  ctx: ToolContext,
+  steps: BrowserAction[],
+): Promise<{ ok: boolean; text: string; errorCode?: string; failedAt?: number }> {
+  const lines: string[] = [];
+  let i = 0;
+  for (const step of steps) {
+    i += 1;
+    try {
+      const out = await runAction(ctx, step);
+      lines.push(`  ✓ [${i}/${steps.length}] ${out.text.split("\n")[0]}`);
+    } catch (e) {
+      const code = e instanceof BWError ? e.code : "DRIVER_ERROR";
+      lines.push(
+        `  ✗ [${i}/${steps.length}] ${step.kind}: ${e instanceof Error ? e.message.split("\n")[0] : String(e)}`,
+      );
+      return { ok: false, text: lines.join("\n"), errorCode: code, failedAt: i };
+    }
+  }
+  return { ok: true, text: lines.join("\n") };
+}
+
 const idxSchema = (d: string) => Type.String({ description: d });
 
 /**
@@ -140,6 +174,29 @@ export function buildBrowserTools(ctx: ToolContext, caps?: DriverCapabilities): 
       executionMode: "sequential",
       async execute(_toolCallId: string, params: Record<string, unknown>) {
         if (preGate !== undefined) await preGate(params);
+        if (name === "batch") {
+          // B20：batch 走 runBatch——每子步过 runAction 全闸（S2/导航前检/upload 路径），
+          // beforeStep 计步由子步各自触发。失败=首错即停但带进度与断点快照（LLM 自纠面）。
+          const steps = (params.steps ?? []) as unknown as BrowserAction[];
+          const r = await runBatch(ctx, steps);
+          ctx.hooks.onBatchComplete?.(steps.length, r.ok);
+          let text = r.text;
+          if (r.ok) {
+            // 成功：附末步后快照（ctx.current.rendered 为最新全量渲染）
+            text =
+              `batch ${steps.length} steps OK\n${text}` +
+              (ctx.current.rendered !== null
+                ? `\n${SNAPSHOT_MARKER}\n${ctx.current.rendered}`
+                : "");
+          } else {
+            text =
+              `batch stopped at step ${r.failedAt ?? "?"} (${r.errorCode})\n${text}` +
+              (ctx.current.rendered !== null
+                ? `\n${SNAPSHOT_MARKER}\n${ctx.current.rendered}`
+                : "");
+          }
+          return { content: [{ type: "text", text: ctx.redact(text) }] };
+        }
         const action = await toAction(params);
         const out = await runAction(ctx, action);
         return {
@@ -261,10 +318,45 @@ export function buildBrowserTools(ctx: ToolContext, caps?: DriverCapabilities): 
       tab: p.tab as number,
     })),
     t("close_tab", "关闭当前 tab", Type.Object({}), () => ({ kind: "close_tab" })),
-    t("wait", "等待秒数（0-30）", Type.Object({ seconds: Type.Number() }), (p) => ({
-      kind: "wait",
-      seconds: p.seconds as number,
-    })),
+    t(
+      "wait",
+      "等待秒数（0-30；可加 until=networkIdle 等网络静默）",
+      Type.Object({ seconds: Type.Number(), until: Type.Optional(Type.Literal("networkIdle")) }),
+      (p) => ({
+        kind: "wait",
+        seconds: p.seconds as number,
+        ...(p.until !== undefined ? { until: p.until as "networkIdle" } : {}),
+      }),
+    ),
+    t(
+      "batch",
+      "顺序执行多个已确定的动作（≤10 步）——一次往返完成直线流程，只返回最终快照；首错即停。适合多字段表单等确定序列；需要看每步结果的探索任务不要用",
+      Type.Object({
+        steps: Type.Array(Type.Record(Type.String(), Type.Unknown()), { maxItems: 10 }),
+      }),
+      async (p) => {
+        const steps = (p.steps ?? []) as unknown as BrowserAction[];
+        return { kind: "batch", steps };
+      },
+      // 参数校验前置：done 不可入、kind 合法性（engine 二次校验兜底）
+      async (p) => {
+        const steps = (p.steps ?? []) as Array<{ kind?: string }>;
+        if (steps.length === 0) {
+          throw new BWError("INVALID_TOOL_ARGS", "batch requires at least one step");
+        }
+        if (steps.some((s) => s.kind === "done")) {
+          throw new BWError("INVALID_TOOL_ARGS", "batch steps must not contain done");
+        }
+        if (steps.some((s) => s.kind === "batch")) {
+          throw new BWError("INVALID_TOOL_ARGS", "batch steps must not contain nested batch");
+        }
+        for (const s of steps) {
+          if (s.kind === undefined || typeof s.kind !== "string") {
+            throw new BWError("INVALID_TOOL_ARGS", "batch step missing kind");
+          }
+        }
+      },
+    ),
     // ---- B14：视口/重载（双后端）----
     t(
       "resize",

@@ -57,6 +57,10 @@ export interface SessionInfo {
   url: string;
   title: string;
   steps: number;
+  /** B20 §9.5：任务名（create --name；list 显示，agent 记账用） */
+  name?: string;
+  /** B20 §9.5：保留标记（keep 置位——TTL 不回收，显式 close 才销毁） */
+  kept?: boolean;
 }
 
 interface PendingConfirmation {
@@ -89,6 +93,9 @@ interface ManagedSession {
   lastRecoveryAt: number;
   /** 本会话轨迹 sink（create 时经工厂解析） */
   trajectorySink: TrajectorySink | undefined;
+  /** B20 §9.5 */
+  name: string | undefined;
+  kept: boolean;
   /** 事件流（外部 agent 可选订阅） */
   events: TaskEvent[];
   eventWaiters: Array<() => void>;
@@ -152,6 +159,8 @@ export class SessionLimitError extends Error {
 export interface SessionCreateOptions {
   allowEval?: boolean;
   allowPrivateNetwork?: boolean;
+  /** B20 §9.5：任务名（3-6 词自然语言——Space 记账语义） */
+  name?: string;
   /** B14 驱动构造覆写（backend/视口/持久化/Chrome 路径/UA） */
   driver?: CreateDriverOptions;
   /** B14：上传目录白名单（serve 级 env 门后经 HTTP 传入；SDK 直用） */
@@ -162,6 +171,9 @@ export interface SessionCreateOptions {
 
 export interface SessionManager {
   create(startUrl?: string, opts?: SessionCreateOptions): Promise<SessionInfo>;
+  /** B20 §9.5：标记保留（TTL 不回收）；再调幂等；未知名 false */
+  keep(id: string): boolean;
+  rename(id: string, name: string): boolean;
   get(id: string): SessionInfo | undefined;
   list(): SessionInfo[];
   close(id: string): void;
@@ -200,6 +212,7 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
   const cleaner = setInterval(() => {
     const now = Date.now();
     for (const [id, s] of sessions) {
+      if (s.kept) continue; // B20 §9.5：保留会话免 TTL——显式 close 才销毁
       if (now - s.lastUsed > ttl) {
         destroySession(s);
         sessions.delete(id);
@@ -282,6 +295,8 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
     url: s.snapshot?.url ?? "",
     title: s.snapshot?.title ?? "",
     steps: s.steps,
+    ...(s.name !== undefined ? { name: s.name } : {}),
+    ...(s.kept ? { kept: true } : {}),
   });
 
   /** 策略闸：返回 null = 放行；返回 SessionToolResult = 拦截/确认 */
@@ -384,7 +399,33 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
       case "wait":
         if (typeof params.seconds !== "number")
           throw new BWError("INVALID_TOOL_ARGS", "wait requires seconds");
-        return { kind: "wait", seconds: params.seconds };
+        return {
+          kind: "wait",
+          seconds: params.seconds,
+          ...(params.until === "networkIdle" ? { until: "networkIdle" as const } : {}),
+        };
+      case "batch": {
+        if (!Array.isArray(params.steps)) {
+          throw new BWError("INVALID_TOOL_ARGS", "batch requires steps[]");
+        }
+        if (params.steps.length > 10) {
+          throw new BWError("INVALID_TOOL_ARGS", "batch steps exceed limit (10)");
+        }
+        const steps = (params.steps as Record<string, unknown>[]).map((sp, i) => {
+          const kind = sp.kind;
+          if (typeof kind !== "string") {
+            throw new BWError("INVALID_TOOL_ARGS", `batch step ${i} missing kind`);
+          }
+          if (kind === "done") {
+            throw new BWError("INVALID_TOOL_ARGS", "batch steps must not contain done");
+          }
+          if (kind === "batch") {
+            throw new BWError("INVALID_TOOL_ARGS", "batch steps must not contain nested batch");
+          }
+          return buildAction(kind, sp);
+        });
+        return { kind: "batch", steps };
+      }
       case "resize":
         if (typeof params.width !== "number" || typeof params.height !== "number") {
           throw new BWError("INVALID_TOOL_ARGS", "resize requires width and height");
@@ -622,6 +663,8 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
         lastRendered: null,
         lastRecoveryAt: 0,
         trajectorySink: undefined,
+        name: createOpts?.name,
+        kept: false,
         events: [],
         eventWaiters: [],
         closed: false,
@@ -719,6 +762,26 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
           });
         }
       })();
+    },
+
+    keep(id) {
+      const s = sessions.get(id);
+      if (s === undefined) return false;
+      s.kept = true;
+      // P2-10：keep 即清下载目录——保留语义不应携带敏感文件无限期留盘（B14 P1-6 理据）
+      try {
+        rmSync(sessionDownloadsDir(s.id), { recursive: true, force: true });
+      } catch {
+        /* 尽力而为 */
+      }
+      return true;
+    },
+
+    rename(id, name) {
+      const s = sessions.get(id);
+      if (s === undefined) return false;
+      s.name = name;
+      return true;
     },
 
     confirm(id, cid, approve) {
@@ -850,6 +913,49 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
               error: "upload path changed during confirmation window",
             };
           }
+        }
+
+        // ---- B20 §9.1：batch——递归走 executeTool（每子步全闸面+计步）；首错即停。
+        // 响应层只留末子步快照（token 语义）；子步各自的快照在循环中丢弃。
+        if (action.kind === "batch") {
+          s.steps -= 1; // P2-9：与 agent 模式对齐——只按子步计（外层包装不计）
+          const lines: string[] = [];
+          let last: {
+            ok: true;
+            text: string;
+            snapshot: string;
+            unchanged: boolean;
+            image?: { base64: string; mimeType: string };
+            intent?: { kind: string; href?: string };
+          } | null = null;
+          let i = 0;
+          for (const step of action.steps) {
+            i += 1;
+            const sub = await this.executeTool(
+              id,
+              step.kind,
+              step as unknown as Record<string, unknown>,
+            );
+            if (!sub.ok) {
+              const done = lines.join("\n");
+              const subError = "error" in sub ? sub.error : sub.code;
+              return {
+                ok: false,
+                code: sub.code,
+                error: `batch stopped at step ${i}/${action.steps.length}: ${subError}${done !== "" ? `\ncompleted:\n${done}` : ""}`,
+              };
+            }
+            lines.push(`  ✓ [${i}/${action.steps.length}] ${sub.text.split("\n")[0]}`);
+            last = sub;
+          }
+          return {
+            ok: true,
+            text: `batch ${action.steps.length} steps\n${lines.join("\n")}`,
+            snapshot: last !== null ? last.snapshot : "",
+            unchanged: last !== null ? last.unchanged : false,
+            ...(last?.image !== undefined ? { image: last.image } : {}),
+            ...(last?.intent !== undefined ? { intent: last.intent } : {}),
+          };
         }
 
         // 导航类工具 → S1① 前检
