@@ -42,6 +42,11 @@ describe.skipIf(process.platform !== "darwin")("U6 真 webkit 旅程（假 LLM�
         const events: TaskEvent[] = [];
         for await (const e of handle.events) {
           events.push(e);
+          // 提交确认门：事件循环内批准（测试自身注释承诺的行为——旧索引漂移时代
+          // click 打偏从未真正走到这；B22 稳定 id 后 click 命中真 submit 才暴露）
+          if (e.type === "confirmation_required" && e.cid !== undefined) {
+            await handle.confirm(e.cid, true);
+          }
           if (e.type === "task_done") break;
         }
         const result = await handle.result();

@@ -71,9 +71,25 @@ export const EXTRACT_EXPRESSION = `(() => {
 
   const nodes = [];
   window.__bwIdSeq = (Number(window.__bwIdSeq) || 0) + 1; // Number 强制——页面预置字符串防毒化（B14 审查 P0-1）
+  // B22 S2：id 绑定元素生命周期（WeakMap 注册表，按元素身份——页面预植属性无法伪造）。
+  // 旧版每次提取重编号——文件会话「snap 取索引 → 下一命令 click」两次提取间索引全漂移。
+  // 稳定 id 对旧规则（「用最新快照」）严格更优：元素未替换则旧快照索引继续有效。
+  let idMap = window.__bwIdMap;
+  if (!(idMap instanceof WeakMap)) {
+    idMap = new WeakMap(); // 页面预植毒化对象 → 重建（B14 P0-1 同型防护）
+    window.__bwIdMap = idMap;
+  }
   const nextId = () => {
     window.__bwIdSeq += 1;
     return String(window.__bwIdSeq);
+  };
+  const idOf = (el) => {
+    let i = idMap.get(el);
+    if (i === undefined) {
+      i = nextId();
+      idMap.set(el, i);
+    }
+    return i;
   };
   let crossOriginFrames = 0;
   let blankLinks = 0;
@@ -118,7 +134,7 @@ export const EXTRACT_EXPRESSION = `(() => {
       el.getAttribute("data-test") ||
       el.getAttribute("aria-label") ||
       undefined;
-    const id = nextId();
+    const id = idOf(el);
     el.setAttribute("data-bw-id", id);
     nodes.push({
       id,
@@ -178,7 +194,7 @@ export const EXTRACT_EXPRESSION = `(() => {
         } else {
           // 跨源 iframe：占位节点（P2-1：iframe 专属处理，不走 interactive 分支）
           crossOriginFrames += 1;
-          const id = nextId();
+          const id = idOf(el);
           el.setAttribute("data-bw-id", id);
           nodes.push({
             id,

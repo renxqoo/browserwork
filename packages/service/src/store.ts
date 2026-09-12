@@ -1,0 +1,1162 @@
+/**
+ * B22 S2：SessionStore——文件会话（~/.bw/session/<id>/）。
+ * 无常驻注册表：目录即事实源；每命令进程 = flock → connectHelper（死则恢复）→
+ * policy 重建（session.json policy 段 + secrets 无状态重解析）→ S1③ 事件消费 →
+ * 现提取快照 → 单源 buildAction → 闸 → engine.act → redact（全工具面）→ 落盘。
+ * 行为规格基线：audit-sessions-driver §5（SessionManager 十方法）；确认门按
+ * MIGRATION-core §4b/§4c（非阻塞 cid + create 状态机 + batch 续行）。
+ */
+import { appendFileSync, existsSync, mkdirSync, readdirSync, realpathSync, rmSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import type { ActionEngine } from "@bw/actions";
+import { createActionEngine } from "@bw/actions";
+import type { BrowserAction } from "@bw/core";
+import {
+  acquireFlock,
+  BWError,
+  buildAction,
+  readJsonIfPossible,
+  resolveBwHome,
+  sessionsRoot,
+  writeFileAtomic as wfs,
+  writeFileAtomic,
+} from "@bw/core";
+import type { Driver, RemoteDriver } from "@bw/driver";
+import { connectHelper, spawnHelper } from "@bw/driver";
+import type { Snapshot } from "@bw/perception";
+import { renderSnapshot } from "@bw/perception";
+import type { PolicyEngine } from "@bw/policies";
+import { createPolicyEngine } from "@bw/policies";
+import { confirmPending, expirePending, writePending } from "./confirmations.ts";
+import { resolveSecretValue, secretNames } from "./secrets.ts";
+
+export const SESSION_SCHEMA_VERSION = 1;
+export const SESSION_TTL_MS_DEFAULT = 30 * 60_000;
+const RECOVERY_WINDOW_MS = 5 * 60_000;
+const SESSION_JSON_MAX_BYTES = 100 * 1024;
+
+export interface SessionRecord {
+  schemaVersion: number;
+  id: string;
+  name?: string;
+  backend: "webkit" | "chrome";
+  createdAt: number;
+  lastActiveAt: number;
+  keep: boolean;
+  status: "pending-create" | "active";
+  currentUrl: string;
+  lastAllowedUrl: string;
+  lastRendered: string | null;
+  navEventSeq: number;
+  policy: {
+    mode: "production" | "test";
+    allowEval: boolean;
+    allowPrivateNetwork: boolean;
+    allowUploadDirs?: string[];
+    allowedHosts: string[];
+    violatedHosts: string[];
+  };
+  budget: { steps: number };
+  recoveries: number[];
+  helper: { pid: number; socketPath: string; backend: "webkit" | "chrome" };
+  driver: {
+    width?: number;
+    height?: number;
+    ua?: string;
+    chromePath?: string;
+    dataStore: string;
+  };
+  downloadsBytes: number;
+  activePageId: number;
+}
+
+export interface CreateSessionOptions {
+  url?: string;
+  name?: string;
+  backend?: "webkit" | "chrome";
+  allowEval?: boolean;
+  allowPrivateNetwork?: boolean;
+  width?: number;
+  height?: number;
+  ua?: string;
+  chromePath?: string;
+  dataDir?: string;
+  /** B14 上传路径闸：允许直接上传的目录（realpath 前缀匹配；缺省仅 os.tmpdir()） */
+  allowUploadDirs?: string[];
+  policyMode?: "production" | "test";
+}
+
+export interface ToolResult {
+  ok: boolean;
+  text?: string;
+  snapshot?: string;
+  unchanged?: boolean;
+  code?: string;
+  error?: string;
+  cid?: string;
+  reason?: string;
+  image?: { base64: string; mimeType: string };
+  intent?: { kind: string; href?: string };
+}
+
+export interface SessionStoreOptions {
+  bwHome?: string;
+  maxSessions?: number;
+  ttlMs?: number;
+  /** 测试缝：注入假 helper 连接工厂（MIGRATION-core §4） */
+  helperFactory?: (
+    record: SessionRecord,
+  ) => Promise<{ driver: RemoteDriver | Driver; release: () => void; kill: () => void }>;
+  policyMode?: "production" | "test";
+}
+
+export class SessionBusyError extends BWError {
+  constructor(id: string) {
+    super("SESSION_BUSY", `session ${id} is busy (another command holds the lock)`);
+  }
+}
+
+const sessionDirOf = (root: string, id: string): string => join(root, id);
+const recordPath = (dir: string): string => join(dir, "session.json");
+
+function readRecord(root: string, id: string): SessionRecord {
+  const rec = readJsonIfPossible<SessionRecord>(recordPath(sessionDirOf(root, id)));
+  if (rec === undefined) {
+    throw new BWError("NOT_FOUND", `session not found: ${id}`);
+  }
+  if (rec.schemaVersion !== SESSION_SCHEMA_VERSION) {
+    throw new BWError(
+      "DRIVER_ERROR",
+      `session ${id} schema v${rec.schemaVersion} unsupported (expect v${SESSION_SCHEMA_VERSION})`,
+    );
+  }
+  return rec;
+}
+
+function writeRecord(root: string, rec: SessionRecord): void {
+  rec.lastActiveAt = Date.now();
+  const json = JSON.stringify(rec);
+  if (json.length > SESSION_JSON_MAX_BYTES) {
+    // 预算护栏（DESIGN §3）：超限即缺陷——lastRendered 截断而非静默膨胀
+    rec.lastRendered = rec.lastRendered?.slice(0, 60_000) ?? null;
+    const retried = JSON.stringify(rec);
+    if (retried.length > SESSION_JSON_MAX_BYTES) {
+      rec.lastRendered = null;
+    }
+  }
+  wfs(recordPath(sessionDirOf(root, rec.id)), JSON.stringify(rec), 0o644);
+}
+
+/** 活动页收养：syncPages 后按 activePageId 找代理页（tab 关了则回落第一个） */
+async function adoptActive(
+  engine: ActionEngine,
+  driver: RemoteDriver | Driver,
+  rec: SessionRecord,
+): Promise<void> {
+  const pages =
+    driver instanceof Object && "syncPages" in driver
+      ? await (driver as RemoteDriver).syncPages()
+      : driver.pages();
+  if (pages.length === 0) {
+    throw new BWError("BROWSER_DEAD", "helper has no pages");
+  }
+  const target =
+    pages.find((p) => (p as unknown as { pageId?: number }).pageId === rec.activePageId) ??
+    pages[0];
+  if (target !== undefined) engine.adopt(target);
+}
+
+/** 每命令重建 policy（session.json policy 段 + secrets 无状态重解析） */
+/** U4 关键：redact 集建库预热——全部声明 secret 预解析入集（type 命令只是消费者）；
+ * 否则「命令 A 注入 → 命令 B 读 console」在无状态模型下裸奔（B1 实测） */
+async function rebuildPolicy(rec: SessionRecord): Promise<PolicyEngine> {
+  const policy = createPolicyEngine(
+    {
+      allowedHosts: rec.policy.allowedHosts,
+      allowSecretsHosts: rec.policy.allowedHosts,
+      allowPrivateNetwork: rec.policy.allowPrivateNetwork || rec.policy.mode === "test",
+      ...(rec.policy.mode === "test"
+        ? { sensitiveWords: ["checkout", "删除", "delete", "支付", "pay"] satisfies string[] }
+        : {}),
+      ...(rec.policy.allowUploadDirs !== undefined
+        ? { allowUploadDirs: rec.policy.allowUploadDirs }
+        : {}),
+      budget: {
+        maxSteps: Number.MAX_SAFE_INTEGER,
+        maxTokensInput: Number.MAX_SAFE_INTEGER,
+        maxTokensOutput: Number.MAX_SAFE_INTEGER,
+        wallClockMs: Number.MAX_SAFE_INTEGER,
+      }, // 会话预算在 store 层单维记账（steps）；策略层闸面不设限
+    },
+    {
+      dns: {
+        async resolve(hostname) {
+          const { lookup } = await import("node:dns/promises");
+          return (await lookup(hostname, { all: true })).map((a) => a.address);
+        },
+      },
+      secrets: {
+        async resolve(name: string) {
+          return resolveSecretValue(name);
+        },
+      },
+      newCid: () => `sc-${Math.random().toString(36).slice(2, 10)}`,
+    },
+  );
+  const warmOrigin = (() => {
+    try {
+      return new URL(rec.lastAllowedUrl).origin;
+    } catch {
+      return "about:blank";
+    }
+  })();
+  for (const name of secretNames()) {
+    try {
+      await policy.resolveSecret(name, warmOrigin);
+    } catch {
+      /* 域绑定不符/解析失败——本命令未必用，跳过 */
+    }
+  }
+  return policy;
+}
+
+export interface SessionInfo {
+  id: string;
+  name?: string;
+  createdAt: number;
+  lastActiveAt: number;
+  keep: boolean;
+  url: string;
+  title: string;
+  steps: number;
+  alive: boolean;
+  pending: number;
+}
+
+export function createSessionStore(opts?: SessionStoreOptions) {
+  const root = opts?.bwHome !== undefined ? join(opts.bwHome, "session") : sessionsRoot();
+  const maxSessions = opts?.maxSessions ?? Number(process.env.BW_MAX_SESSIONS ?? 16);
+  const ttlMs = opts?.ttlMs ?? SESSION_TTL_MS_DEFAULT;
+  const defaultMode = opts?.policyMode ?? "production";
+  mkdirSync(root, { recursive: true });
+
+  /** 默认 helper 工厂：连既有 → 死则重拉（恢复） */
+  const defaultHelperFactory = async (
+    rec: SessionRecord,
+  ): Promise<{ driver: RemoteDriver | Driver; release: () => void; kill: () => void }> => {
+    try {
+      const driver = await connectHelper(rec.helper.socketPath);
+      return {
+        driver,
+        release: () => driver.release(),
+        kill: () => {
+          driver.close();
+          try {
+            process.kill(-rec.helper.pid, "SIGKILL");
+          } catch {
+            /* 已死 */
+          }
+        },
+      };
+    } catch {
+      // 端点死 → 重拉 helper（dataStore 沿用——cookies 保登录态，U11）
+      const h = await spawnHelper({
+        sessionDir: sessionDirOf(root, rec.id),
+        backend: rec.backend,
+        dataStore: rec.driver.dataStore,
+        ...(rec.driver.ua !== undefined ? { userAgent: rec.driver.ua } : {}),
+        ...(rec.driver.chromePath !== undefined ? { chromePath: rec.driver.chromePath } : {}),
+        ...(rec.driver.width !== undefined ? { width: rec.driver.width } : {}),
+        ...(rec.driver.height !== undefined ? { height: rec.driver.height } : {}),
+      });
+      rec.helper = { pid: h.pid, socketPath: h.socketPath, backend: rec.backend };
+      rec.navEventSeq = 0; // 新 helper 的事件环从 0 起编
+      const driver = await connectHelper(h.socketPath);
+      // 恢复语义（旧 recoverSession）：新 helper 无页 → 重建页面并导航回 lastAllowedUrl
+      // （dataStore 沿用——cookies 保登录态；DOM 态本就不跨进程存活）
+      let pages = await driver.syncPages();
+      if (pages.length === 0) {
+        const page = await driver.createPage({ url: rec.lastAllowedUrl });
+        rec.activePageId = (page as unknown as { pageId: number }).pageId;
+        pages = await driver.syncPages();
+      }
+      void pages;
+      return {
+        driver,
+        release: () => driver.release(),
+        kill: () => h.killGroup(),
+      };
+    }
+  };
+  const helperFactory = opts?.helperFactory ?? defaultHelperFactory;
+
+  /** 恢复记账：会话级滑动窗 5min ≤1（DESIGN §2.1） */
+  const withinRecoveryWindow = (rec: SessionRecord): boolean => {
+    const cutoff = Date.now() - RECOVERY_WINDOW_MS;
+    const recent = rec.recoveries.filter((t) => t > cutoff);
+    return recent.length === 0;
+  };
+
+  const recordRecovery = (rec: SessionRecord): void => {
+    const cutoff = Date.now() - RECOVERY_WINDOW_MS;
+    rec.recoveries = [...rec.recoveries.filter((t) => t > cutoff), Date.now()].slice(-3);
+  };
+
+  const appendTrajectory = (dir: string, line: unknown): void => {
+    const path = join(dir, "trajectory.jsonl");
+    appendFileSync(path, `${JSON.stringify(line)}\n`);
+  };
+
+  return {
+    root,
+
+    async create(
+      createOpts: CreateSessionOptions = {},
+    ): Promise<
+      { id: string; record: SessionRecord } & (
+        | { confirmed: true; result?: string }
+        | { confirmed: false; cid: string; reason: string }
+      )
+    > {
+      // G11：全局 create 锁内计数+建目录（check-then-at 竞态防护）
+      mkdirSync(root, { recursive: true });
+      const globalLock = acquireFlock(join(root, ".create.lock"));
+      if (globalLock === null) {
+        throw new SessionBusyError("(create)");
+      }
+      try {
+        const dirs = readdirSync(root).filter((d) => d.startsWith("sess-"));
+        if (dirs.length >= maxSessions) {
+          throw new BWError(
+            "SESSION_LIMIT",
+            `session limit reached (${maxSessions}) — close or gc first`,
+          );
+        }
+        const id = `sess-${crypto.randomUUID().slice(0, 13)}`;
+        const dir = sessionDirOf(root, id);
+        mkdirSync(dir);
+        const dataStore = createOpts.dataDir ?? join(dir, "datastore");
+        mkdirSync(dataStore, { recursive: true });
+        mkdirSync(join(dir, "downloads"), { recursive: true });
+        const rec: SessionRecord = {
+          schemaVersion: SESSION_SCHEMA_VERSION,
+          id,
+          ...(createOpts.name !== undefined ? { name: createOpts.name } : {}),
+          backend: createOpts.backend ?? "webkit",
+          createdAt: Date.now(),
+          lastActiveAt: Date.now(),
+          keep: false,
+          status: "pending-create",
+          currentUrl: "about:blank",
+          lastAllowedUrl: "about:blank",
+          lastRendered: null,
+          navEventSeq: 0,
+          policy: {
+            mode: createOpts.policyMode ?? defaultMode,
+            allowEval: createOpts.allowEval === true,
+            allowPrivateNetwork: createOpts.allowPrivateNetwork === true,
+            ...(createOpts.allowUploadDirs !== undefined
+              ? { allowUploadDirs: createOpts.allowUploadDirs }
+              : {}),
+            allowedHosts: [],
+            violatedHosts: [],
+          },
+          budget: { steps: 0 },
+          recoveries: [],
+          helper: { pid: 0, socketPath: "", backend: createOpts.backend ?? "webkit" },
+          driver: {
+            dataStore,
+            ...(createOpts.width !== undefined ? { width: createOpts.width } : {}),
+            ...(createOpts.height !== undefined ? { height: createOpts.height } : {}),
+            ...(createOpts.ua !== undefined ? { ua: createOpts.ua } : {}),
+            ...(createOpts.chromePath !== undefined ? { chromePath: createOpts.chromePath } : {}),
+          },
+          downloadsBytes: 0,
+          activePageId: 0,
+        };
+        if (rec.policy.mode === "production" && !rec.policy.allowPrivateNetwork) {
+          // S4 生产档：本地/内网地址默认封锁（create 参数放行）
+          const u = createOpts.url;
+          if (u !== undefined) {
+            const host = safeHost(u);
+            if (host !== null && isPrivateHost(host)) {
+              throw new BWError(
+                "POLICY_BLOCKED",
+                `private/local address blocked by S4: ${host} (allowPrivateNetwork to override)`,
+              );
+            }
+          }
+        }
+        // 拉 helper + 写记录 + 首页导航
+        const h = await spawnHelper({
+          sessionDir: dir,
+          backend: rec.backend,
+          dataStore,
+          ...(createOpts.width !== undefined ? { width: createOpts.width } : {}),
+          ...(createOpts.height !== undefined ? { height: createOpts.height } : {}),
+          ...(createOpts.ua !== undefined ? { userAgent: createOpts.ua } : {}),
+          ...(createOpts.chromePath !== undefined ? { chromePath: createOpts.chromePath } : {}),
+        });
+        rec.helper = { pid: h.pid, socketPath: h.socketPath, backend: rec.backend };
+        writeRecord(root, rec);
+        const url = createOpts.url;
+        if (url === undefined) {
+          rec.status = "active";
+          writeRecord(root, rec);
+          return { id, record: rec, confirmed: true };
+        }
+        // S1① 前检（起始域默认入白名单——与旧 create 同语义）
+        const startHost = safeHost(url) ?? "";
+        if (startHost !== "") rec.policy.allowedHosts.push(startHost);
+        const policy = await rebuildPolicy(rec);
+        const decision = await policy.onNavigate(url);
+        const dir2 = sessionDirOf(root, id);
+        if (decision.kind === "confirm") {
+          writePending(dir2, {
+            cid: decision.cid,
+            reason: decision.reason,
+            createdAt: Date.now(),
+            originHost: startHost,
+            action: { kind: "navigate", url },
+            create: true,
+            approveHost: startHost,
+          });
+          writeRecord(root, rec);
+          return { id, record: rec, confirmed: false, cid: decision.cid, reason: decision.reason };
+        }
+        if (decision.kind === "block") {
+          // 拒绝 → 清场不占名额（§4c）
+          try {
+            process.kill(-h.pid, "SIGKILL");
+          } catch {
+            /* 已死 */
+          }
+          rmSync(dir2, { recursive: true, force: true });
+          throw new BWError("POLICY_BLOCKED", decision.reason);
+        }
+        // 免确认 → 执行导航（失败清场不占名额——§4c，S2R P1-8）
+        const { driver, release } = await helperFactory(rec);
+        try {
+          const engine = createActionEngine(driver as Driver, {
+            downloadsDir: () => join(dir2, "downloads"),
+          });
+          const page = await (driver as RemoteDriver).createPage({ url });
+          rec.activePageId = (page as unknown as { pageId: number }).pageId;
+          engine.adopt(page);
+          const snap = await engine.currentSnapshot();
+          rec.status = "active";
+          rec.currentUrl = url;
+          rec.lastAllowedUrl = url;
+          rec.lastRendered = renderSnapshot(snap);
+          writeRecord(root, rec);
+          return { id, record: rec, confirmed: true, result: url };
+        } catch (e) {
+          destroySessionDir(dir2, rec);
+          throw e;
+        } finally {
+          release();
+        }
+      } finally {
+        globalLock.release();
+      }
+    },
+
+    list(): SessionInfo[] {
+      const out: SessionInfo[] = [];
+      if (!existsSync(root)) return out;
+      for (const d of readdirSync(root)) {
+        if (!d.startsWith("sess-")) continue;
+        const rec = readJsonIfPossible<SessionRecord>(recordPath(sessionDirOf(root, d)));
+        if (rec === undefined) continue;
+        out.push({
+          id: rec.id,
+          ...(rec.name !== undefined ? { name: rec.name } : {}),
+          createdAt: rec.createdAt,
+          lastActiveAt: rec.lastActiveAt,
+          keep: rec.keep,
+          url: rec.currentUrl,
+          title: "",
+          steps: rec.budget.steps,
+          alive: existsSync(rec.helper.socketPath),
+          pending: 0,
+        });
+      }
+      return out;
+    },
+
+    get(id: string): SessionRecord {
+      return readRecord(root, id);
+    },
+
+    async snapshot(id: string): Promise<string> {
+      const rec = readRecord(root, id);
+      const lock = acquireFlock(join(sessionDirOf(root, id), "lock"));
+      if (lock === null) throw new SessionBusyError(id);
+      try {
+        const { driver, release } = await helperFactory(rec);
+        try {
+          const engine = createActionEngine(driver as Driver);
+          await adoptActive(engine, driver, rec);
+          const snap = await engine.currentSnapshot();
+          rec.currentUrl = engine.activePage().url;
+          writeRecord(root, rec);
+          return renderSnapshot(snap);
+        } finally {
+          release();
+        }
+      } finally {
+        lock.release();
+      }
+    },
+
+    close(id: string): boolean {
+      const dir = sessionDirOf(root, id);
+      const rec = readJsonIfPossible<SessionRecord>(recordPath(dir));
+      if (rec === undefined) return false; // 幂等（rm -rf 语义）
+      try {
+        process.kill(-rec.helper.pid, "SIGKILL");
+      } catch {
+        /* 已死 */
+      }
+      rmSync(dir, { recursive: true, force: true });
+      return true;
+    },
+
+    keep(id: string, on = true): boolean {
+      const lock = acquireFlock(join(sessionDirOf(root, id), "lock"));
+      if (lock === null) throw new SessionBusyError(id);
+      try {
+        const rec = readRecord(root, id);
+        rec.keep = on;
+        if (on) rmSync(join(sessionDirOf(root, id), "downloads"), { recursive: true, force: true });
+        writeRecord(root, rec);
+        return true;
+      } finally {
+        lock.release();
+      }
+    },
+
+    rename(id: string, name: string): boolean {
+      const lock = acquireFlock(join(sessionDirOf(root, id), "lock"));
+      if (lock === null) throw new SessionBusyError(id);
+      try {
+        const rec = readRecord(root, id);
+        rec.name = name.trim().slice(0, 80);
+        writeRecord(root, rec);
+        return true;
+      } finally {
+        lock.release();
+      }
+    },
+
+    /** 惰性回收 + 显式清扫（gc 分类法：IMPLEMENTATION §3） */
+    gc(): { reaped: string[]; orphans: number } {
+      const reaped: string[] = [];
+      const orphans = 0;
+      if (!existsSync(root)) return { reaped, orphans };
+      for (const d of readdirSync(root)) {
+        if (!d.startsWith("sess-")) continue;
+        const dir = sessionDirOf(root, d);
+        const rec = readJsonIfPossible<SessionRecord>(recordPath(dir));
+        if (rec === undefined) {
+          rmSync(dir, { recursive: true, force: true }); // 坏目录（无 session.json）
+          reaped.push(d);
+          continue;
+        }
+        if (!rec.keep && Date.now() - rec.lastActiveAt > ttlMs) {
+          try {
+            process.kill(-rec.helper.pid, "SIGKILL");
+          } catch {
+            /* 已死 */
+          }
+          rmSync(dir, { recursive: true, force: true });
+          reaped.push(d);
+        }
+      }
+      return { reaped, orphans };
+    },
+
+    async executeTool(
+      id: string,
+      tool: string,
+      params: Record<string, unknown>,
+    ): Promise<ToolResult> {
+      const dir = sessionDirOf(root, id);
+      readRecord(root, id); // NOT_FOUND 校验
+      const lock = acquireFlock(join(dir, "lock"));
+      if (lock === null) throw new SessionBusyError(id);
+      try {
+        return await this.runLocked(id, tool, params);
+      } finally {
+        lock.release();
+      }
+    },
+
+    /** 锁内执行体（executeTool 与 confirm 重放共用——调用方必须已持 flock） */
+    async runLocked(
+      id: string,
+      tool: string,
+      params: Record<string, unknown>,
+      replay?: { approvedSig?: string; uploadBefore?: string[] },
+    ): Promise<ToolResult> {
+      {
+        const dir = sessionDirOf(root, id);
+        let rec = readRecord(root, id);
+        for (const expired of expirePending(dir)) {
+          if (expired.create === true) {
+            // §4c 状态机：create 确认 120s 过期 → 清场（杀组 + rm，S2R P1-8）
+            destroySessionDir(dir, rec);
+            throw new BWError(
+              "CONFIRMATION_DENIED",
+              `create confirmation ${expired.cid} expired — session destroyed`,
+            );
+          }
+        }
+        rec = readRecord(root, id);
+        // helper 连接（死则恢复——滑动窗限次）
+        let recovered = false;
+        let conn: Awaited<ReturnType<typeof helperFactory>>;
+        try {
+          conn = await helperFactory(rec);
+        } catch {
+          if (!withinRecoveryWindow(rec)) {
+            throw new BWError(
+              "BROWSER_DEAD",
+              `session ${id} browser dead and recovery window exhausted (5min ≤1)`,
+            );
+          }
+          recordRecovery(rec);
+          writeRecord(root, rec); // S2R P1-7：先落盘再重读——否则时间戳被磁盘旧值覆盖
+          rec = readRecord(root, id);
+          try {
+            conn = await helperFactory(rec);
+          } catch (e2) {
+            // 重拉也失败 → 销毁会话（旧语义：恢复失败不留僵尸循环）
+            destroySessionDir(dir, rec);
+            throw new BWError(
+              "BROWSER_DEAD",
+              `session ${id} unrecoverable: ${e2 instanceof Error ? e2.message : String(e2)}`,
+            );
+          }
+          recovered = true;
+        }
+        const { driver, release } = conn;
+        try {
+          if (rec.status !== "active") {
+            throw new BWError(
+              "CONFIRMATION_DENIED",
+              `session ${id} is pending create confirmation — confirm or deny first`,
+            );
+          }
+          const policy = await rebuildPolicy(rec);
+          /** 批准放行集（S2R P0-1）：confirm 重放的动作签名——同签名跳闸一次性放行 */
+          const approvedSigs = new Set<string>();
+          const sigOf = (a: BrowserAction): string => JSON.stringify(a);
+          const engine = createActionEngine(driver as Driver, {
+            resolveSecret: (name, origin) => policy.resolveSecret(name, origin),
+            // S2R P0-2：S1② 意图前检接线（旧 sessions.ts:395-409 的 sink 语义——
+            // 非阻塞模型下：confirm → 写 pending + 抛 CONFIRMATION_REQUIRED 中止本动作）
+            intentSink: async (intent, action) => {
+              if (approvedSigs.has(sigOf(action))) return;
+              const d = await policy.onNavigationIntent(intent, action);
+              if (d.kind === "confirm") {
+                const host = safeHost(intent.href ?? "");
+                writePending(dir, {
+                  cid: d.cid,
+                  reason: d.reason,
+                  createdAt: Date.now(),
+                  ...(host !== null ? { originHost: host, approveHost: host } : {}),
+                  action: { ...action } as { kind: string },
+                });
+                throw new BWError("CONFIRMATION_REQUIRED", d.reason);
+              }
+              if (d.kind === "block") {
+                throw new BWError("POLICY_BLOCKED", d.reason);
+              }
+            },
+            // S2R P1-9：会话下载目录（DESIGN §1.2——隔离 + close/keep 清理有对象）
+            downloadsDir: () => join(dir, "downloads"),
+          });
+          await adoptActive(engine, driver, rec);
+
+          // S1③：消费 navEventSeq 之后的导航事件——违规回滚（下次触接模型）
+          const ring = await (driver as RemoteDriver).conn.call<{
+            events: Array<{ seq: number; url: string; pageId: number }>;
+            latest: number;
+            oldest: number;
+          }>("navEvents", { since: rec.navEventSeq });
+          let rolledBack = false;
+          // S2R P2-11：环溢出缺口（since < oldest）——事件已丢，按当前 URL 保守补判
+          const gap = rec.navEventSeq > 0 && rec.navEventSeq < ring.oldest;
+          const toJudge = gap
+            ? [
+                ...ring.events,
+                {
+                  seq: ring.latest,
+                  url: engine.activePage().url,
+                  pageId: rec.activePageId,
+                  __current: true,
+                },
+              ]
+            : ring.events;
+          for (const ev of toJudge) {
+            const verdict = await policy.onNavigationSettled(ev.url);
+            if (!verdict.ok && verdict.violation !== undefined) {
+              const host = safeHost(ev.url) ?? "";
+              if (host !== "" && !rec.policy.violatedHosts.includes(host)) {
+                rec.policy.violatedHosts.push(host);
+              }
+              try {
+                await engine.act({ kind: "navigate", url: rec.lastAllowedUrl });
+                rolledBack = true;
+              } catch {
+                /* 回滚失败——记录违规即可 */
+              }
+            } else if (verdict.ok) {
+              // 合法落定 → 回滚点推进（S2R P0-2：否则恢复永远回 create 起始页）
+              rec.lastAllowedUrl = ev.url;
+            }
+          }
+          if (ring.events.length > 0 || gap)
+            rec.navEventSeq = Math.max(rec.navEventSeq, ring.latest);
+
+          // 现提取快照（索引类命令开始——S2 词面闸/索引查找/unchanged）
+          const snap: Snapshot | null = await engine.currentSnapshot();
+
+          /** run 选项：approvedSig=本动作已被人工批准（一次性放行，S2R P0-1）；
+           * batchCtx=中段子步确认的续行上下文（写入 pending，§4b） */
+          const run = async (
+            action: BrowserAction,
+            targetSnapshot: Snapshot | null,
+            runOpts?: {
+              approvedSig?: string;
+              uploadBefore?: string[];
+              batchCtx?: { steps: BrowserAction[]; executed: number; results: string[] };
+            },
+          ): Promise<ToolResult> => {
+            const approved =
+              runOpts?.approvedSig !== undefined && runOpts.approvedSig === sigOf(action);
+            if (approved) approvedSigs.add(runOpts?.approvedSig ?? "");
+            // 闸面（S1①/S2——与旧 executeTool 同序；批准放行动作跳闸）
+            if (!approved && (action.kind === "navigate" || action.kind === "open_tab")) {
+              const d = await policy.onNavigate(action.url);
+              if (d.kind === "confirm") {
+                const navHost = safeHost(action.url);
+                writePending(dir, {
+                  cid: d.cid,
+                  reason: d.reason,
+                  createdAt: Date.now(),
+                  ...(navHost !== null ? { originHost: navHost, approveHost: navHost } : {}),
+                  action: { ...action } as { kind: string },
+                  ...(runOpts?.batchCtx !== undefined
+                    ? { batchCtx: { ...runOpts.batchCtx, steps: runOpts.batchCtx.steps as never } }
+                    : {}),
+                });
+                return {
+                  ok: true,
+                  cid: d.cid,
+                  ...(d.reason !== "" ? { reason: d.reason } : {}),
+                  text: `CONFIRMATION_REQUIRED: ${d.reason}`,
+                };
+              }
+              if (d.kind === "block") {
+                return { ok: false, code: "POLICY_BLOCKED", error: d.reason };
+              }
+            } else if (!approved) {
+              // S2R P0-3：upload 路径闸（目录外 → 确认 + TOCTOU before-paths）
+              if (action.kind === "upload") {
+                const d = policy.checkUploadFiles(action.files);
+                if (d.kind === "confirm") {
+                  const before = action.files.map((f) => realpathSync(f));
+                  writePending(dir, {
+                    cid: d.cid,
+                    reason: d.reason,
+                    createdAt: Date.now(),
+                    action: { ...action } as { kind: string },
+                    uploadBefore: before,
+                    ...(runOpts?.batchCtx !== undefined
+                      ? {
+                          batchCtx: { ...runOpts.batchCtx, steps: runOpts.batchCtx.steps as never },
+                        }
+                      : {}),
+                  });
+                  return {
+                    ok: true,
+                    cid: d.cid,
+                    ...(d.reason !== "" ? { reason: d.reason } : {}),
+                    text: `CONFIRMATION_REQUIRED: ${d.reason}`,
+                  };
+                }
+                if (d.kind === "block") {
+                  return { ok: false, code: "POLICY_BLOCKED", error: d.reason };
+                }
+              }
+              const index = "index" in action ? (action as { index?: string }).index : undefined;
+              const node =
+                index !== undefined && targetSnapshot !== null
+                  ? targetSnapshot.nodes.find((n) => n.id === index)
+                  : undefined;
+              const target =
+                node !== undefined
+                  ? {
+                      tag: node.tag,
+                      ...(node.text !== undefined ? { text: node.text } : {}),
+                      ...(node.href !== undefined ? { href: node.href } : {}),
+                    }
+                  : undefined;
+              const d = policy.onAction(action, target);
+              if (d.kind === "confirm") {
+                writePending(dir, {
+                  cid: d.cid,
+                  reason: d.reason,
+                  createdAt: Date.now(),
+                  action: { ...action } as { kind: string },
+                  ...(runOpts?.batchCtx !== undefined
+                    ? { batchCtx: { ...runOpts.batchCtx, steps: runOpts.batchCtx.steps as never } }
+                    : {}),
+                });
+                return {
+                  ok: true,
+                  cid: d.cid,
+                  ...(d.reason !== "" ? { reason: d.reason } : {}),
+                  text: `CONFIRMATION_REQUIRED: ${d.reason}`,
+                };
+              }
+              if (d.kind === "block") {
+                return { ok: false, code: "POLICY_BLOCKED", error: d.reason };
+              }
+            } else if (
+              approved &&
+              action.kind === "upload" &&
+              runOpts?.uploadBefore !== undefined
+            ) {
+              // 批准重放的 upload：TOCTOU 复核（§4b——realpath 前后比对）
+              const now = action.files.map((f) => realpathSync(f));
+              if (JSON.stringify(now) !== JSON.stringify(runOpts.uploadBefore)) {
+                return {
+                  ok: false,
+                  code: "CONFIRMATION_DENIED",
+                  error: "upload path changed during confirmation window",
+                };
+              }
+            }
+            // S2R P0-2：回滚点 = act 之前的页面 URL（不是落定后的违规目标）
+            const preUrl = engine.activePage().url;
+            const r = await engine.act(action, targetSnapshot);
+            // redact 全工具面（B1 裁决：出域与盘面同一条路径——含 rendered，S2R P1-10）
+            const text = policy.redact(r.text);
+            const rendered = r.snapshot !== null ? policy.redact(renderSnapshot(r.snapshot)) : "";
+            const unchanged =
+              r.snapshot !== null && rec.lastRendered !== null && rendered === rec.lastRendered;
+            if (r.snapshot !== null) {
+              rec.lastRendered = rendered;
+              const activePage = engine.activePage() as unknown as { pageId?: number };
+              if (activePage.pageId !== undefined) rec.activePageId = activePage.pageId; // S2R P1-6
+              rec.currentUrl = engine.activePage().url || rec.currentUrl;
+              rec.lastAllowedUrl = preUrl; // 回滚点=动作前位置（合法落定由 S1③ 消费者推进）
+            }
+            rec.budget.steps += 1;
+            appendTrajectory(dir, {
+              ts: Date.now(),
+              step: rec.budget.steps,
+              action,
+              resultText: text.slice(0, 2000),
+              url: rec.currentUrl,
+            });
+            return {
+              ok: true,
+              text,
+              ...(rendered !== "" ? { snapshot: rendered } : {}),
+              unchanged,
+              ...(r.image !== undefined ? { image: r.image } : {}),
+              ...(r.intent !== undefined
+                ? {
+                    intent: {
+                      kind: r.intent.kind,
+                      ...(r.intent.href !== undefined ? { href: r.intent.href } : {}),
+                    },
+                  }
+                : {}),
+            };
+          };
+
+          /** batch 逐步执行器（§4b：确认挂起带全量续行上下文；confirm 批准后经
+           * batchResume 从断点续行——approveSig 一次性放行被批准的子步） */
+          const runBatch = async (
+            steps: BrowserAction[],
+            startAt: number,
+            priorLines: string[],
+            approvedSig?: string,
+            uploadBefore?: string[],
+          ): Promise<ToolResult> => {
+            const lines = [...priorLines];
+            let last: ToolResult = { ok: true };
+            for (let i = startAt; i < steps.length; i += 1) {
+              const step = steps[i] as BrowserAction;
+              const isApprovedStep = approvedSig !== undefined && i === startAt;
+              const sub = await run(step, snap, {
+                ...(isApprovedStep
+                  ? { approvedSig, ...(uploadBefore !== undefined ? { uploadBefore } : {}) }
+                  : {}),
+                batchCtx: { steps, executed: i, results: [...lines] },
+              });
+              if (sub.cid !== undefined) {
+                // 确认挂起（ok:true + cid）——§4b：pending 已带续行上下文（run 写入）
+                return {
+                  ok: true,
+                  cid: sub.cid,
+                  ...(sub.reason !== undefined ? { reason: sub.reason } : {}),
+                  text: `batch paused at step ${i + 1}/${steps.length}: ${sub.reason}\ncompleted:\n${lines.join("\n")}`,
+                };
+              }
+              if (!sub.ok) {
+                return {
+                  ok: false,
+                  ...(sub.code !== undefined ? { code: sub.code } : {}),
+                  error: `batch stopped at step ${i + 1}/${steps.length}: ${sub.error ?? sub.code}\ncompleted:\n${lines.join("\n")}`,
+                };
+              }
+              lines.push(`  ✓ [${i + 1}/${steps.length}] ${(sub.text ?? "").split("\n")[0]}`);
+              last = sub;
+            }
+            return {
+              ok: true,
+              text: `batch ${steps.length} steps\n${lines.join("\n")}`,
+              ...(last.snapshot !== undefined ? { snapshot: last.snapshot } : {}),
+            };
+          };
+
+          let result: ToolResult;
+          if (tool === "batch") {
+            const built = buildAction("batch", params);
+            if (built.kind !== "batch") throw new BWError("INVALID_TOOL_ARGS", "batch expected");
+            result = await runBatch(built.steps, 0, []);
+          } else if (tool === "batchResume") {
+            // confirm 批准中段子步后的内部续行入口（params 由 confirm 构造）
+            result = await runBatch(
+              params.steps as BrowserAction[],
+              Number(params.startAt ?? 0),
+              (params.lines as string[] | undefined) ?? [],
+              params.approvedSig as string | undefined,
+              params.uploadBefore as string[] | undefined,
+            );
+          } else if (
+            tool === "console" ||
+            tool === "errors" ||
+            tool === "cookies" ||
+            tool === "cookies_set" ||
+            tool === "cookies_clear" ||
+            tool === "storage" ||
+            tool === "storage_set" ||
+            tool === "storage_clear" ||
+            tool === "requests" ||
+            tool === "cookies_all"
+          ) {
+            // inspect 家族（旧 INSPECT_TOOLS 语义）：chrome-only 闸 + 结果过 redact（B1 全工具面）
+            const caps = driver.capabilities();
+            if (
+              (tool === "requests" || tool === "cookies_all") &&
+              !caps.networkEvents &&
+              !caps.httpOnlyCookies
+            ) {
+              result = {
+                ok: false,
+                code: "INVALID_TOOL_ARGS",
+                error: `${tool} requires the chrome backend`,
+              };
+            } else {
+              const kind = tool as
+                | "console"
+                | "errors"
+                | "cookies"
+                | "cookies_set"
+                | "cookies_clear"
+                | "storage"
+                | "storage_set"
+                | "storage_clear"
+                | "requests"
+                | "cookies_all";
+              const raw = await engine.inspect(kind, {
+                ...(params.key !== undefined ? { key: String(params.key) } : {}),
+                ...(params.value !== undefined ? { value: String(params.value) } : {}),
+              });
+              result = { ok: true, text: policy.redact(raw) };
+              rec.budget.steps += 1;
+            }
+          } else if (tool === "eval") {
+            if (!rec.policy.allowEval) {
+              result = {
+                ok: false,
+                code: "EVAL_DISABLED",
+                error: "eval disabled (create --allow-eval)",
+              };
+            } else {
+              const out = await engine.runExpression(String(params.expression ?? ""));
+              result = { ok: true, text: policy.redact(out) };
+            }
+          } else if (tool === "tabs") {
+            const pages = driver.pages();
+            result = {
+              ok: true,
+              text: policy.redact(
+                JSON.stringify(
+                  pages.map((p, idx) => ({
+                    index: idx,
+                    url: (p as unknown as { url: string }).url,
+                    title: (p as unknown as { title: string }).title,
+                  })),
+                ),
+              ),
+            };
+          } else if (tool === "look") {
+            const r = await run({ kind: "look" }, snap);
+            result = r;
+          } else {
+            const action = buildAction(tool, params);
+            result = await run(action, snap, {
+              ...(replay?.approvedSig !== undefined ? { approvedSig: replay.approvedSig } : {}),
+              ...(replay?.uploadBefore !== undefined ? { uploadBefore: replay.uploadBefore } : {}),
+            });
+          }
+          writeRecord(root, rec);
+          if (recovered && result.ok) {
+            result.text =
+              `${result.text ?? ""}\n[recovered] browser was dead; session recovered`.trim();
+          }
+          if (rolledBack && result.ok) {
+            result.text =
+              `${result.text ?? ""}\n[S1③] violation rolled back to ${rec.lastAllowedUrl}`.trim();
+          }
+          return result;
+        } finally {
+          release();
+        }
+      }
+    },
+
+    /** 确认即执行（§4b：approve → 一次性放行执行；create 确认 → 置 active；
+     * violatedHosts 迟到批准防护（S2R P1-5）） */
+    async confirm(id: string, cid: string, approve: boolean): Promise<ToolResult> {
+      const dir = sessionDirOf(root, id);
+      readRecord(root, id);
+      const lock = acquireFlock(join(dir, "lock"));
+      if (lock === null) throw new SessionBusyError(id);
+      try {
+        const r = confirmPending(dir, cid, approve);
+        if ("error" in r) {
+          return { ok: false, code: r.error.code, error: r.error.message };
+        }
+        const rec = r.rec;
+        if (!approve) {
+          if (rec.create === true) {
+            destroySessionDir(dir, readRecord(root, id)); // §4c：deny → 杀组 + rm（S2R P1-8）
+            return { ok: true, text: "create denied; session destroyed" };
+          }
+          if (rec.batchCtx !== undefined) {
+            return {
+              ok: false,
+              code: "CONFIRMATION_DENIED",
+              error: `batch stopped at step ${rec.batchCtx.executed + 1}/${rec.batchCtx.steps.length}: denied\ncompleted:\n${rec.batchCtx.results.join("\n")}`,
+            };
+          }
+          return { ok: false, code: "CONFIRMATION_DENIED", error: "denied" };
+        }
+        const host = rec.approveHost;
+        const sessionRec = readRecord(root, id);
+        if (host !== undefined && host !== "") {
+          // 迟到批准防护：挂起期间该域已违规 → 拒绝（旧 policies engine 语义）
+          if (sessionRec.policy.violatedHosts.includes(host)) {
+            return {
+              ok: false,
+              code: "CONFIRMATION_DENIED",
+              error: `late approval rejected: ${host} violated while confirmation was pending`,
+            };
+          }
+          if (!sessionRec.policy.allowedHosts.includes(host)) {
+            sessionRec.policy.allowedHosts.push(host);
+          }
+        }
+        writeRecord(root, sessionRec);
+        if (rec.create === true && rec.action !== undefined) {
+          // create 起始导航：执行导航置 active（§4c）
+          const { driver, release } = await helperFactory(sessionRec);
+          try {
+            const engine = createActionEngine(driver as Driver);
+            const page = await (driver as RemoteDriver).createPage({
+              url: String(rec.action.url ?? "about:blank"),
+            });
+            sessionRec.activePageId = (page as unknown as { pageId: number }).pageId;
+            engine.adopt(page);
+            const snap = await engine.currentSnapshot();
+            sessionRec.status = "active";
+            sessionRec.currentUrl = String(rec.action.url ?? "about:blank");
+            sessionRec.lastAllowedUrl = sessionRec.currentUrl;
+            sessionRec.lastRendered = renderSnapshot(snap);
+            writeRecord(root, sessionRec);
+            return { ok: true, text: sessionRec.currentUrl };
+          } finally {
+            release();
+          }
+        }
+        // 普通动作重放：批准签名一次性放行（S2R P0-1——同签名跳闸，否则死循环）
+        if (rec.action !== undefined && rec.batchCtx === undefined) {
+          const tool = String(rec.action.kind);
+          const actionParams = { ...rec.action } as Record<string, unknown>;
+          delete actionParams.kind;
+          return await this.runLocked(id, tool, actionParams, {
+            approvedSig: JSON.stringify(rec.action),
+            ...(rec.uploadBefore !== undefined ? { uploadBefore: rec.uploadBefore } : {}),
+          });
+        }
+        // batch 中段批准：续行余下子步（§4b——与一次跑完等价的汇总格式）
+        if (rec.batchCtx !== undefined && rec.action !== undefined) {
+          return await this.runLocked(id, "batchResume", {
+            steps: rec.batchCtx.steps,
+            startAt: rec.batchCtx.executed, // 被批准的子步（approvedSig 放行）从这里继续
+            lines: rec.batchCtx.results,
+            approvedSig: JSON.stringify(rec.action),
+            ...(rec.uploadBefore !== undefined ? { uploadBefore: rec.uploadBefore } : {}),
+          });
+        }
+        return { ok: true, text: "confirmed" };
+      } finally {
+        lock.release();
+      }
+    },
+  };
+}
+
+/** 会话目录销毁（杀 helper 进程组 + rm——create deny/失败清场共用，S2R P1-8） */
+function destroySessionDir(dir: string, rec: SessionRecord | undefined): void {
+  if (rec !== undefined && rec.helper.pid > 0) {
+    try {
+      process.kill(-rec.helper.pid, "SIGKILL");
+    } catch {
+      /* 已死 */
+    }
+  }
+  rmSync(join(dir, "pending"), { recursive: true, force: true });
+  rmSync(dir, { recursive: true, force: true });
+}
+
+export type SessionStore = ReturnType<typeof createSessionStore>;
+
+function safeHost(url: string): string | null {
+  try {
+    return new URL(url).hostname || null; // hostname（无端口）——与 policy 白名单口径一致
+  } catch {
+    return null;
+  }
+}
+
+function isPrivateHost(host: string): boolean {
+  if (host === "localhost" || host.endsWith(".localhost")) return true;
+  if (/^127\./.test(host) || host === "::1" || host === "[::1]") return true;
+  if (/^10\./.test(host) || /^192\.168\./.test(host)) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return true;
+  if (host.endsWith(".internal") || host.endsWith(".local")) return true;
+  return false;
+}
+
+export { homedir, join, resolveBwHome, writeFileAtomic };

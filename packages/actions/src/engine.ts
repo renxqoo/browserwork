@@ -55,6 +55,10 @@ export interface ActionResult {
 export interface ActionEngine {
   act(action: BrowserAction, snapshot?: Snapshot | null): Promise<ActionResult>;
   activePage(): Page;
+  /** B22 S2：跨命令收养既有页（文件会话——命令进程重建 engine 后接上 helper 里的活动 tab） */
+  adopt(page: Page): void;
+  /** B22 S2：现提取当前活动页快照（命令开始——S2 词面闸/索引查找/unchanged 判定） */
+  currentSnapshot(): Promise<Snapshot>;
   /** 页面状态读取/写入（锁内，B11）：console/errors 缓冲、cookies、localStorage */
   inspect(kind: InspectKind, params?: InspectParams): Promise<string>;
   /** 受控 eval（锁内 + 超时 + 结果截断，B11）——会话模式须显式 opt-in */
@@ -653,6 +657,13 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
 
   return {
     activePage: ensureActive,
+    adopt(page: Page): void {
+      active = page;
+    },
+    async currentSnapshot(): Promise<Snapshot> {
+      const page = ensureActive();
+      return runExclusive(page, () => settleAndExtract(page));
+    },
     inspect,
     runExpression,
 

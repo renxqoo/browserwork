@@ -12,6 +12,7 @@ import { chmodSync, writeFileSync } from "node:fs";
 import { BWError } from "@bw/core";
 import { createWebViewDriver } from "./backends.ts";
 import {
+  FrameWriter,
   type HelperErrorResponse,
   type HelperEventFrame,
   type HelperReady,
@@ -54,14 +55,22 @@ export async function runHelperServer(
   /** 开放 socket 集合：RPC 响应回请求方；事件广播给全部开放连接
    * （P1-2：单 activeSocket 会被探活类短连接劫持/切断在用客户端的事件流） */
   const openSockets = new Set<Bun.Socket>();
+  const writers = new Map<Bun.Socket, FrameWriter>();
+  const writerOf = (sk: Bun.Socket): FrameWriter => {
+    let w = writers.get(sk);
+    if (w === undefined) {
+      w = new FrameWriter(sk);
+      writers.set(sk, w);
+    }
+    return w;
+  };
 
   const stateOf = (p: Page): PageState => ({ url: p.url, title: p.title, loading: p.loading });
   const summary = (): PageSummary[] =>
     [...pages.values()].map(({ pageId, page }) => ({ pageId, ...stateOf(page) }));
 
   const push = (frame: HelperEventFrame): void => {
-    const line = `${JSON.stringify(frame)}\n`;
-    for (const s of openSockets) s.write(line);
+    for (const sk of openSockets) writerOf(sk).write(JSON.stringify(frame));
   };
 
   const wirePage = (pageId: number, page: Page): void => {
@@ -300,6 +309,9 @@ export async function runHelperServer(
       open(socket) {
         openSockets.add(socket);
       },
+      drain(socket) {
+        writerOf(socket).flush(); // 内核缓冲腾出——续写挂起队列
+      },
       data(socket, chunk) {
         const codec = codecs.get(socket) ?? new LineCodec();
         codecs.set(socket, codec);
@@ -308,26 +320,32 @@ export async function runHelperServer(
           try {
             req = JSON.parse(line) as HelperRequest;
           } catch {
-            socket.write(
-              `${JSON.stringify({ id: -1, ok: false, code: "INVALID_TOOL_ARGS", error: "unparseable frame" } satisfies HelperErrorResponse)}\n`,
+            writerOf(socket).write(
+              JSON.stringify({
+                id: -1,
+                ok: false,
+                code: "INVALID_TOOL_ARGS",
+                error: "unparseable frame",
+              } satisfies HelperErrorResponse),
             );
             continue;
           }
           queue = queue.then(async () => {
             try {
               const { resp } = await handle(req);
-              socket.write(`${JSON.stringify(resp)}\n`);
+              writerOf(socket).write(JSON.stringify(resp));
             } catch (e) {
               const code = e instanceof BWError ? e.code : "DRIVER_ERROR";
               const error = e instanceof Error ? e.message : String(e);
               const resp: HelperErrorResponse = { id: req.id, ok: false, code, error };
-              socket.write(`${JSON.stringify(resp)}\n`);
+              writerOf(socket).write(JSON.stringify(resp));
             }
           });
         }
       },
       close(socket) {
         openSockets.delete(socket);
+        writers.delete(socket);
       },
     },
   });

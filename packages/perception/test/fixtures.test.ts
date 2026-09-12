@@ -254,7 +254,7 @@ describe.skipIf(process.platform !== "darwin")("感知 fixture 矩阵", () => {
     });
   }, 60_000);
 
-  test("陈旧 bw-id 不撞号：显隐变化后 id 全局唯一、locate 不错位（P0-1 回归）", async () => {
+  test("id 元素生命周期稳定：显隐变化后同元素同 id、新元素不撞号、locate 不错位（B22 S2 裁决改写 P0-1）", async () => {
     await withFixtureServer(async (origin) => {
       const driver = createWebViewDriver();
       try {
@@ -262,24 +262,29 @@ describe.skipIf(process.platform !== "darwin")("感知 fixture 矩阵", () => {
           await page.navigate(`${origin}/index.html`);
           const s1 = await extractSnapshot(page);
           const linksId = s1.nodes.find((n) => n.text === "Links page")?.id;
-          // 隐藏中间一个交互元素（input），后续元素「重编」——序列单调不撞号
+          // 隐藏一个交互元素——存留元素 id 不变（文件会话跨命令索引连续的根基）
           await page.evaluate("document.querySelector('input').style.display = 'none'");
           const s2 = await extractSnapshot(page);
           const linksId2 = s2.nodes.find((n) => n.text === "Links page")?.id;
           expect(linksId2).toBeDefined();
-          expect(linksId2).not.toBe(linksId); // 序列单调，同元素两次 id 不同
+          expect(linksId2).toBe(linksId); // B22 S2：同元素两次提取 id 稳定（WeakMap 身份）
           // 文档中不存在两个元素带同一 id（撞号会让 locate 命中隐藏元素）
           const duplicates = await page.evaluate<number>(
             `document.querySelectorAll('[data-bw-id="${linksId2}"]').length`,
           );
           expect(duplicates).toBe(1);
-          // locate 用新 id 命中正确元素
+          // locate 用该 id 命中正确元素
           const located = await page.evaluate<LocateResult>(locateExpression(linksId2 ?? ""));
           expect(located.found).toBe(true);
           expect(located.text).toBe("Links page");
-          // 旧 id 已不在当届快照——locate(旧 id) 仍应 found:false 而非错位
-          const stale = await page.evaluate<LocateResult>(locateExpression(linksId ?? ""));
-          expect(stale.found).toBe(false);
+          // 替换元素（旧节点移除、新节点入树）→ 新元素拿全新 id，不与任何陈旧标记撞号
+          const freshId = await page.evaluate<string>(
+            "(() => { const a = document.createElement('a'); a.textContent = 'Fresh link'; a.href = '/fresh'; document.body.appendChild(a); const s = window.__bwIdSeq; return s; })()",
+          );
+          const s3 = await extractSnapshot(page);
+          const freshNode = s3.nodes.find((n) => n.text === "Fresh link");
+          expect(freshNode).toBeDefined();
+          expect(Number(freshNode?.id)).toBeGreaterThan(Number(freshId));
         });
       } finally {
         driver.close();

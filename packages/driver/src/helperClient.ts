@@ -6,6 +6,7 @@
  */
 import { BWError } from "@bw/core";
 import {
+  FrameWriter,
   type HelperErrorResponse,
   type HelperEventFrame,
   type HelperRequest,
@@ -33,6 +34,7 @@ interface Pending {
 export class HelperConnection {
   private socket: Bun.Socket | null = null;
   private codec = new LineCodec();
+  private writer: FrameWriter | null = null;
   private pending = new Map<number, Pending>();
   private eventSinks: ((frame: HelperEventFrame) => void)[] = [];
   private nextId = 1;
@@ -48,6 +50,9 @@ export class HelperConnection {
             for (const line of this.codec.push(chunk)) {
               this.dispatch(JSON.parse(line));
             }
+          },
+          drain: () => {
+            this.writer?.flush();
           },
           close: () => {
             this.connected = false;
@@ -110,7 +115,10 @@ export class HelperConnection {
         },
         reject,
       });
-      this.socket?.write(`${JSON.stringify(req)}\n`);
+      if (this.writer === null && this.socket !== null) {
+        this.writer = new FrameWriter(this.socket);
+      }
+      this.writer?.write(JSON.stringify(req));
     });
   }
 

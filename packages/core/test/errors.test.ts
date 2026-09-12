@@ -7,6 +7,8 @@ describe("ERROR_CODES 词表封闭", () => {
   test("与文档词表逐项相等", () => {
     expect([...ERROR_CODES]).toEqual([
       "SESSION_BUSY",
+      "CONFIRMATION_REQUIRED",
+      "NOT_FOUND",
       "SESSION_LIMIT",
       "BROWSER_DEAD",
       "ELEMENT_NOT_FOUND",
