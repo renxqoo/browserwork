@@ -17,7 +17,7 @@ import {
   type TrajectorySink,
 } from "@bw/core";
 import { type CreateDriverOptions, createWebViewDriver, type Driver } from "@bw/driver";
-import { isSameView, type Snapshot } from "@bw/perception";
+import { isSameView, renderSnapshot, type Snapshot } from "@bw/perception";
 import {
   createPolicyEngine,
   type PolicyConfig,
@@ -267,6 +267,8 @@ export function runTask(req: TaskRequest, opts?: RunTaskOptions): TaskHandle {
   /** 当前批次后强制收束（升级/终卡——比 abort 干净：批次内语义完整后停） */
   let terminateAfterBatch = false;
   const stuckRing: Array<{ url: string; domHash: string }> = [];
+  /** B18 过程输出：toolCallId → 开始时刻（耗时计算） */
+  const toolStartAt = new Map<string, number>();
   const current: { snapshot: Snapshot | null; rendered: string | null } = {
     snapshot: null,
     rendered: null,
@@ -509,20 +511,70 @@ export function runTask(req: TaskRequest, opts?: RunTaskOptions): TaskHandle {
           }
         }
         break;
-      case "tool_execution_start":
+      case "tool_execution_start": {
+        // B18 过程输出：透传工具参数——字符串值一律过 redact（S6 事件出域统一脱敏；
+        // done 的 answer 可能回显 secret，B18 旧测试实测抓到该泄漏）
+        toolStartAt.set(event.toolCallId, Date.now());
+        const redactArgs = (v: unknown): unknown => {
+          if (typeof v === "string") return policy.redact(v);
+          if (Array.isArray(v)) return v.map(redactArgs);
+          if (v !== null && typeof v === "object") {
+            const out: Record<string, unknown> = {};
+            for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+              out[k] = redactArgs(val);
+            }
+            return out;
+          }
+          return v;
+        };
         emit({
           type: "tool_execution_start",
           toolName: event.toolName,
           toolCallId: event.toolCallId,
+          ...(event.args !== undefined && event.args !== null
+            ? { args: redactArgs(event.args) as Record<string, unknown> }
+            : {}),
         });
         break;
-      case "tool_execution_end":
+      }
+      case "tool_execution_end": {
+        // B18：结果首行 + 耗时 + 页面状态摘要 + 快照头（均过 redact）
+        const startedAt = toolStartAt.get(event.toolCallId);
+        toolStartAt.delete(event.toolCallId);
+        const content = (event as { result?: { content?: Array<{ type: string; text?: string }> } })
+          .result?.content;
+        const firstLine =
+          (content ?? [])
+            .filter((c) => c.type === "text" && c.text !== undefined)
+            .map((c) => c.text ?? "")
+            .join("\n")
+            .split("\n")[0] ?? "";
+        const snap = current.snapshot;
         emit({
           type: "tool_execution_end",
           toolName: event.toolName,
           toolCallId: event.toolCallId,
+          ...(startedAt !== undefined ? { ms: Date.now() - startedAt } : {}),
+          ...(firstLine !== "" ? { resultText: policy.redact(firstLine.slice(0, 200)) } : {}),
+          ...(snap !== null
+            ? {
+                pageState: {
+                  title: snap.title,
+                  url: snap.url,
+                  elements: snap.nodes.length,
+                },
+              }
+            : {}),
+          ...(snap !== null
+            ? {
+                snapshotHead: policy.redact(
+                  renderSnapshot(snap).split("\n").slice(0, 15).join("\n"),
+                ),
+              }
+            : {}),
         });
         break;
+      }
       default:
         emit({ type: event.type as TaskEvent["type"] });
     }

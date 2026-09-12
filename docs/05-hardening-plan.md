@@ -185,3 +185,12 @@
 | 01 §6.8 | keep-2 语义细化：只数全量快照；unchanged 标记不占位（05 §3.1） |
 | 01 §4.3 | 不动（SESSION_LIMIT 不进 core——05 §2.1 反向澄清） |
 | 03 U4/U5/U6/U7 | 新动作 kind 表、onAction upload 路径闸、工具按能力注册、CLI/replay/sup 命令面 |
+
+## 8. B18：bw run 执行过程输出（2026-09-12 · 用户裁决）
+
+用户裁决（AskUserQuestion 三分叉）：
+1. **确认门保持非交互**（不弹 y/N；120s 超时自动拒）——警告文案补「将自动拒绝 + --url 可预授权起始域」提示
+2. **紧凑双行过程**（`▸ [n/max] tool k=v` + `✓ 结果首行 (耗时)` + `↳ 页面状态一行`）；`--verbose` 才打快照头 15 行
+3. **轨迹默认落盘**（`~/.bw/trajectories/<taskId>.jsonl`，与 serve 同目录同 janitor；`bw replay` 可回放）
+
+实现要点：core TaskEvent 追加可选字段 `args`/`resultText`/`ms`/`pageState`/`snapshotHead`（词表=事件类型集合不变，字段加法）；run.ts 从 pi 事件透传（resultText/snapshotHead 过 redact）；cli-run 渲染器抽纯函数可测。`--max-steps` 顺带补（显示 [n/max] 需要 max）。

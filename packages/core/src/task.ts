@@ -87,6 +87,16 @@ export interface TaskEvent {
   /** 工具名与调用 id */
   toolName?: string;
   toolCallId?: string;
+  /** tool_execution_start：工具参数（B18 过程输出；pi 事件透传） */
+  args?: Record<string, unknown>;
+  /** tool_execution_end：结果首行（已 redact，≤200 字符） */
+  resultText?: string;
+  /** tool_execution_end：该工具耗时 ms */
+  ms?: number;
+  /** tool_execution_end：动作后页面状态一行摘要（无快照动作缺省） */
+  pageState?: { title: string; url: string; elements: number };
+  /** tool_execution_end：快照头 15 行（--verbose 显示；已 redact） */
+  snapshotHead?: string;
   /** confirmation_required */
   cid?: string;
   reason?: string;

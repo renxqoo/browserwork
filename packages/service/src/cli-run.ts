@@ -1,17 +1,27 @@
-/** bw run：CLI 单任务执行（读 .env 或环境变量配置 LLM） */
-import { glmModelsFromEnv, runTask } from "@bw/agent";
+/** bw run：CLI 单任务执行（读 .env 或环境变量配置 LLM）。B18：紧凑双行过程输出 + 轨迹默认落盘。 */
+
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { fileTrajectorySink, glmModelsFromEnv, runTask } from "@bw/agent";
 import type { TaskEvent } from "@bw/core";
 
 export interface RunCliArgs {
   goal: string;
   startUrl?: string;
   json?: boolean;
+  verbose?: boolean;
+  maxSteps?: number;
   backend?: "webkit" | "chrome";
   dataDir?: string;
   chromePath?: string;
   width?: number;
   height?: number;
   ua?: string;
+}
+
+/** 轨迹目录（与 serve 同源默认；env BW_TRAJECTORY_DIR 可改） */
+export function runTrajectoryDir(): string {
+  return process.env.BW_TRAJECTORY_DIR ?? join(homedir(), ".bw", "trajectories");
 }
 
 async function loadEnvFile(path: string): Promise<Record<string, string>> {
@@ -23,6 +33,105 @@ async function loadEnvFile(path: string): Promise<Record<string, string>> {
     if (m) env[m[1] as string] = (m[2] as string).replace(/^["']|["']$/g, "");
   }
   return env;
+}
+
+// ---- B18 过程渲染器（纯函数，导出供测试） ----
+
+const argValueOf = (v: unknown): string => {
+  const s = typeof v === "string" ? v : JSON.stringify(v);
+  const one = String(s ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return one.length > 60 ? `${one.slice(0, 57)}…` : one;
+};
+
+/** `▸ [n/max] tool k=v k=v`（超长 text 参数整段省略——防刷屏） */
+export function formatToolStart(
+  n: number,
+  max: number,
+  name: string,
+  args?: Record<string, unknown>,
+): string {
+  const kv =
+    args !== undefined
+      ? Object.entries(args)
+          .filter(([k]) => !(k === "text" && String(args[k]).length > 60))
+          .map(([k, v]) => `${k}=${argValueOf(v)}`)
+          .join(" ")
+      : "";
+  return `\n▸ [${n}/${max}] ${name}${kv !== "" ? ` ${kv}` : ""}`;
+}
+
+/** `  ✓ result (x.xs)` */
+export function formatToolEnd(resultText?: string, ms?: number): string {
+  const head = (resultText ?? "").slice(0, 100);
+  const time = ms !== undefined ? ` (${(ms / 1000).toFixed(1)}s)` : "";
+  return `  ✓${head !== "" ? ` ${head}` : " ok"}${time}`;
+}
+
+/** `    ↳ Title · N 元素`（与前一个动作同页则标注未变） */
+export function formatPageState(
+  pageState: { title: string; url: string; elements: number },
+  prev?: { title: string; url: string; elements: number },
+): string {
+  const same =
+    prev !== undefined &&
+    prev.title === pageState.title &&
+    prev.url === pageState.url &&
+    prev.elements === pageState.elements;
+  const title = pageState.title === "" ? pageState.url : pageState.title;
+  return `    ↳ ${title.slice(0, 60)} · ${pageState.elements} 元素${same ? "（页面未变）" : ""}`;
+}
+
+/** token 数 → `3.1K` 形态 */
+export function fmtTokens(n: number): string {
+  return n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
+}
+
+/** 过程事件渲染器状态（渲染器纯函数化——步数/上页状态经显式状态对象） */
+export interface ProcessRendererState {
+  step: number;
+  maxSteps: number;
+  verbose: boolean;
+  prevPage?: { title: string; url: string; elements: number };
+}
+
+export function printEvent(e: TaskEvent, st: ProcessRendererState): void {
+  switch (e.type) {
+    case "message_update":
+      if (e.text !== undefined) process.stdout.write(e.text);
+      break;
+    case "confirmation_required":
+      // 用户裁决 2026-09-12：保持非交互——如实告知去向与预授权途径
+      console.log(
+        `\n⚠ 确认门 [${e.cid}]: ${e.reason}\n  （CLI 不交互，120s 后自动拒绝；起始域可用 --url 预授权）`,
+      );
+      break;
+    case "budget_warn":
+      console.log(`\n⚠ 预算: ${e.dimension} ${e.usedPct}%`);
+      break;
+    case "stuck_escalated":
+      console.log(`\n⚠ 卡死 — 模型升级 ${e.from} → ${e.to}`);
+      break;
+    case "tool_execution_start":
+      st.step += 1;
+      console.log(formatToolStart(st.step, st.maxSteps, e.toolName ?? "?", e.args));
+      break;
+    case "tool_execution_end":
+      console.log(formatToolEnd(e.resultText, e.ms));
+      if (e.pageState !== undefined) {
+        console.log(formatPageState(e.pageState, st.prevPage));
+        st.prevPage = e.pageState;
+      }
+      if (st.verbose && e.snapshotHead !== undefined) {
+        for (const line of e.snapshotHead.split("\n")) console.log(`    │ ${line}`);
+      }
+      break;
+    case "task_done":
+      break; // 统一在 result 打印
+    default:
+      break;
+  }
 }
 
 export async function runCliTask(args: RunCliArgs): Promise<number> {
@@ -58,10 +167,12 @@ export async function runCliTask(args: RunCliArgs): Promise<number> {
     ...(strongModel !== undefined ? { GLM_STRONG_MODEL: strongModel } : {}),
   });
 
+  const t0 = Date.now();
   const handle = runTask(
     {
       goal: args.goal,
       ...(args.startUrl !== undefined ? { startUrl: args.startUrl } : {}),
+      ...(args.maxSteps !== undefined ? { budget: { maxSteps: args.maxSteps } } : {}),
       ...(args.backend !== undefined ||
       args.dataDir !== undefined ||
       args.chromePath !== undefined ||
@@ -86,13 +197,20 @@ export async function runCliTask(args: RunCliArgs): Promise<number> {
         ...(models.strong !== undefined ? { strong: models.strong as never } : {}),
       },
       apiKey: key,
+      // B18：轨迹默认落盘（与 serve 同目录；bw replay 可回放）
+      trajectory: (taskId) => fileTrajectorySink(runTrajectoryDir(), taskId),
       ...(args.startUrl?.startsWith("http://127.0.0.1") === true ? { testMode: true } : {}),
     },
   );
 
   if (args.json !== true) {
+    const st: ProcessRendererState = {
+      step: 0,
+      maxSteps: args.maxSteps ?? 50,
+      verbose: args.verbose === true,
+    };
     for await (const e of handle.events) {
-      printEvent(e);
+      printEvent(e, st);
       if (e.type === "task_done") break;
     }
   }
@@ -100,36 +218,13 @@ export async function runCliTask(args: RunCliArgs): Promise<number> {
   if (args.json) {
     console.log(JSON.stringify(result));
   } else {
+    const wall = ((Date.now() - t0) / 1000).toFixed(1);
     console.log(
       `\n── result: ${result.status}${result.answer !== undefined ? ` — ${result.answer}` : ""}`,
     );
     console.log(
-      `   steps=${result.steps} tokens(in/out)=${result.tokens.input}/${result.tokens.output} trajectory=${result.trajectory}`,
+      `   steps=${result.steps} · tokens ${fmtTokens(result.tokens.input)}/${fmtTokens(result.tokens.output)} · ${wall}s · trajectory=${result.trajectory}`,
     );
   }
   return result.status === "done" ? 0 : 1;
-}
-
-function printEvent(e: TaskEvent): void {
-  switch (e.type) {
-    case "message_update":
-      if (e.text !== undefined) process.stdout.write(e.text);
-      break;
-    case "confirmation_required":
-      console.log(`\n⚠ confirmation required [${e.cid}]: ${e.reason}`);
-      break;
-    case "budget_warn":
-      console.log(`\n⚠ budget: ${e.dimension} at ${e.usedPct}%`);
-      break;
-    case "stuck_escalated":
-      console.log(`\n⚠ stuck — escalating ${e.from} → ${e.to}`);
-      break;
-    case "tool_execution_start":
-      console.log(`\n▸ ${e.toolName}`);
-      break;
-    case "task_done":
-      break; // 统一在 result 打印
-    default:
-      break;
-  }
 }

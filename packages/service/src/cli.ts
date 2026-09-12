@@ -10,6 +10,7 @@ const HELP = `bw ${VERSION} — Browser Use on Bun.WebView
 
 Usage:
   bw run "goal text" [--url <start-url>] [--json]   run a task
+         [--verbose] [--max-steps N]
   bw serve [--port <port>] [--token <auth-token>]   start HTTP service
          [--trajectory-dir <dir>]
   bw replay <taskId|file>                           print a task trajectory
@@ -23,6 +24,8 @@ interface ParsedArgs {
   goal: string | undefined;
   url: string | undefined;
   json: boolean;
+  verbose: boolean;
+  maxSteps: number | undefined;
   port: number | undefined;
   token: string | undefined;
   trajectoryDir: string | undefined;
@@ -40,6 +43,8 @@ export function parseArgs(argv: string[]): ParsedArgs {
     goal: undefined,
     url: undefined,
     json: false,
+    verbose: false,
+    maxSteps: undefined,
     port: undefined,
     token: undefined,
     trajectoryDir: undefined,
@@ -59,6 +64,11 @@ export function parseArgs(argv: string[]): ParsedArgs {
       i += 1;
     } else if (a === "--json") {
       out.json = true;
+    } else if (a === "--verbose") {
+      out.verbose = true;
+    } else if (a === "--max-steps") {
+      out.maxSteps = Number(rest[i + 1]);
+      i += 1;
     } else if (a === "--port" || a === "-p") {
       out.port = Number(rest[i + 1]);
       i += 1;
@@ -120,6 +130,8 @@ export async function main(argv?: string[]): Promise<number> {
       goal: args.goal,
       ...(args.url !== undefined ? { startUrl: args.url } : {}),
       ...(args.json ? { json: true } : {}),
+      ...(args.verbose ? { verbose: true } : {}),
+      ...(args.maxSteps !== undefined ? { maxSteps: args.maxSteps } : {}),
       ...(args.backend !== undefined ? { backend: args.backend as "webkit" | "chrome" } : {}),
       ...(args.dataDir !== undefined ? { dataDir: args.dataDir } : {}),
       ...(args.chromePath !== undefined ? { chromePath: args.chromePath } : {}),

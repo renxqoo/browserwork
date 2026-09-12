@@ -46,7 +46,14 @@ export GLM_MODEL=glm-5.3-flash    # 推理模型；内部自动 thinkingLevel=lo
 bw run "打开 https://bun.com 并总结首页三个要点"
 bw run "搜索 Bun 的 GitHub 星数" --url https://github.com
 bw run "..." --json               # 机器可读输出（任务事件流）
+bw run "..." --verbose            # 过程中打印每步快照头 15 行
+bw run "..." --max-steps 20       # 步数上限（默认 50）
 ```
+
+执行过程（紧凑双行）：每个工具显示 `▸ [n/max] 工具 参数`、`✓ 结果首行 (耗时)`、
+`↳ 页面标题 · N 元素`（与上一步相同页标注「页面未变」）；确认门如实提示
+「120s 后自动拒绝；起始域可用 --url 预授权」（CLI 不交互——脚本场景语义）。
+轨迹默认落盘 `~/.bw/trajectories/<taskId>.jsonl`，跑完可 `bw replay <taskId>` 回看。
 
 特点：
 
