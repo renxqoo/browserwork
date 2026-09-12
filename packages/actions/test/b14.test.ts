@@ -303,7 +303,7 @@ describe("B14 requests/cookies_all inspect", () => {
     page.emitCdpEvent("Network.responseReceived", { requestId: "r1", response: { status: 200 } });
     page.emitCdpEvent("Network.requestWillBeSent", {
       requestId: "r2",
-      request: { url: "https://fake.test/" + "y".repeat(600), method: "POST" },
+      request: { url: `https://fake.test/${"y".repeat(600)}`, method: "POST" },
     });
     const text = await engine.inspect("requests" as InspectKind);
     const entries = JSON.parse(text) as Array<{

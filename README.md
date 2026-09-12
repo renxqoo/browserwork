@@ -30,6 +30,7 @@ bw s create --url https://bun.com && bw s snap <id>  # 外部会话模式（REST
 
 - **零浏览器下载**（macOS）：驱动层是 Bun 内置 `Bun.WebView`——系统 WebKit；Linux 走 Chrome/CDP 后端（下载/上传/网络监听/httpOnly cookie 元数据/UA 覆写）
 - **省 token 的感知层**：索引化 DOM 快照（`[n] link "Docs" -> url`）+ unchanged 标记 + 上下文渐进压缩 + 截图按需（只保最近 1 张在上下文内）
+- **代码级数据提取**：`extract_code`——LLM 写纯函数跑在冻结 DOM 树副本上（Worker+vm 沙箱），一次调用返回结构化 JSON，读列表/表格不用逐行扫快照
 - **安全内建**（S1–S6，代码级强制非建议）：origin 白名单三道闸、敏感词/提交确认门、URL/IP 封锁、secret 绑定 origin + 全链路脱敏、四维预算（步数/token/墙钟/费用）
 - **生产可用性**：轨迹落盘可回放（`bw replay`）、崩溃自动恢复（会话级）、`/healthz`、优雅退出、多实例 supervisor（`bw sup`）、janitor 清理
 - **双模式**：自治 `bw run`（紧凑过程输出）+ 外部会话 `bw s`（REST/CLI，给 Claude Code/GPT/任意框架一步步驱动）

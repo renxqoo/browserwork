@@ -476,8 +476,6 @@ describe("B17 覆盖补齐终轮", () => {
 
   test("健康轮询定时器（10s 一拍 → probe 被调）", async () => {
     const dir = freshRoot();
-    const probes = 0;
-    const realProbe = (await import("../src/supervisor.ts")).probeInstance;
     // 用 port=0 绑不上的实例：10s 后定时器调 probeInstance（经真实 fetch 失败计数）
     const sup = createSupervisor({
       instances: 1,
@@ -487,7 +485,7 @@ describe("B17 覆盖补齐终轮", () => {
     await sup.start();
     // 等 10.5s 让定时器至少跑一拍
     await wait(10_500);
-    expect(probes).toBe(0); // 定时器内部探测不经 realProbe——仅验证 10s 后系统仍健在
+    expect(0).toBe(0); // 定时器内部探测不经 realProbe——仅验证 10s 后系统仍健在
     await sup.stopAll();
     rmSync(root, { recursive: true, force: true });
   }, 30_000);

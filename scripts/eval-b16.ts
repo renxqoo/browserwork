@@ -96,6 +96,7 @@ const runPw = async (
       baseUrl: BASE,
       apiKey: KEY,
       model: MODEL,
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: 替换 playwright-mcp 系统提示词里的字面占位符
       systemPrompt: PWMCP_SYSTEM.replace("${30}", String(maxSteps * 2)),
       finishTool: "__never__",
       tools,

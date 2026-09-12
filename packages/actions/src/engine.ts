@@ -19,7 +19,9 @@ import {
   type Snapshot,
   scrollToBwIdExpression,
   selectBwIdExpression,
+  serializeDomTree,
 } from "@bw/perception";
+import { runTreeCode } from "./sandbox.ts";
 
 export interface ActionEngineOptions {
   /** settle 静默窗口 ms（默认 500，01 §6.5） */
@@ -974,6 +976,25 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
           }
           case "done": {
             return { text: action.answer ?? "", snapshot: null, done: true };
+          }
+          case "extract_code": {
+            // B21 §10：冻结树 + vm 沙箱（p13 实证：timeout 可中断；realm 隔离见 sandbox.ts）。
+            // 序列化在页锁内（evaluate）；沙箱执行纯内存无锁竞争。
+            // snapshot:null——提取不改 DOM，缓存快照仍有效（extract_text 同例）；
+            // 附新快照反而让压缩器把提取数据当快照淘汰（B21 审查 P2-6），还白付 settle 等待
+            const tree = await serializeDomTree(page);
+            const r = await runTreeCode(action.code, tree.root);
+            if (!r.ok) {
+              throw new BWError("INVALID_TOOL_ARGS", `extract_code: ${r.error}`);
+            }
+            return {
+              // 截断必须可见——树超 10000 节点被裁时结果可能不完整，
+              // 静默丢数据比告警更糟（LLM/调用方可据此换策略或分块提取）
+              text: tree.truncated
+                ? `${r.text ?? "null"}\n[warn] DOM tree truncated at 10000-node cap — data may be incomplete`
+                : (r.text ?? "null"),
+              snapshot: null,
+            };
           }
           case "batch": {
             // B20：引擎不执行 batch——agent/sessions 两层各自逐步闸执行（B20 审查 P3-14

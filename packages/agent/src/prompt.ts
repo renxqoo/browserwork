@@ -9,6 +9,7 @@ export function systemPrompt(budgetSteps: number): string {
 - \`↓below-viewport\` / \`↑above-viewport\` mark off-screen elements: scroll first (scroll_to or scroll) then click.
 - \`[cross-origin iframe]\` nodes are clickable by id (coordinate click is automatic).
 - Typing does NOT press keys: after typing into a search box, use press Enter yourself if needed.
+- For structured data extraction (lists/tables/products), use extract_code with a pure function over the DOM tree — one call returns structured JSON, far cheaper tokens than reading many snapshot lines.
 
 ## Rules
 1. **When you can predict the next 3+ steps from the CURRENT snapshot, use batch — not one action per turn.** Typical case: a form with multiple visible fields. Read all field ids from the snapshot, fill them in ONE batch call, then press Enter / submit separately (submits always go through a confirmation gate).

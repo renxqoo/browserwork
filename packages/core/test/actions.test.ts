@@ -19,6 +19,7 @@ describe("BrowserAction 词表封闭（U1）", () => {
       "close_tab",
       "wait",
       "batch",
+      "extract_code",
       "resize",
       "reload",
       "download",
@@ -57,6 +58,7 @@ describe("BrowserAction 判别联合穷举（编译期穷举 + 运行时形态�
     { kind: "wait", seconds: 1 },
     { kind: "resize", width: 1024, height: 768 },
     { kind: "batch", steps: [{ kind: "navigate", url: "https://x/" }] },
+    { kind: "extract_code", code: "(t) => t" },
     { kind: "wait", seconds: 1, until: "networkIdle" },
     { kind: "reload" },
     { kind: "download", index: "5" },
@@ -90,6 +92,7 @@ describe("BrowserAction 判别联合穷举（编译期穷举 + 运行时形态�
         case "close_tab":
         case "wait":
         case "batch":
+        case "extract_code":
         case "resize":
         case "reload":
         case "download":

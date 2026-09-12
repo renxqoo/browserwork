@@ -21,3 +21,5 @@ export {
   renderSnapshot,
   SNAPSHOT_BUDGET_DEFAULT,
 } from "./snapshot.ts";
+export type { DomNode, DomTree } from "./tree.ts";
+export { SERIALIZE_TREE_EXPRESSION, serializeDomTree } from "./tree.ts";

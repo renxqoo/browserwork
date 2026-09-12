@@ -367,6 +367,12 @@ export function buildBrowserTools(ctx: ToolContext, caps?: DriverCapabilities): 
     t("reload", "重新加载当前页（POST 落点会走确认门）", Type.Object({}), () => ({
       kind: "reload",
     })),
+    t(
+      "extract_code",
+      "结构化数据提取：写一个纯函数 (tree) => ...，tree 是整页 DOM 的冻结 JSON 树（{tag, attrs, text, value, children}；密码已掩码）。任意 filter/map/正则。返回值 JSON 化后回传。适用于列表/表格/商品数据等结构化抓取——比逐元素读快照省 token。无网络/computed style/canvas（那些用 extract_text 或 eval）",
+      Type.Object({ code: Type.String({ description: "函数表达式 (tree) => {...}" }) }),
+      (p) => ({ kind: "extract_code", code: p.code as string }),
+    ),
     // ---- B14：chrome-only（按能力注册）----
     ...(has("download")
       ? [

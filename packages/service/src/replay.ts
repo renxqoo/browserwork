@@ -18,6 +18,7 @@ export interface ReplayOutcome {
 }
 
 /** 剥离 ESC/C0 控制字符（保留 \t；轨迹内容来自不可信页面——终端注入面，B13 审查 P2-10） */
+// biome-ignore lint/suspicious/noControlCharactersInRegex: 剥离控制字符正是本函数目的
 const stripControl = (s: string): string => s.replace(/[\x00-\x08\x0b-\x1f\x7f]/g, "");
 
 /** 读轨迹并渲染行（不触终端——CLI 与测试共用） */

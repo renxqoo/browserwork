@@ -223,3 +223,13 @@
 - 任务集加 httpbin.org/forms/post 填表任务（**不提交**——敏感动作确认门本来会拦，双重保障）；评测装置读轨迹检测 batch 使用率；B20 收口小规模真跑（2 任务×1 轮）落档
 
 预算增量：batch ≤10 步/次、CDP 并入 ≤30 节点、networkIdle 静默 1500ms、keep 会话数计入 maxSessions 但免 TTL。
+
+## 10. B21：extract_code——冻结 DOM 树上的任意代码提取（2026-09-12 · 用户裁决「代码唯一路径，不要模板」）
+
+裁决：结构化提取只有 extract_code 一条路（模板方案否决——需求不固定）；代码写法=纯函数 `(tree) => ...`；执行位置=**冻结 JSON 副本 + vm 沙箱（无网络句柄）**，不在活页面（区别于 ego 的 Runtime.evaluate）。
+
+### 契约
+- 动作词表 += `{kind:"extract_code", code:string}`（≤4KB，函数表达式）；可入 batch（读写交错一次往返）
+- 执行链：DOM 树序列化（evaluate 一次，双后端同路径；密码→***；节点/text 上限；超限附 truncated 告警行）→ Worker 内 vm.runInNewContext（**context 零宿主对象**——tree 以字符串字面量进目标 realm parse，防 `X.constructor.constructor` 构造链逃逸，审查 P0；timeout 3s 由 Worker terminate 硬杀，p13 探针实证 bun test 下 vm timeout 不可中断）→ 结果 JSON ≤8KB（超限拒绝不裁断——截断 JSON 无效）→ policy.redact → 返回；snapshot:null（提取不改 DOM，缓存快照仍有效）
+- 安全面：密码源头掩码（树上不存在，含 attrs 面与 type 归一化）；realm 隔离（vm 非硬安全边界，同 Node 告诫——剩余逃逸面属引擎漏洞类；与 eval 的区别：默认面无宿主引用可达、不在页面执行）；结果出域过 S6 变体（HTTP 面+轨迹盘面同规则）
+- 快照冻结取舍（文档化）：无 computed style/布局/canvas；需要活状态走既有 opt-in eval

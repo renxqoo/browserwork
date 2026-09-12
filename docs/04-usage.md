@@ -110,6 +110,7 @@ $ bw s close sess-1fbd1489-3d34
 | `list` | 活跃会话清单 |
 | `snap <id>` | 当前快照 |
 | `extract <id>` | 页面正文文本（≤4000 字） |
+| `extract_code <id> '<js>'` | 写纯函数提取结构化数据：`(tree) => …` 在冻结 DOM 树副本上沙箱执行（Worker+vm；代码≤4KB / 3s / 结果≤8KB；密码恒 `***`）。树形状见 04 附录 extract_code |
 | `look <id> [--out F]` | 截图（默认存 /tmp） |
 | `close <id>` | 关会话 |
 | `stop` | 停后台服务 |
@@ -187,6 +188,18 @@ $ bw s eval <id> "document.title"
 - 超时后页面 JS 线程可能卡死——navigate 或 close 恢复
 - 仍然是任意代码执行面：只在你信任目标页面时开启
 
+### 2.5b extract_code 的树形状
+
+`extract_code` 的入参是纯函数表达式，`tree` 为冻结的 body 副本（不碰活页面）：
+
+```js
+(tree) => tree.children
+  .filter(n => n.tag === "li")
+  .map(n => ({ id: n.attrs?.["data-id"], text: n.text }))
+```
+
+节点形状：`{ tag, attrs?, text?, value?, checked?, children? }`——`text` 只含直属文本（子元素文本在子节点里，拼列表请用递归或按需下钻）；`value` 是 input/textarea/**select** 当前值（密码恒 `***`，源头掩码——含 value 属性面）；`checked` 是 checkbox/radio 勾选态；shadow root 已穿透、同源 iframe 已下钻、跨域 iframe 为 `{tag:"iframe", attrs:{src}}` 占位。上限：节点 10000 / 文本 200 字 / 属性值 500 字；树超节点上限被裁时结果末尾附 `[warn] DOM tree truncated` 行（数据可能不完整，据此换策略或分块提取）；**结果 JSON >8KB 直接拒绝**（不是截断——截断的 JSON 解析不了），收窄投影后重试。
+
 ### 2.6 确认门（人工审批）
 
 导航到白名单外域名、点击敏感词按钮（支付/删除等）时，工具不执行，返回确认请求：
@@ -238,7 +251,7 @@ POST   /sessions/:id/tools/<name>       参数同 CLI（{"index":"5"} 等）
 POST   /sessions/:id/confirmations/:cid {"approve":true}
 ```
 
-工具名用规范形式：`scroll_to` / `open_tab` / `switch_tab` / `close_tab` / `extract_text` / `cookies_set` / `storage_set` 等。需要确认时返回 **202** + `cid`。
+工具名用规范形式：`scroll_to` / `open_tab` / `switch_tab` / `close_tab` / `extract_text` / `extract_code` / `cookies_set` / `storage_set` 等。需要确认时返回 **202** + `cid`。
 
 ### curl 示例
 

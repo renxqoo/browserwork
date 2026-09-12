@@ -4,7 +4,6 @@
  */
 import { describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Driver, DriverCapabilities } from "@bw/driver";
 import { createWebViewDriver, FakeDriver } from "@bw/driver";

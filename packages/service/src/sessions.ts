@@ -404,6 +404,11 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
           seconds: params.seconds,
           ...(params.until === "networkIdle" ? { until: "networkIdle" as const } : {}),
         };
+      case "extract_code":
+        if (typeof params.code !== "string" || params.code === "") {
+          throw new BWError("INVALID_TOOL_ARGS", "extract_code requires code");
+        }
+        return { kind: "extract_code", code: params.code };
       case "batch": {
         if (!Array.isArray(params.steps)) {
           throw new BWError("INVALID_TOOL_ARGS", "batch requires steps[]");
@@ -989,6 +994,11 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
         const r = await s.engine.act(action, s.snapshot);
         if (r.snapshot !== null) s.snapshot = r.snapshot;
 
+        // B21：extract_code 结果过 redact（读数据面与 requests/cookies_all 同规则）
+        let resultText = r.text;
+        if (action.kind === "extract_code" && resultText !== "") {
+          resultText = s.policy.redact(resultText);
+        }
         // 05 §3.1：渲染缓存 + unchanged 判定（外部 agent 可跳过重读）
         const rendered = r.snapshot !== null ? renderSnapshot(r.snapshot) : "";
         const unchanged =
@@ -998,7 +1008,7 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
         // 构造响应
         const response: SessionToolResponse = {
           ok: true,
-          text: r.text,
+          text: resultText,
           snapshot: rendered,
           unchanged,
           ...(r.image !== undefined ? { image: r.image } : {}),
@@ -1019,7 +1029,7 @@ export function createSessionManager(opts?: SessionManagerOptions): SessionManag
               ts: Date.now(),
               step: s.steps,
               action,
-              resultText: r.text.slice(0, 2000),
+              resultText: resultText.slice(0, 2000), // 脱敏后文本（审查 P1-3：HTTP 面与盘面同规则）
               url: s.snapshot?.url ?? "",
               domHash: s.snapshot?.domHash ?? "",
             })

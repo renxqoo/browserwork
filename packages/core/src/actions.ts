@@ -23,6 +23,7 @@ export type BrowserAction =
   | { kind: "download"; index: string }
   | { kind: "upload"; index: string; files: string[] }
   | { kind: "batch"; steps: BrowserAction[] }
+  | { kind: "extract_code"; code: string }
   | { kind: "done"; answer?: string };
 
 export const BROWSER_ACTION_KINDS = [
@@ -41,6 +42,7 @@ export const BROWSER_ACTION_KINDS = [
   "close_tab",
   "wait",
   "batch",
+  "extract_code",
   "resize",
   "reload",
   "download",
