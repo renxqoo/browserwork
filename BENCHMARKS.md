@@ -118,4 +118,8 @@ BW_REAL=1 bun scripts/eval-b16.ts --tasks 20 --runs 3    # 全量口径（20+ �
 | example-title | done | ✅ | 2 | 8,388 | 407 | 0 |
 | httpbin-form-fill | done | ✅ | 9 | 56,255 | 1,674 | 0 |
 
-**如实结论**：glm-5.3-flash 在一句 prompt 指引下**未自发使用 batch**（batchUses=0）——工具已实现且测试全绿（类型化序列/首错即停/确认挂起/预算不绕过），但模型采用需要更强的引导（few-shot 示例或任务描述显式要求）。表单任务 9 步 56K input 即「未用 batch 的基线」——后续复跑同任务对比可量化 batch 收益。复现：`BW_REAL=1 bun scripts/eval-b20.ts`。
+**第一轮（弱指引：一句 prompt 提示）**：glm-5.3-flash 未自发使用 batch（batchUses=0）——表单任务 9 步 56K input 为「未用 batch 基线」。
+
+**第二轮（强指引：Rule 1 加粗+完整调用示例+反例边界，工具描述收窄）**：batchUses=3，表单任务 input 56,255→**49,900（-11%）**，两任务完成率不变；探索任务（example-title）batchUses 仍 0——指引未造成滥用。
+
+结论：模型采用新工具模式靠「具体触发条件 + few-shot 示例 + 反例」三件套，一句提示不够。复现：`BW_REAL=1 bun scripts/eval-b20.ts`。

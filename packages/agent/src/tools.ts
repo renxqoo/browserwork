@@ -330,7 +330,7 @@ export function buildBrowserTools(ctx: ToolContext, caps?: DriverCapabilities): 
     ),
     t(
       "batch",
-      "顺序执行多个已确定的动作（≤10 步）——一次往返完成直线流程，只返回最终快照；首错即停。适合多字段表单等确定序列；需要看每步结果的探索任务不要用",
+      "一次调用执行 3-10 个已确定的动作（如填多字段表单）。每个 step 是一个动作对象 {kind, index/text/...}。只在当前快照就能确定全部步骤时用；每步依赖上一步结果的探索任务不要用。首错即停并报告完成到第几步",
       Type.Object({
         steps: Type.Array(Type.Record(Type.String(), Type.Unknown()), { maxItems: 10 }),
       }),
