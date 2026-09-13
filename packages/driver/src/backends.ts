@@ -24,7 +24,8 @@ const WEBKIT_CAPABILITIES: DriverCapabilities = {
   popups: false,
 };
 
-const CHROME_CAPABILITIES: DriverCapabilities = {
+/** chrome 能力面（spawn 与 attach 两驱动共用） */
+export const CHROME_CAPABILITIES: DriverCapabilities = {
   cdp: true, // 探针 p10/p11 实证
   upload: true, // 探针 p11：objectGroup→objectId / performSearch 穿 shadow
   download: true, // 探针 p11：Browser.setDownloadBehavior + Page.downloadWillBegin

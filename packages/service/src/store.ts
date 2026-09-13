@@ -87,6 +87,11 @@ export interface SessionRecord {
     debugPort?: number;
     /** 有头模式（chrome：真窗口真渲染——风控对抗向） */
     headed?: boolean;
+    /** attach 模式：连外部 CDP 端点（Electron/调试口 Chrome）——close 只断连不杀对方 */
+    cdpUrl?: string;
+    /** launch 模式：spawn Electron app + attach（app 随会话 close 收走） */
+    electronPath?: string;
+    electronArgs?: string[];
   };
   downloadsBytes: number;
   activePageId: number;
@@ -107,6 +112,13 @@ export interface CreateSessionOptions {
   debugPort?: number;
   /** 有头模式（chrome：真窗口真渲染；弹窗口到桌面） */
   headed?: boolean;
+  /** attach 模式：连外部 CDP 端点（http://127.0.0.1:port 或 ws://…）。会话 close
+   * 只断连——外部浏览器/Electron app 生命周期不受影响 */
+  cdpUrl?: string;
+  /** launch 模式：spawn Electron app（或任意 Chromium 系可执行文件）+ attach；
+   * app 是 helper 子进程，随会话 close 收走 */
+  electronPath?: string;
+  electronArgs?: string[];
   /** B14 上传路径闸：允许直接上传的目录（realpath 前缀匹配；缺省仅 os.tmpdir()） */
   allowUploadDirs?: string[];
   /** U5：注入的登录态快照名（~/.bw/profiles/<name>.json） */
@@ -304,6 +316,15 @@ export function createSessionStore(opts?: SessionStoreOptions) {
         ...(rec.driver.height !== undefined ? { height: rec.driver.height } : {}),
         ...(rec.driver.debugPort !== undefined ? { debugPort: rec.driver.debugPort } : {}),
         ...(rec.driver.headed === true ? { headed: true } : {}),
+        ...(rec.driver.cdpUrl !== undefined ? { cdpUrl: rec.driver.cdpUrl } : {}),
+        ...(rec.driver.electronPath !== undefined
+          ? {
+              electronPath: rec.driver.electronPath,
+              ...(rec.driver.electronArgs !== undefined
+                ? { electronArgs: rec.driver.electronArgs }
+                : {}),
+            }
+          : {}),
       });
       rec.helper = { pid: h.pid, socketPath: h.socketPath, backend: rec.backend };
       rec.navEventSeq = 0; // 新 helper 的事件环从 0 起编
@@ -378,7 +399,11 @@ export function createSessionStore(opts?: SessionStoreOptions) {
           schemaVersion: SESSION_SCHEMA_VERSION,
           id,
           ...(createOpts.name !== undefined ? { name: createOpts.name.slice(0, 80) } : {}),
-          backend: createOpts.backend ?? "webkit",
+          // attach/launch 模式驱动能力面 = chrome（归一记录，list/status 不误导）
+          backend:
+            createOpts.cdpUrl !== undefined || createOpts.electronPath !== undefined
+              ? "chrome"
+              : (createOpts.backend ?? "webkit"),
           createdAt: Date.now(),
           lastActiveAt: Date.now(),
           keep: false,
@@ -408,6 +433,15 @@ export function createSessionStore(opts?: SessionStoreOptions) {
             ...(createOpts.chromePath !== undefined ? { chromePath: createOpts.chromePath } : {}),
             ...(createOpts.debugPort !== undefined ? { debugPort: createOpts.debugPort } : {}),
             ...(createOpts.headed === true ? { headed: true } : {}),
+            ...(createOpts.cdpUrl !== undefined ? { cdpUrl: createOpts.cdpUrl } : {}),
+            ...(createOpts.electronPath !== undefined
+              ? {
+                  electronPath: createOpts.electronPath,
+                  ...(createOpts.electronArgs !== undefined
+                    ? { electronArgs: createOpts.electronArgs }
+                    : {}),
+                }
+              : {}),
           },
           downloadsBytes: 0,
           activePageId: 0,
@@ -439,6 +473,15 @@ export function createSessionStore(opts?: SessionStoreOptions) {
               ...(r.driver.chromePath !== undefined ? { chromePath: r.driver.chromePath } : {}),
               ...(r.driver.debugPort !== undefined ? { debugPort: r.driver.debugPort } : {}),
               ...(r.driver.headed === true ? { headed: true } : {}),
+              ...(r.driver.cdpUrl !== undefined ? { cdpUrl: r.driver.cdpUrl } : {}),
+              ...(r.driver.electronPath !== undefined
+                ? {
+                    electronPath: r.driver.electronPath,
+                    ...(r.driver.electronArgs !== undefined
+                      ? { electronArgs: r.driver.electronArgs }
+                      : {}),
+                  }
+                : {}),
             });
             return { pid: h.pid, socketPath: h.socketPath, killGroup: () => h.killGroup() };
           });
@@ -585,6 +628,35 @@ export function createSessionStore(opts?: SessionStoreOptions) {
       pages: Array<{ url: string; title: string; ws: string }>;
     }> {
       const rec = readRecord(root, id); // NOT_FOUND 先于一切
+      if (rec.driver.cdpUrl !== undefined) {
+        // attach 会话：端点就是所连的外部浏览器
+        const base = rec.driver.cdpUrl.replace(/\/$/, "");
+        const list =
+          (await fetch(`${base}/json/list`)
+            .then((r) => r.json() as Promise<Array<Record<string, string>>>)
+            .catch(() => [])) ?? [];
+        const ver =
+          (await fetch(`${base}/json/version`)
+            .then((r) => r.json() as Promise<{ webSocketDebuggerUrl?: string }>)
+            .catch(() => ({}) as { webSocketDebuggerUrl?: string })) ?? {};
+        return {
+          httpUrl: base,
+          browserWs: ver.webSocketDebuggerUrl ?? "",
+          pages: list
+            .filter((t) => t.type === "page")
+            .map((t) => ({
+              url: t.url ?? "",
+              title: t.title ?? "",
+              ws: t.webSocketDebuggerUrl ?? "",
+            })),
+        };
+      }
+      if (rec.driver.electronPath !== undefined) {
+        throw new BWError(
+          "INVALID_TOOL_ARGS",
+          "electron sessions don't persist their debug endpoint — attach again with --cdp-url after recreate",
+        );
+      }
       if (rec.driver.debugPort === undefined) {
         throw new BWError(
           "INVALID_TOOL_ARGS",

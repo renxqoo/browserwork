@@ -1,5 +1,6 @@
 export type { BackendKind, CreateDriverOptions } from "./backends.ts";
 export { createWebViewDriver } from "./backends.ts";
+export { type CreateAttachDriverOptions, createCdpAttachDriver } from "./cdpAttach.ts";
 export type { FakePageOptions } from "./fake.ts";
 export { FakeDriver, FakePage } from "./fake.ts";
 export type { HelperServerHandle } from "./helper.ts";

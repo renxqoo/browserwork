@@ -11,6 +11,7 @@
 import { chmodSync, writeFileSync } from "node:fs";
 import { BWError, maskNetQuery, NET_URL_MAX, type NetEntry } from "@bw/core";
 import { createWebViewDriver } from "./backends.ts";
+import { createCdpAttachDriver } from "./cdpAttach.ts";
 import {
   FrameWriter,
   type HelperErrorResponse,
@@ -46,10 +47,17 @@ export interface HelperServerHandle {
  * 在给定 driver 上启动 RPC 服务。返回句柄（close = 拒绝新连接 + driver.close）。
  * readyFile：写入 HelperReady 让 spawn 方轮询就绪。
  */
+export interface HelperServerOptions {
+  /** attach 会话（--cdp-url/--electron）：shutdown 时**不**把外部页面导到
+   * about:blank（U11 的 localStorage 提交语义只适用于自 spawn 的浏览器） */
+  skipNavigateAway?: boolean;
+}
+
 export async function runHelperServer(
   driver: Driver,
   socketPath: string,
   readyFile?: string,
+  opts?: HelperServerOptions,
 ): Promise<HelperServerHandle> {
   const pages = new Map<number, HelperPage>();
   const navRing: NavEventEntry[] = [];
@@ -168,7 +176,9 @@ export async function runHelperServer(
         return { resp: reply({ capabilities: driver.capabilities() }) };
       case "createPage": {
         // 顺序关键（agent 反馈回归）：先零导航建页 → wirePage（网络监听就位）→
-        // 再导航真实 url。若先带 url 建页，加载发生在接线之前——首批请求全错过
+        // 再导航真实 url。若先带 url 建页，加载发生在接线之前——首批请求全错过。
+        // about:blank = 「无导航请求」（store 无 url 建会话的信号）——跳过导航：
+        // 新建 target 本就在 about:blank；attach 模式收养的外部窗口绝不能被导走
         const { url, ...rest } = p as { url?: string; width?: number; height?: number };
         const page = await driver.createPage(
           rest as { url?: string; width?: number; height?: number },
@@ -177,7 +187,7 @@ export async function runHelperServer(
         nextId += 1;
         pages.set(pageId, { pageId, page });
         await wirePage(pageId, page);
-        if (url !== undefined) {
+        if (url !== undefined && url !== "about:blank") {
           await page.navigate(url, { timeoutMs: 30_000 });
         }
         // state 内嵌进 result——createPage 的 pageId 响应才知道缓存键
@@ -193,12 +203,15 @@ export async function runHelperServer(
         driver.close();
         return { resp: reply({}) };
       case "shutdown": {
-        // 优雅退出：先导航 away（chrome localStorage 提交，U11）再关
-        for (const { page } of pages.values()) {
-          try {
-            await page.navigate("about:blank");
-          } catch {
-            /* 页面可能已死 */
+        // 优雅退出：先导航 away（chrome localStorage 提交，U11）再关。
+        // attach 会话跳过导航（外部页面归它的主人）
+        if (opts?.skipNavigateAway !== true) {
+          for (const { page } of pages.values()) {
+            try {
+              await page.navigate("about:blank");
+            } catch {
+              /* 页面可能已死 */
+            }
           }
         }
         driver.close();
@@ -460,6 +473,19 @@ async function main(): Promise<void> {
   const height = arg("height");
   const debugPort = arg("debug-port"); // 0=随机；DevToolsActivePort 落 dataStore
   const headed = process.argv.includes("--headed");
+  const cdpUrl = arg("cdp-url"); // attach 模式：连外部浏览器（Electron/调试口 Chrome）
+  const electronPath = arg("electron"); // launch 模式：spawn Electron app + attach
+  if (cdpUrl !== undefined || electronPath !== undefined) {
+    // attach/launch 驱动（capabilities 与 spawn-chrome 同面）
+    const endpoint = cdpUrl ?? (await launchElectron(electronPath ?? ""));
+    const driver = await createCdpAttachDriver({ endpoint, attachExisting: true });
+    await runHelperServer(driver, socketPath, arg("ready"), { skipNavigateAway: true });
+    process.on("SIGTERM", () => {
+      process.exit(0);
+    });
+    setInterval(() => {}, 60_000);
+    return;
+  }
   const driver = createWebViewDriver({
     backend,
     ...(dataDir !== undefined ? { dataStore: dataDir } : {}),
@@ -482,6 +508,52 @@ async function main(): Promise<void> {
     process.exit(0); // 组 kill 场景；优雅路径走 shutdown 方法
   });
   setInterval(() => {}, 60_000); // WebView 空闲不保活——显式保持
+}
+
+/** launch 模式：spawn Chromium 系 app（Electron 可执行文件等）带调试口，
+ * 轮询 CDP 就绪后返回 endpoint。app 是 helper 的子进程（同进程组）——组杀连带
+ * （--electron 会话 close 即收走 app；--cdp-url 外部 app 不受影响） */
+async function launchElectron(bin: string): Promise<string> {
+  const { spawn } = await import("node:child_process");
+  const net = await import("node:net");
+  const server = net.createServer();
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
+  const port = (server.address() as { port: number }).port;
+  server.close();
+  const extraArgs: string[] = [];
+  for (
+    let i = process.argv.indexOf("--electron-arg");
+    i !== -1;
+    i = process.argv.indexOf("--electron-arg", i + 1)
+  ) {
+    const v = process.argv[i + 1];
+    if (v !== undefined) extraArgs.push(v);
+  }
+  const child = spawn(bin, [`--remote-debugging-port=${port}`, ...extraArgs], {
+    stdio: "ignore",
+  });
+  child.unref();
+  process.on("exit", () => {
+    try {
+      child.kill("SIGKILL");
+    } catch {
+      /* 已死 */
+    }
+  });
+  const deadline = Date.now() + 30_000;
+  for (;;) {
+    const ok = await fetch(`http://127.0.0.1:${port}/json/version`)
+      .then((r) => r.ok)
+      .catch(() => false);
+    if (ok) return `http://127.0.0.1:${port}`;
+    if (child.exitCode !== null || Date.now() > deadline) {
+      throw new BWError(
+        "DRIVER_ERROR",
+        `electron app failed to start (exit ${child.exitCode ?? "?"}): ${bin}`,
+      );
+    }
+    await new Promise((r) => setTimeout(r, 300));
+  }
 }
 
 const selfPath = process.argv[1] ?? "";

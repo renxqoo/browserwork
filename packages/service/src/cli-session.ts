@@ -301,6 +301,9 @@ export async function runSessionCreate(argv: string[]): Promise<number> {
         "  --ua U                  UA 覆写（仅 chrome）",
         "  --debug-port N          CDP 调试口（chrome；0=随机。bw s cdp <id> 查端点）",
         "  --headed                有头模式（chrome：真窗口真渲染——风控对抗向）",
+        "  --cdp-url URL           attach 外部浏览器（Electron/调试口 Chrome；close 只断连）",
+        "  --electron PATH         spawn Electron app + attach（close 连带收走 app）",
+        "                              --electron-arg A 透传 app 参数（可重复）",
         "  --allow-eval            开启 eval（默认禁）",
         "  --allow-private-network 放行内网/本地地址",
       ].join("\n"),
@@ -316,6 +319,14 @@ export async function runSessionCreate(argv: string[]): Promise<number> {
   const height = flagValue(argv, "height");
   const ua = flagValue(argv, "ua");
   const debugPort = flagValue(argv, "debug-port");
+  const cdpUrl = flagValue(argv, "cdp-url");
+  const electronPath = flagValue(argv, "electron");
+  const electronArgs = argv
+    .filter((_, i) => argv[i - 1] === "--electron-arg")
+    .filter((a) => a !== undefined);
+  if (cdpUrl !== undefined && electronPath !== undefined) {
+    fail(undefined, "INVALID_ARGS", "--cdp-url and --electron are mutually exclusive");
+  }
   try {
     const r = await store().create({
       ...(url !== undefined ? { url } : {}),
@@ -328,6 +339,10 @@ export async function runSessionCreate(argv: string[]): Promise<number> {
       ...(ua !== undefined ? { ua } : {}),
       ...(debugPort !== undefined ? { debugPort: Number(debugPort) } : {}),
       ...(hasFlag(argv, "headed") ? { headed: true } : {}),
+      ...(cdpUrl !== undefined ? { cdpUrl } : {}),
+      ...(electronPath !== undefined
+        ? { electronPath, ...(electronArgs.length > 0 ? { electronArgs } : {}) }
+        : {}),
       allowEval: hasFlag(argv, "allow-eval"),
       allowPrivateNetwork: hasFlag(argv, "allow-private-network"),
       ...(flagValue(argv, "profile") !== undefined
