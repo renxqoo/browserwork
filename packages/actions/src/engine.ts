@@ -5,7 +5,15 @@
  */
 import { existsSync, readdirSync, realpathSync, statSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
-import { type BrowserAction, BWError, type NavigationIntent, taskDownloadsRoot } from "@bw/core";
+import {
+  type BrowserAction,
+  BWError,
+  maskNetQuery,
+  type NavigationIntent,
+  NET_URL_MAX,
+  type NetEntry,
+  taskDownloadsRoot,
+} from "@bw/core";
 import type { Driver, Page } from "@bw/driver";
 import {
   DRAIN_LOGS_EXPRESSION,
@@ -92,8 +100,7 @@ const DOWNLOAD_TIMEOUT_MS = 60_000;
 const DOWNLOAD_MAX_FILE_BYTES = 100 * 1024 * 1024;
 const DOWNLOAD_MAX_TOTAL_BYTES = 1024 * 1024 * 1024;
 /** 网络监听环形缓冲（05 §4-2：200 条，url ≤500 字符） */
-const NETWORK_BUFFER_MAX = 200;
-const NETWORK_URL_MAX = 500;
+const NETWORK_BUFFER_MAX = 200; // URL 截断用 @bw/core NET_URL_MAX
 
 /** 每 page 互斥锁：串行化引擎发起的一切驱动调用 + settle 轮询（01 §6.1） */
 const pageLocks = new WeakMap<object, Promise<unknown>>();
@@ -281,26 +288,9 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
     return extractSnapshot(page);
   };
 
-  // ---- B14：网络监听（chrome；环形缓冲 200 条，url ≤500 截断）----
-  interface NetEntry {
-    url: string;
-    requestId?: string;
-    method?: string;
-    type?: string;
-    status?: number;
-    failed?: boolean;
-    truncated?: boolean;
-    ts: number;
-  }
-  /** query 敏感参数掩码（requests 工具出域面——B14 审查 P2-10） */
-  const SENSITIVE_QUERY_KEYS =
-    /(^|&)(token|access_token|refresh_token|id_token|api[_-]?key|apikey|key|sig|signature|secret|password|passwd|authorization|credential|client_secret|session[_-]?id)=([^&]*)/gi;
-  const maskUrl = (raw: string): string => {
-    if (!raw.includes("?")) return raw;
-    const i = raw.indexOf("?");
-    const masked = raw.slice(i + 1).replace(SENSITIVE_QUERY_KEYS, "$1$2=***");
-    return `${raw.slice(0, i)}?${masked}`;
-  };
+  // ---- B14：网络监听（chrome；环形缓冲 200 条，url 截断/掩码见 @bw/core netmask）----
+  /** query 敏感参数掩码（requests 工具出域面——B14 审查 P2-10；单一来源 @bw/core） */
+  const maskUrl = maskNetQuery;
   const netBuffers = new WeakMap<Page, NetEntry[]>();
   const netWired = new WeakSet<Page>();
   const ensureNetworkMonitor = async (page: Page): Promise<void> => {
@@ -322,11 +312,11 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
         };
         const url = p.request?.url ?? "";
         push({
-          url: maskUrl(url).slice(0, NETWORK_URL_MAX),
+          url: maskUrl(url).slice(0, NET_URL_MAX),
           ...(p.requestId !== undefined ? { requestId: p.requestId } : {}),
           ...(p.request?.method !== undefined ? { method: p.request.method } : {}),
           ...(p.type !== undefined ? { type: p.type } : {}),
-          truncated: url.length > NETWORK_URL_MAX,
+          truncated: url.length > NET_URL_MAX,
           ts: Date.now(),
         });
       });
@@ -550,6 +540,14 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
           if (!driver.capabilities().networkEvents) {
             throw new BWError("INVALID_TOOL_ARGS", "requests requires the chrome backend");
           }
+          // 跨命令捕获：helper 常驻环优先（agent 实测踩坑：每命令新 engine，
+          // 本地缓冲活不过单条命令——navigate 在命令 A、requests 在命令 B 时空）。
+          // 直连驱动（契约测试）无此面——回落本地缓冲
+          const remote = page as Page & { netRequests?: () => Promise<NetEntry[]> };
+          if (typeof remote.netRequests === "function") {
+            return JSON.stringify(await remote.netRequests());
+          }
+          await ensureNetworkMonitor(page);
           const entries = netBuffers.get(page) ?? [];
           return JSON.stringify(entries.slice(-50));
         }

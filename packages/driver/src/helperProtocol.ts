@@ -18,6 +18,7 @@ export type HelperMethod =
   | "closeDriver"
   | "shutdown"
   | "navEvents"
+  | "netRequests"
   // 页面级
   | "pageInfo"
   | "navigate"

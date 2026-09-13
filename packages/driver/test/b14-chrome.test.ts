@@ -3,11 +3,13 @@
  * 探针 p10/p11 的行为进契约（CI Linux 走系统 chrome，macOS 有则跑）。
  */
 import { describe, expect, test } from "bun:test";
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { extractSnapshot, renderSnapshot } from "@bw/perception";
 import { createWebViewDriver } from "../src/backends.ts";
+import { connectHelper } from "../src/helperClient.ts";
+import { spawnHelper } from "../src/helperSpawn.ts";
 
 const CHROME_CANDIDATES = [
   process.env.BUN_CHROME_PATH,
@@ -212,68 +214,95 @@ describe.skipIf(!chromeAvailable)("B20 chrome 真视图（pierce/loc/batch）", 
       f.stop();
     }
   }, 60_000);
-});
 
-test("UA 引导失败真因探测：data-dir 被另一进程的 Chrome 持有 → 报文点名残留进程", async () => {
-  // 全程子进程（bun 测试进程自身已持 Chrome 时 Bun 复用它——dataStore 不生效，
-  // 冲突不会发生；泄漏场景即跨进程 CLI，两侧都放子进程仿真）
-  const dir = join(tmpdir(), `bw-b14-held-${process.pid}`);
-  rmSync(dir, { recursive: true, force: true });
-  const { writeFileSync } = await import("node:fs");
-  const { spawn } = await import("node:child_process");
-  const backendsUrl = new URL("../src/backends.ts", import.meta.url).pathname;
-  const holderJs = join(tmpdir(), `bw-b14-holder-${process.pid}.js`);
-  const secondJs = join(tmpdir(), `bw-b14-second-${process.pid}.js`);
-  writeFileSync(
-    holderJs,
-    `import { createWebViewDriver } from ${JSON.stringify(backendsUrl)};
-       const d = createWebViewDriver({ backend: "chrome", dataStore: ${JSON.stringify(dir)} });
-       await d.createPage({ url: "about:blank" });
-       console.log("READY");
-       setInterval(() => {}, 1000);`,
-  );
-  writeFileSync(
-    secondJs,
-    `import { createWebViewDriver } from ${JSON.stringify(backendsUrl)};
-       const d = createWebViewDriver({ backend: "chrome", dataStore: ${JSON.stringify(dir)}, userAgent: "BW-Held-UA/1.0" });
-       try { await d.createPage(); console.log("NO-THROW"); }
-       catch (e) { console.log("THREW:" + (e instanceof Error ? e.message : String(e))); }
-       process.exit(0);`,
-  );
-  const holder = spawn(process.execPath, [holderJs], { stdio: ["ignore", "pipe", "pipe"] });
-  let holderErr = "";
-  holder.stderr.on("data", (c: Buffer) => {
-    holderErr += c.toString();
-  });
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const t = setTimeout(
-        () => reject(new Error(`holder not ready in 45s; stderr: ${holderErr}`)),
-        45_000,
-      );
-      holder.stdout.on("data", (c: Buffer) => {
-        if (c.toString().includes("READY")) {
-          clearTimeout(t);
-          resolve();
-        }
-      });
-      holder.on("exit", (code) =>
-        reject(new Error(`holder exited early (code ${code}); stderr: ${holderErr}`)),
-      );
-    });
-    const second = spawn(process.execPath, [secondJs], { stdio: ["ignore", "pipe", "inherit"] });
-    let out = "";
-    second.stdout.on("data", (c: Buffer) => {
-      out += c.toString();
-    });
-    await new Promise((r2) => second.on("exit", r2));
-    expect(out).toContain("held by a leftover Chrome process");
-    expect(out).toContain(dir);
-    expect(out).toContain("bw s gc");
-  } finally {
-    holder.kill("SIGKILL");
+  test("UA 引导失败真因探测：data-dir 被另一进程的 Chrome 持有 → 报文点名残留进程", async () => {
+    // 全程子进程（bun 测试进程自身已持 Chrome 时 Bun 复用它——dataStore 不生效，
+    // 冲突不会发生；泄漏场景即跨进程 CLI，两侧都放子进程仿真）
+    const dir = join(tmpdir(), `bw-b14-held-${process.pid}`);
     rmSync(dir, { recursive: true, force: true });
-    rmSync(holderJs, { force: true });
-    rmSync(secondJs, { force: true });
-  }
-}, 90_000);
+    const { writeFileSync } = await import("node:fs");
+    const { spawn } = await import("node:child_process");
+    const backendsUrl = new URL("../src/backends.ts", import.meta.url).pathname;
+    const holderJs = join(tmpdir(), `bw-b14-holder-${process.pid}.js`);
+    const secondJs = join(tmpdir(), `bw-b14-second-${process.pid}.js`);
+    writeFileSync(
+      holderJs,
+      `import { createWebViewDriver } from ${JSON.stringify(backendsUrl)};
+         const d = createWebViewDriver({ backend: "chrome", dataStore: ${JSON.stringify(dir)} });
+         await d.createPage({ url: "about:blank" });
+         console.log("READY");
+         setInterval(() => {}, 1000);`,
+    );
+    writeFileSync(
+      secondJs,
+      `import { createWebViewDriver } from ${JSON.stringify(backendsUrl)};
+         const d = createWebViewDriver({ backend: "chrome", dataStore: ${JSON.stringify(dir)}, userAgent: "BW-Held-UA/1.0" });
+         try { await d.createPage(); console.log("NO-THROW"); }
+         catch (e) { console.log("THREW:" + (e instanceof Error ? e.message : String(e))); }
+         process.exit(0);`,
+    );
+    const holder = spawn(process.execPath, [holderJs], { stdio: ["ignore", "pipe", "pipe"] });
+    let holderErr = "";
+    holder.stderr.on("data", (c: Buffer) => {
+      holderErr += c.toString();
+    });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const t = setTimeout(
+          () => reject(new Error(`holder not ready in 45s; stderr: ${holderErr}`)),
+          45_000,
+        );
+        holder.stdout.on("data", (c: Buffer) => {
+          if (c.toString().includes("READY")) {
+            clearTimeout(t);
+            resolve();
+          }
+        });
+        holder.on("exit", (code) =>
+          reject(new Error(`holder exited early (code ${code}); stderr: ${holderErr}`)),
+        );
+      });
+      const second = spawn(process.execPath, [secondJs], { stdio: ["ignore", "pipe", "inherit"] });
+      let out = "";
+      second.stdout.on("data", (c: Buffer) => {
+        out += c.toString();
+      });
+      await new Promise((r2) => second.on("exit", r2));
+      expect(out).toContain("held by a leftover Chrome process");
+      expect(out).toContain(dir);
+      expect(out).toContain("bw s gc");
+    } finally {
+      holder.kill("SIGKILL");
+      rmSync(dir, { recursive: true, force: true });
+      rmSync(holderJs, { force: true });
+      rmSync(secondJs, { force: true });
+    }
+  }, 90_000);
+
+  test("requests 跨命令捕获：连接A导航→断连→连接B读环（agent 反馈回归）", async () => {
+    const f = startFixture();
+    const sessionDir = join(tmpdir(), `bw-b14-net-${process.pid}`);
+    rmSync(sessionDir, { recursive: true, force: true });
+    mkdirSync(sessionDir, { recursive: true }); // spawnHelper 不建目录（store 契约）——socket bind 失败 helper 秒退
+    const h = await spawnHelper({ sessionDir, backend: "chrome" });
+    try {
+      // 连接 A（=命令1）：建页导航后断连——engine 侧缓冲随进程死，helper 环必须活
+      const d1 = await connectHelper(h.socketPath);
+      await d1.createPage({ url: `${f.origin}/` });
+      await new Promise((r) => setTimeout(r, 800));
+      d1.release();
+      // 连接 B（=命令2）：netRequests 读到 A 期间的请求
+      const d2 = await connectHelper(h.socketPath);
+      const p2 = (await d2.pages())[0] as unknown as {
+        netRequests: () => Promise<Array<{ url: string }>>;
+      };
+      const entries = await p2.netRequests();
+      expect(entries.some((e) => e.url.includes(f.origin))).toBe(true);
+      d2.release();
+    } finally {
+      h.killGroup();
+      f.stop();
+      rmSync(sessionDir, { recursive: true, force: true });
+    }
+  }, 60_000);
+});

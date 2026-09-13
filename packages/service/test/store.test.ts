@@ -108,6 +108,27 @@ describe.skipIf(process.platform !== "darwin")("SessionStore 文件会话", () =
     store.close(r.id);
   }, 60_000);
 
+  test("agent 反馈回归：extract 带 page 字段；unchanged 快照瘦身", async () => {
+    const fx = await fixtureServer();
+    servers.push(fx.stop);
+    const store = mkStore();
+    const r = await store.create({ url: fx.origin, policyMode: "test" });
+    expect(r.confirmed).toBe(true);
+
+    // page 字段：读取类动作附「url · title」——页面被风控弹走/跳转时空结果一眼可辨
+    const text = await store.executeTool(r.id, "extract_text", {});
+    expect(text.ok).toBe(true);
+    expect(text.page ?? "").toContain(fx.origin);
+
+    // unchanged 瘦身：同页未变的动作，snapshot 截到状态头 + [unchanged] 标记
+    const w = await store.executeTool(r.id, "wait", { seconds: 1 });
+    expect(w.ok).toBe(true);
+    expect(w.unchanged).toBe(true);
+    expect(w.snapshot ?? "").toContain("[unchanged]");
+    expect((w.snapshot ?? "").split("\n").length).toBeLessThan(8);
+    store.close(r.id);
+  }, 60_000);
+
   test("未知 id → NOT_FOUND；close 幂等", async () => {
     const store = mkStore();
     expect(() => store.get("sess-nope")).toThrow("not found");

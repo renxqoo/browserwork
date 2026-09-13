@@ -16,6 +16,12 @@ export {
   writeFileAtomic,
 } from "./fsx.ts";
 export { killChromeByDataDir, killHelperGroup, killProcessGroup } from "./kill.ts";
+export {
+  maskNetQuery,
+  NET_URL_MAX,
+  type NetEntry,
+  SENSITIVE_QUERY_KEYS,
+} from "./netmask.ts";
 export type {
   BudgetInput,
   SecretRef,

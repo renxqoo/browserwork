@@ -4,7 +4,7 @@
  * onCdpEvent：本地登记 + 首个监听者触发 subscribeCdp（异步订阅，与真实驱动同构的
  * 迟滞窗口）。
  */
-import { BWError } from "@bw/core";
+import { BWError, type NetEntry } from "@bw/core";
 import {
   FrameWriter,
   type HelperErrorResponse,
@@ -177,6 +177,13 @@ class RemotePage implements Page {
       const set = this.cdpListeners.get(d.method);
       if (set !== undefined) for (const l of set) l(d.params);
     }
+  }
+
+  /** helper 常驻网络环读口（requests 工具跨命令捕获——engine 每命令重建，本地
+   * 缓冲不跨命令；Page 契约外扩展方法，engine 按存在性探测） */
+  netRequests(): Promise<NetEntry[]> {
+    this.assertOpen();
+    return this.conn.call<{ entries: NetEntry[] }>("netRequests", {}).then((r) => r.entries ?? []);
   }
 
   private assertOpen(): void {

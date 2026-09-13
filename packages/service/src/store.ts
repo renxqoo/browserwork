@@ -109,6 +109,8 @@ export interface ToolResult {
   reason?: string;
   image?: { base64: string; mimeType: string };
   intent?: { kind: string; href?: string };
+  /** 读取类动作（look/extract/extract_code）附页面状态「url · title」——弹跳/跳转可见 */
+  page?: string;
 }
 
 export interface SpawnedHelper {
@@ -967,6 +969,21 @@ export function createSessionStore(opts?: SessionStoreOptions) {
             const rendered = r.snapshot !== null ? policy.redact(renderSnapshot(r.snapshot)) : "";
             const unchanged =
               r.snapshot !== null && rec.lastRendered !== null && rendered === rec.lastRendered;
+            // unchanged 时输出瘦身（agent 实测反馈：navigate/wait 连打把同一份 100+ 行
+            // 快照原样回两遍）。判定仍用全文（rec.lastRendered 存全文），只有返回给
+            // 调用方的 snapshot 截到状态头三行——方位感保留，体积砍 95%
+            const outSnapshot =
+              unchanged && rendered !== ""
+                ? `${rendered.split("\n").slice(0, 3).join("\n")}\n[unchanged] same page — full snapshot omitted, reuse the previous one`
+                : rendered;
+            // 读取类动作附页面状态（agent 实测踩坑：页面被风控弹走后 extract_code 只剩
+            // 空树，与「没数据」不可辨——白探几轮 DOM 才发现 URL 变了）
+            const pageMark =
+              action.kind === "look" ||
+              action.kind === "extract_text" ||
+              action.kind === "extract_code"
+                ? { page: `${engine.activePage().url} · ${engine.activePage().title}` }
+                : {};
             if (r.snapshot !== null) {
               rec.lastRendered = rendered;
               const activePage = engine.activePage() as unknown as { pageId?: number };
@@ -985,8 +1002,9 @@ export function createSessionStore(opts?: SessionStoreOptions) {
             return {
               ok: true,
               text,
-              ...(rendered !== "" ? { snapshot: rendered } : {}),
+              ...(outSnapshot !== "" ? { snapshot: outSnapshot } : {}),
               unchanged,
+              ...pageMark,
               ...(r.image !== undefined ? { image: r.image } : {}),
               ...(r.intent !== undefined
                 ? {

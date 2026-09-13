@@ -256,6 +256,7 @@ export async function runSessionCli(argv: string[]): Promise<number> {
       ...(r.text !== undefined ? { result: r.text } : {}),
       ...(r.snapshot !== undefined && r.snapshot !== "" ? { snapshot: r.snapshot } : {}),
       ...(r.unchanged !== undefined ? { unchanged: r.unchanged } : {}),
+      ...(r.page !== undefined ? { page: r.page } : {}),
       ...(r.cid !== undefined && r.reason !== undefined ? { cid: r.cid, reason: r.reason } : {}),
     });
   } catch (e) {

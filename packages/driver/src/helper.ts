@@ -9,7 +9,7 @@
  * - 进程内（契约套件/测试缝）：runHelperServer(driver, socketPath)
  */
 import { chmodSync, writeFileSync } from "node:fs";
-import { BWError } from "@bw/core";
+import { BWError, maskNetQuery, NET_URL_MAX, type NetEntry } from "@bw/core";
 import { createWebViewDriver } from "./backends.ts";
 import {
   FrameWriter,
@@ -27,6 +27,10 @@ import type { ClickOptions, Driver, Page, PressModifier, ScreenshotFormat } from
 
 /** 导航事件环容量（S1③；DESIGN §1.3） */
 const NAV_RING_MAX = 100;
+
+/** 网络请求环容量（requests 工具；05 §4-2 同规格） */
+const NET_RING_MAX = 200;
+const NET_RESULT_MAX = 50;
 
 interface HelperPage {
   pageId: number;
@@ -49,6 +53,7 @@ export async function runHelperServer(
 ): Promise<HelperServerHandle> {
   const pages = new Map<number, HelperPage>();
   const navRing: NavEventEntry[] = [];
+  const netRing: NetEntry[] = [];
   let navSeq = 0;
   let nextId = 1;
   let closed = false;
@@ -73,7 +78,7 @@ export async function runHelperServer(
     for (const sk of openSockets) writerOf(sk).write(JSON.stringify(frame));
   };
 
-  const wirePage = (pageId: number, page: Page): void => {
+  const wirePage = (pageId: number, page: Page): Promise<void> => {
     page.onNavigated((url) => {
       navSeq += 1;
       navRing.push({ seq: navSeq, url, ts: Date.now(), pageId });
@@ -91,6 +96,52 @@ export async function runHelperServer(
         },
       });
     });
+    // 网络请求常驻环（agent 实测踩坑：engine 侧缓冲活不过单条命令——B22 每命令
+    // 新进程新 engine，navigate 与 requests 分属两条命令时捕获必空。捕获必须住在
+    // helper 才跨命令存活；掩码在捕获时做（@bw/core netmask——环里不存明文 secret）
+    if (driver.capabilities().networkEvents) {
+      return page
+        .cdp("Network.enable", {})
+        .then(() => {
+          page.onCdpEvent("Network.requestWillBeSent", (params) => {
+            const p = params as {
+              requestId?: string;
+              request?: { url?: string; method?: string };
+              type?: string;
+            };
+            const url = p.request?.url ?? "";
+            netRing.push({
+              url: maskNetQuery(url).slice(0, NET_URL_MAX),
+              ...(p.requestId !== undefined ? { requestId: p.requestId } : {}),
+              ...(p.request?.method !== undefined ? { method: p.request.method } : {}),
+              ...(p.type !== undefined ? { type: p.type } : {}),
+              truncated: url.length > NET_URL_MAX,
+              ts: Date.now(),
+            });
+            if (netRing.length > NET_RING_MAX) netRing.splice(0, netRing.length - NET_RING_MAX);
+          });
+          page.onCdpEvent("Network.responseReceived", (params) => {
+            const p = params as { requestId?: string; response?: { status?: number } };
+            const target = [...netRing]
+              .reverse()
+              .find((e) => e.requestId !== undefined && e.requestId === p.requestId);
+            if (target !== undefined && p.response?.status !== undefined) {
+              target.status = p.response.status;
+            }
+          });
+          page.onCdpEvent("Network.loadingFailed", (params) => {
+            const p = params as { requestId?: string };
+            const target = [...netRing]
+              .reverse()
+              .find((e) => e.requestId !== undefined && e.requestId === p.requestId);
+            if (target !== undefined) target.failed = true;
+          });
+        })
+        .catch(() => {
+          /* chrome-only；失败静默（requests 工具按能力面判定） */
+        });
+    }
+    return Promise.resolve();
   };
 
   const handle = async (
@@ -116,13 +167,19 @@ export async function runHelperServer(
       case "info":
         return { resp: reply({ capabilities: driver.capabilities() }) };
       case "createPage": {
+        // 顺序关键（agent 反馈回归）：先零导航建页 → wirePage（网络监听就位）→
+        // 再导航真实 url。若先带 url 建页，加载发生在接线之前——首批请求全错过
+        const { url, ...rest } = p as { url?: string; width?: number; height?: number };
         const page = await driver.createPage(
-          p as { url?: string; width?: number; height?: number },
+          rest as { url?: string; width?: number; height?: number },
         );
         const pageId = nextId;
         nextId += 1;
         pages.set(pageId, { pageId, page });
-        wirePage(pageId, page);
+        await wirePage(pageId, page);
+        if (url !== undefined) {
+          await page.navigate(url, { timeoutMs: 30_000 });
+        }
         // state 内嵌进 result——createPage 的 pageId 响应才知道缓存键
         return { resp: reply({ pageId, state: stateOf(page) }) };
       }
@@ -166,6 +223,10 @@ export async function runHelperServer(
             oldest: navRing.length > 0 ? (navRing[0]?.seq ?? 0) : 0,
           }),
         };
+      }
+      case "netRequests": {
+        // 常驻环读口（requests 工具跨命令捕获——engine 每命令重建，本地缓冲不跨命令）
+        return { resp: reply({ entries: netRing.slice(-NET_RESULT_MAX) }) };
       }
       case "pageInfo": {
         const hp = pageOf();
