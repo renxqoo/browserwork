@@ -50,6 +50,30 @@ function startFixture(): { origin: string; stop(): void } {
 }
 
 describe.skipIf(!chromeAvailable)("B14 chrome 真视图", () => {
+  test("UA 反泄漏：默认不含 Headless 标记且版本对齐真机（Bun 强制 --headless 的反制）", async () => {
+    const f = startFixture();
+    const driver = createWebViewDriver({ backend: "chrome" });
+    try {
+      const page = await driver.createPage({ url: `${f.origin}/` });
+      const ua = await page.evaluate<string>("navigator.userAgent");
+      expect(ua.includes("Headless")).toBe(false);
+      const m = /Chrome\/(\d+)/.exec(ua);
+      expect(m?.[1]).toMatch(/^\d+$/);
+      // 版本对齐真机（动态取——不锁死具体号）
+      const bin = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+      if (existsSync(bin)) {
+        const { spawnSync } = await import("node:child_process");
+        const ver = /(\d+)/.exec(
+          spawnSync(bin, ["--version"], { encoding: "utf8" }).stdout ?? "",
+        )?.[1];
+        expect(m?.[1]).toBe(ver);
+      }
+    } finally {
+      driver.close();
+      f.stop();
+    }
+  }, 45_000);
+
   test("resize/cdp/webp/reload", async () => {
     const f = startFixture();
     const driver = createWebViewDriver({ backend: "chrome" });

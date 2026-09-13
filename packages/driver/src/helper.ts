@@ -439,7 +439,7 @@ function driverBackend(driver: Driver): "webkit" | "chrome" {
   return driver.capabilities().cdp ? "chrome" : "webkit";
 }
 
-/** 独立进程入口：bun helper.ts --socket <path> --backend <webkit|chrome> [--data-dir …] [--ua …] [--chrome-path …] [--width --height] */
+/** 独立进程入口：bun helper.ts --socket <path> --backend <webkit|chrome> [--data-dir …] [--ua …] [--chrome-path …] [--width --height] [--debug-port N] [--headed] */
 async function main(): Promise<void> {
   const arg = (name: string): string | undefined => {
     const i = process.argv.indexOf(`--${name}`);
@@ -458,6 +458,8 @@ async function main(): Promise<void> {
   const ua = arg("ua");
   const width = arg("width");
   const height = arg("height");
+  const debugPort = arg("debug-port"); // 0=随机；DevToolsActivePort 落 dataStore
+  const headed = process.argv.includes("--headed");
   const driver = createWebViewDriver({
     backend,
     ...(dataDir !== undefined ? { dataStore: dataDir } : {}),
@@ -465,6 +467,14 @@ async function main(): Promise<void> {
     ...(ua !== undefined ? { userAgent: ua } : {}),
     ...(width !== undefined ? { width: Number(width) } : {}),
     ...(height !== undefined ? { height: Number(height) } : {}),
+    ...(debugPort !== undefined || headed
+      ? {
+          argv: [
+            ...(debugPort !== undefined ? [`--remote-debugging-port=${debugPort}`] : []),
+            ...(headed ? ["--headless=false"] : []),
+          ],
+        }
+      : {}),
   });
   await runHelperServer(driver, socketPath, arg("ready"));
 

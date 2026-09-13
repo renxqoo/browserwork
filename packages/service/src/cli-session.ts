@@ -67,6 +67,7 @@ Usage:
               [--chrome-path P] [--ua U] [--width W] [--height H] [--allow-eval] [--allow-private-network]
   bw s list | gc | stop(retired)
   bw s snap <id> | status <id> | close <id> | keep <id> | rename <id> <name>
+  bw s cdp <id>   (CDP endpoint — create --debug-port 开启)
   bw s confirm <id> <cid> --yes | --no
   bw s look <id> [--out F]
   bw s extract <id> | extract_code <id> '<fn>'
@@ -154,6 +155,22 @@ export async function runSessionCli(argv: string[]): Promise<number> {
       fail(sessionId, "NOT_FOUND", `session not found: ${sessionId}`);
     }
     ok({ sessionId, result: `renamed to ${newName.slice(0, 80)}` });
+  }
+  if (cmd === "cdp") {
+    if (sessionId === undefined) fail(undefined, "INVALID_ARGS", "usage: bw s cdp <sessionId>");
+    try {
+      const ep = await store().cdpEndpoint(sessionId);
+      ok({
+        sessionId,
+        httpUrl: ep.httpUrl,
+        browserWs: ep.browserWs,
+        pages: ep.pages,
+        hint: "DevTools 打开 httpUrl；puppeteer.connect({browserWSEndpoint: browserWs})",
+      });
+    } catch (e) {
+      if (e instanceof BWError) fail(sessionId, e.code, e.message, HINTS[e.code]);
+      throw e;
+    }
   }
   if (cmd === "status") {
     try {
@@ -282,6 +299,8 @@ export async function runSessionCreate(argv: string[]): Promise<number> {
         "  --chrome-path PATH      Chrome 可执行文件路径",
         "  --width W / --height H  视口尺寸",
         "  --ua U                  UA 覆写（仅 chrome）",
+        "  --debug-port N          CDP 调试口（chrome；0=随机。bw s cdp <id> 查端点）",
+        "  --headed                有头模式（chrome：真窗口真渲染——风控对抗向）",
         "  --allow-eval            开启 eval（默认禁）",
         "  --allow-private-network 放行内网/本地地址",
       ].join("\n"),
@@ -296,6 +315,7 @@ export async function runSessionCreate(argv: string[]): Promise<number> {
   const width = flagValue(argv, "width");
   const height = flagValue(argv, "height");
   const ua = flagValue(argv, "ua");
+  const debugPort = flagValue(argv, "debug-port");
   try {
     const r = await store().create({
       ...(url !== undefined ? { url } : {}),
@@ -306,6 +326,8 @@ export async function runSessionCreate(argv: string[]): Promise<number> {
       ...(width !== undefined ? { width: Number(width) } : {}),
       ...(height !== undefined ? { height: Number(height) } : {}),
       ...(ua !== undefined ? { ua } : {}),
+      ...(debugPort !== undefined ? { debugPort: Number(debugPort) } : {}),
+      ...(hasFlag(argv, "headed") ? { headed: true } : {}),
       allowEval: hasFlag(argv, "allow-eval"),
       allowPrivateNetwork: hasFlag(argv, "allow-private-network"),
       ...(flagValue(argv, "profile") !== undefined

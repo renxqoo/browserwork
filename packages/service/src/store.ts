@@ -7,7 +7,15 @@
  * MIGRATION-core §4b/§4c（非阻塞 cid + create 状态机 + batch 续行）。
  */
 import { spawnSync } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, readdirSync, realpathSync, rmSync } from "node:fs";
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import type { ActionEngine } from "@bw/actions";
@@ -75,6 +83,10 @@ export interface SessionRecord {
     ua?: string;
     chromePath?: string;
     dataStore: string;
+    /** CDP 调试口（chrome-only；0=随机。bw s cdp 读 DevToolsActivePort） */
+    debugPort?: number;
+    /** 有头模式（chrome：真窗口真渲染——风控对抗向） */
+    headed?: boolean;
   };
   downloadsBytes: number;
   activePageId: number;
@@ -91,6 +103,10 @@ export interface CreateSessionOptions {
   ua?: string;
   chromePath?: string;
   dataDir?: string;
+  /** CDP 调试口（chrome-only；缺省不开——pipe-only 是默认安全态。0=随机端口） */
+  debugPort?: number;
+  /** 有头模式（chrome：真窗口真渲染；弹窗口到桌面） */
+  headed?: boolean;
   /** B14 上传路径闸：允许直接上传的目录（realpath 前缀匹配；缺省仅 os.tmpdir()） */
   allowUploadDirs?: string[];
   /** U5：注入的登录态快照名（~/.bw/profiles/<name>.json） */
@@ -286,6 +302,8 @@ export function createSessionStore(opts?: SessionStoreOptions) {
         ...(rec.driver.chromePath !== undefined ? { chromePath: rec.driver.chromePath } : {}),
         ...(rec.driver.width !== undefined ? { width: rec.driver.width } : {}),
         ...(rec.driver.height !== undefined ? { height: rec.driver.height } : {}),
+        ...(rec.driver.debugPort !== undefined ? { debugPort: rec.driver.debugPort } : {}),
+        ...(rec.driver.headed === true ? { headed: true } : {}),
       });
       rec.helper = { pid: h.pid, socketPath: h.socketPath, backend: rec.backend };
       rec.navEventSeq = 0; // 新 helper 的事件环从 0 起编
@@ -388,6 +406,8 @@ export function createSessionStore(opts?: SessionStoreOptions) {
             ...(createOpts.height !== undefined ? { height: createOpts.height } : {}),
             ...(createOpts.ua !== undefined ? { ua: createOpts.ua } : {}),
             ...(createOpts.chromePath !== undefined ? { chromePath: createOpts.chromePath } : {}),
+            ...(createOpts.debugPort !== undefined ? { debugPort: createOpts.debugPort } : {}),
+            ...(createOpts.headed === true ? { headed: true } : {}),
           },
           downloadsBytes: 0,
           activePageId: 0,
@@ -417,6 +437,8 @@ export function createSessionStore(opts?: SessionStoreOptions) {
               ...(r.driver.height !== undefined ? { height: r.driver.height } : {}),
               ...(r.driver.ua !== undefined ? { userAgent: r.driver.ua } : {}),
               ...(r.driver.chromePath !== undefined ? { chromePath: r.driver.chromePath } : {}),
+              ...(r.driver.debugPort !== undefined ? { debugPort: r.driver.debugPort } : {}),
+              ...(r.driver.headed === true ? { headed: true } : {}),
             });
             return { pid: h.pid, socketPath: h.socketPath, killGroup: () => h.killGroup() };
           });
@@ -554,6 +576,47 @@ export function createSessionStore(opts?: SessionStoreOptions) {
       } finally {
         lock.release();
       }
+    },
+
+    /** CDP 调试端点（--debug-port 会话）：DevToolsActivePort 发现 + page target 列表 */
+    async cdpEndpoint(id: string): Promise<{
+      httpUrl: string;
+      browserWs: string;
+      pages: Array<{ url: string; title: string; ws: string }>;
+    }> {
+      const rec = readRecord(root, id); // NOT_FOUND 先于一切
+      if (rec.driver.debugPort === undefined) {
+        throw new BWError(
+          "INVALID_TOOL_ARGS",
+          `session ${id} has no debug port — recreate with: bw s create --backend chrome --debug-port 0`,
+        );
+      }
+      const f = join(rec.driver.dataStore, "DevToolsActivePort");
+      if (!existsSync(f)) {
+        throw new BWError(
+          "DRIVER_ERROR",
+          `DevToolsActivePort not found (${f}) — browser may be dead; retry`,
+        );
+      }
+      const [port, wsPath] = readFileSync(f, "utf8").trim().split("\n");
+      if (port === undefined || wsPath === undefined) {
+        throw new BWError("DRIVER_ERROR", `DevToolsActivePort malformed (${f})`);
+      }
+      const list =
+        (await fetch(`http://127.0.0.1:${port}/json/list`)
+          .then((r) => r.json() as Promise<Array<Record<string, string>>>)
+          .catch(() => [])) ?? [];
+      return {
+        httpUrl: `http://127.0.0.1:${port}`,
+        browserWs: `ws://127.0.0.1:${port}${wsPath}`,
+        pages: list
+          .filter((t) => t.type === "page")
+          .map((t) => ({
+            url: t.url ?? "",
+            title: t.title ?? "",
+            ws: t.webSocketDebuggerUrl ?? "",
+          })),
+      };
     },
 
     close(id: string): boolean {

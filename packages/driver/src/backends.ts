@@ -104,6 +104,9 @@ export interface CreateDriverOptions {
    * about:blank 建立 CDP 会话再覆写——首个真实请求即带覆写 UA（审查 P19）。
    */
   userAgent?: string;
+  /** 有头模式（chrome；实测 --headless=false 后 last-wins 生效——真窗口/真渲染，
+   * 环境指纹从根上正常。风控对抗向：登录态会话建议开；弹真窗口到桌面是代价） */
+  headed?: boolean;
 }
 
 export function createWebViewDriver(opts?: CreateDriverOptions): Driver {
@@ -120,9 +123,33 @@ export function createWebViewDriver(opts?: CreateDriverOptions): Driver {
   // 反自动化检测（B 站实测）：CDP 默认暴露 navigator.webdriver=true，风控识别
   // 「cookie 来自真实浏览器、环境却是自动化」指纹矛盾即弹校验页。此旗标消掉
   // webdriver 标记；用户显式 argv 追加在后（last-wins 可覆写）
-  const CHROME_STEALTH_ARGV = ["--disable-blink-features=AutomationControlled"];
-  const chromeArgv =
-    opts?.argv !== undefined ? [...CHROME_STEALTH_ARGV, ...opts.argv] : CHROME_STEALTH_ARGV;
+  // UA 反泄漏（2026-09-14 实测实锤）：Bun 的 chrome 后端强制 --headless——页面
+  // UA/请求头全是 HeadlessChrome/xxx（比 webdriver 更硬的风控信号，B站底分来源）。
+  // --user-agent 旗标双端覆写（header 回显 + navigator 均实证）；版本动态取真机
+  // Chrome（防硬编码过时），失败回落固定串。Emulation 覆写（opts.userAgent）在
+  // page 级别优先于此旗标
+  const chromeVersion = (() => {
+    try {
+      const bin =
+        opts?.chromePath ??
+        process.env.BUN_CHROME_PATH ??
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+      const r = spawnSync(bin, ["--version"], { encoding: "utf8", timeout: 3000 });
+      const m = /(\d+(?:\.\d+)*)/.exec(r.stdout ?? "");
+      return m?.[1] ?? "131.0.0.0";
+    } catch {
+      return "131.0.0.0";
+    }
+  })();
+  const CHROME_STEALTH_ARGV = [
+    "--disable-blink-features=AutomationControlled",
+    `--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion} Safari/537.36`,
+  ];
+  const chromeArgv = [
+    ...CHROME_STEALTH_ARGV,
+    ...(opts?.headed === true ? ["--headless=false"] : []),
+    ...(opts?.argv ?? []),
+  ];
 
   const makeView = (w: number, h: number): Bun.WebView => {
     if (backend === "chrome") {

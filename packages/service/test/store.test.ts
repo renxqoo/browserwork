@@ -129,6 +129,19 @@ describe.skipIf(process.platform !== "darwin")("SessionStore 文件会话", () =
     store.close(r.id);
   }, 60_000);
 
+  test("debug-port/headed 落盘；cdpEndpoint 无调试口给引导错误", async () => {
+    const store = mkStore();
+    const r = await store.create({ policyMode: "test", debugPort: 0, headed: true });
+    const rec = store.get(r.id);
+    expect(rec.driver.debugPort).toBe(0);
+    expect(rec.driver.headed).toBe(true);
+    await expect(store.cdpEndpoint(r.id)).rejects.toThrow("DevToolsActivePort"); // webkit 无 CDP 口
+    store.close(r.id);
+    const r2 = await store.create({ policyMode: "test" });
+    await expect(store.cdpEndpoint(r2.id)).rejects.toThrow("--debug-port");
+    store.close(r2.id);
+  }, 30_000);
+
   test("未知 id → NOT_FOUND；close 幂等", async () => {
     const store = mkStore();
     expect(() => store.get("sess-nope")).toThrow("not found");
