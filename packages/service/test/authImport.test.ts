@@ -85,7 +85,7 @@ describe("importChromeCookies（sqlite fixture + Keychain 桩）", () => {
     });
     expect(byName.get("sub")).toMatchObject({
       value: "sub-val",
-      domain: "tillgate.io",
+      domain: ".tillgate.io", // 原始 host_key 形态保留（. 前缀 = 子域共享语义）
       path: "/path",
     });
     expect(byName.get("plain")).toMatchObject({ value: "plain-val" });

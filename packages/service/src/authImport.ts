@@ -188,7 +188,8 @@ export function importChromeCookies(opts: ImportOptions): ImportResult {
       cookies.push({
         name: row.name,
         value,
-        domain: row.host_key.replace(/^\./, ""),
+        domain: row.host_key, // 保留原始形态（.example.com = 域 cookie；IP = 精确）——
+        // 剥点会让注入层丢失「子域共享」语义（实测：B 站 SESSDATA host_key=.bilibili.com）
         path: row.path || "/",
         ...(row.expires_utc > 0 ? { expires: chromeEpochToUnix(row.expires_utc) } : {}),
         ...(row.is_secure === 1 ? { secure: true } : {}),

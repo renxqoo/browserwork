@@ -114,9 +114,16 @@ export async function writeStorageState(
       cookies: state.cookies.map((c) => ({
         name: c.name,
         value: c.value,
-        ...(origin !== "" ? { url: `${origin}${c.path}` } : {}),
-        domain: c.domain,
-        path: c.path,
+        // CDP 实测（dbg5）：url 与 domain 同给时以 domain 为准，且 host-only 域名/IP
+        // 形态会被静默丢弃——按 cookie 原生形态二选一：
+        //   域 cookie（.example.com）→ domain（带点，子域共享语义）
+        //   host-only / IP → url（origin+path）
+        ...(c.domain.startsWith(".")
+          ? { domain: c.domain }
+          : origin !== ""
+            ? { url: `${origin}${c.path}` }
+            : { domain: c.domain }),
+        ...(c.domain.startsWith(".") ? { path: c.path } : {}),
         ...(c.expires !== undefined ? { expires: c.expires } : {}),
         ...(c.httpOnly === true ? { httpOnly: true } : {}),
         ...(c.secure === true ? { secure: true } : {}),

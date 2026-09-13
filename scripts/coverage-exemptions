@@ -5,7 +5,7 @@ packages/service/src/cli.ts	CLI 入口（process.exit 副作用 + auth/import �
 packages/service/src/cli-run.ts	真 LLM 路径（runTask 主循环/信号面需真 GLM key+浏览器；渲染器纯函数已单测）	min=45
 packages/service/src/sdk.ts	SDK 装配薄层（面在 store/agent；bun -e 冒烟已过）	min=70
 packages/service/src/store.ts	S1③ 环缺口注入/TOCTOU 换窗/恢复失败注入分支需故障注入装置（e2e 已覆盖主干；注入面挂账）	min=70
-packages/service/src/profiles.ts	chrome CDP cookie 面（真 Chrome 契约测试覆盖行为；fake 无 CDP）	min=75
+packages/service/src/profiles.ts	chrome CDP cookie 注入/读取面（真 Chrome 实测覆盖：Tillgate+B 站登录态两案例；fake 无 CDP）	min=70
 packages/service/src/sdk.ts	装配薄层（sessions/profiles 面已直调；run 包装需真 GLM 模型注入）	min=40
 packages/service/src/janitor.ts	周期扫定时器/重复清扫循环需真实时间推进（聚合/年龄/容量/豁免矩阵已单测）	min=40
 packages/service/src/cli-session.ts	全命令 process.exit 面（e2e 双形态 26 断言全链输出契约；映射层 cli-commands 已单测 16 例）	min=10
