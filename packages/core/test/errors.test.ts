@@ -7,6 +7,7 @@ describe("ERROR_CODES 词表封闭", () => {
   test("与文档词表逐项相等", () => {
     expect([...ERROR_CODES]).toEqual([
       "SESSION_BUSY",
+      "EVAL_ERROR",
       "CONFIRMATION_REQUIRED",
       "NOT_FOUND",
       "SESSION_LIMIT",

@@ -841,18 +841,23 @@ export function createSessionStore(opts?: SessionStoreOptions) {
                 }
               }
               const index = "index" in action ? (action as { index?: string }).index : undefined;
+              // click_text：无索引——文本直接进 S2 词面闸（敏感词按钮按文本命中）
+              const textTarget =
+                action.kind === "click_text" ? { tag: "*", text: action.text } : undefined;
               const node =
                 index !== undefined && targetSnapshot !== null
                   ? targetSnapshot.nodes.find((n) => n.id === index)
                   : undefined;
               const target =
-                node !== undefined
-                  ? {
-                      tag: node.tag,
-                      ...(node.text !== undefined ? { text: node.text } : {}),
-                      ...(node.href !== undefined ? { href: node.href } : {}),
-                    }
-                  : undefined;
+                textTarget !== undefined
+                  ? textTarget
+                  : node !== undefined
+                    ? {
+                        tag: node.tag,
+                        ...(node.text !== undefined ? { text: node.text } : {}),
+                        ...(node.href !== undefined ? { href: node.href } : {}),
+                      }
+                    : undefined;
               const d = policy.onAction(action, target);
               if (d.kind === "confirm") {
                 writePending(dir, {

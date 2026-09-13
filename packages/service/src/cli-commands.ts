@@ -6,6 +6,7 @@
  */
 export const WIRE_NAMES: Record<string, string> = {
   scrollto: "scroll_to",
+  clicktext: "click_text",
   "type-secret": "type_text_secret",
   "secret-type": "type_text_secret",
   opentab: "open_tab",
@@ -70,8 +71,20 @@ export function mapToolArgs(tool: string, args: string[]): MappedArgs {
       return { params: { key: args[0], value: args[1] }, hint: "" };
     case "storage":
       return { params: args.length >= 1 ? { key: args[0] } : {}, hint: "" };
+    case "click_text":
+      // 文本可含空格——整体 join；CLI 别名 clicktext
+      if (args.length < 1) {
+        return { error: "usage: bw s clicktext <sessionId> <text...>" };
+      }
+      return { params: { text: args.join(" ") }, hint: "" };
     case "eval":
-      if (args.length < 1) return { error: "usage: bw s eval <sessionId> <expression>" };
+      if (args.length < 1) {
+        return { error: "usage: bw s eval <sessionId> <expression | --file path>" };
+      }
+      if (args[0] === "--file") {
+        if (args[1] === undefined) return { error: "usage: bw s eval <sessionId> --file <path>" };
+        return { params: { expressionFile: args[1] }, hint: "" };
+      }
       return { params: { expression: args.join(" ") }, hint: "" };
     case "extract_code":
       // B21 文档超前、S3 补齐：code 表达式可含空格——整体 join

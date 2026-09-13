@@ -37,11 +37,15 @@ describe("构造表（成功路径）", () => {
       reload: {},
       download: { index: "1" },
       upload: { index: "1", files: ["/tmp/a"] },
+      click_text: { text: "日K" },
     };
     for (const name of TOOL_NAMES) {
+      if (name === "look") continue; // 特判见下
       const a = buildAction(name, params[name] ?? {});
       expect((a as { kind: string }).kind).toBe(name);
     }
+    expect(buildAction("look", { fullPage: true })).toEqual({ kind: "look", fullPage: true });
+    expect(buildAction("look", {})).toEqual({ kind: "look" });
   });
 
   test("可选参数保留：scroll amount / wait until=networkIdle", () => {
@@ -87,6 +91,12 @@ describe("拒绝表（INVALID_TOOL_ARGS）", () => {
   test("类型不符（number 字段给字符串）", () => {
     rejects("switch_tab", { tab: "0" }, "switch_tab requires tab");
     rejects("wait", { seconds: "1" }, "wait requires seconds");
+  });
+
+  test("click_text：缺文本/空文本拒绝；look fullPage 非布尔拒绝", () => {
+    expect(() => buildAction("click_text", {})).toThrow("click_text requires text");
+    expect(() => buildAction("click_text", { text: "  " })).toThrow("non-empty");
+    expect(() => buildAction("look", { fullPage: "yes" })).toThrow("fullPage");
   });
 
   test("wait until 只认 networkIdle", () => {

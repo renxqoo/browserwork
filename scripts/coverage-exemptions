@@ -18,3 +18,4 @@ packages/driver/src/helper.ts	子进程入口 main()/独立进程路径（lcov �
 packages/driver/src/helperClient.ts	chrome-only CDP 代理面（cdp/cdpPierceNodes/subscribeCdp——真 Chrome 契约行覆盖；fake 无 CDP）	min=75
 packages/agent/src/tools.ts	TypeBox mapper 闭包矩阵（词表 20 工具×注册闭包——行为面由 agent 旅程/词表封闭性测试锚定）	min=80
 packages/driver/src/helperProtocol.ts	FrameWriter 分支面（部分写/关闭语义由 e2e 双形态真实 socket 断言）	min=80
+packages/actions/src/engine.ts	chrome CDP 下载/上传/整页截图/网络监听分支需真 Chrome 故障注入（行为由 chrome 契约行+e2e 锚定）	min=85

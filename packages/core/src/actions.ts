@@ -13,7 +13,7 @@ export type BrowserAction =
   | { kind: "scroll_to"; index: string }
   | { kind: "select"; index: string; value: string }
   | { kind: "extract_text" }
-  | { kind: "look" }
+  | { kind: "look"; fullPage?: boolean }
   | { kind: "open_tab"; url: string }
   | { kind: "switch_tab"; tab: number }
   | { kind: "close_tab" }
@@ -22,6 +22,7 @@ export type BrowserAction =
   | { kind: "reload" }
   | { kind: "download"; index: string }
   | { kind: "upload"; index: string; files: string[] }
+  | { kind: "click_text"; text: string }
   | { kind: "batch"; steps: BrowserAction[] }
   | { kind: "extract_code"; code: string }
   | { kind: "done"; answer?: string };
@@ -37,6 +38,7 @@ export const BROWSER_ACTION_KINDS = [
   "select",
   "extract_text",
   "look",
+  "click_text",
   "open_tab",
   "switch_tab",
   "close_tab",

@@ -116,7 +116,8 @@ describe("runExpression", () => {
       expect.unreachable();
     } catch (e) {
       expect(BWError.is(e)).toBe(true);
-      expect((e as BWError).code).toBe("DRIVER_ERROR");
+      expect((e as BWError).code).toBe("EVAL_ERROR"); // B22+：页面 JS 异常与驱动故障分离
+      expect((e as BWError).message).toContain("page eval failed");
     }
   });
 });

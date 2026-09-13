@@ -288,7 +288,18 @@ export function buildBrowserTools(ctx: ToolContext, caps?: DriverCapabilities): 
       (p) => buildAction("select", p),
     ),
     t("extract_text", "提取页面正文文本", Type.Object({}), () => ({ kind: "extract_text" })),
-    t("look", "截图查看当前页面（视觉兜底）", Type.Object({}), () => ({ kind: "look" })),
+    t(
+      "click_text",
+      '按可见文本点击元素（SPA 兜底：无 role/onclick 的 div-tab 等事件委托元素——"日K"、"评论" 这类标签）。多匹配时点最精确/最小的一个',
+      Type.Object({ text: Type.String({ description: '元素文本（可含空格，如 "分钟"' }) }),
+      (p) => buildAction("click_text", p),
+    ),
+    t(
+      "look",
+      "截图查看当前页面（视觉兜底；fullPage=true 拍整页——长页省 scroll+look 轮次，仅 chrome）",
+      Type.Object({ fullPage: Type.Optional(Type.Boolean()) }),
+      (p) => buildAction("look", p),
+    ),
     t(
       "open_tab",
       "打开新 tab 并导航",

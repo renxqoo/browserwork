@@ -223,7 +223,7 @@ describe("LineCodec 流式解码（helperProtocol）", () => {
   test("多字节 UTF-8 跨 chunk 不腐坏 + 半行缓冲", async () => {
     const { LineCodec } = await import("../src/helperProtocol.ts");
     const c = new LineCodec();
-    const frame = JSON.stringify({ text: "中文内容" }) + "\n";
+    const frame = `${JSON.stringify({ text: "中文内容" })}\n`;
     const bytes = new TextEncoder().encode(frame);
     // 从中间切开（多字节字符跨界）
     const cut = Math.floor(bytes.length / 2) + 1;

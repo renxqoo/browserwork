@@ -61,7 +61,19 @@ const TOOL_BUILDERS: Record<string, Builder> = {
     value: requireString(p, "value", "select"),
   }),
   extract_text: () => ({ kind: "extract_text" }),
-  look: () => ({ kind: "look" }),
+  look: (p) => {
+    if (p.fullPage !== undefined && typeof p.fullPage !== "boolean") {
+      throw new BWError("INVALID_TOOL_ARGS", "look requires fullPage (boolean)");
+    }
+    return p.fullPage === true ? { kind: "look", fullPage: true } : { kind: "look" };
+  },
+  click_text: (p) => {
+    const text = requireString(p, "text", "click_text");
+    if (text.trim() === "") {
+      throw new BWError("INVALID_TOOL_ARGS", "click_text requires non-empty text");
+    }
+    return { kind: "click_text", text };
+  },
   open_tab: (p) => ({ kind: "open_tab", url: requireString(p, "url", "open_tab") }),
   switch_tab: (p) => ({ kind: "switch_tab", tab: requireNumber(p, "tab", "switch_tab") }),
   close_tab: () => ({ kind: "close_tab" }),

@@ -6,6 +6,7 @@ describe("wire 名映射（§4.4-22，B11 回归锚）", () => {
   test("10 个 CLI 名归一为工具规范名", () => {
     expect(WIRE_NAMES).toEqual({
       scrollto: "scroll_to",
+      clicktext: "click_text",
       "type-secret": "type_text_secret",
       "secret-type": "type_text_secret",
       opentab: "open_tab",
@@ -142,6 +143,29 @@ describe("S3 补齐面（extract_code / type-secret）", () => {
     expect(mapCliCommand("type-secret", ["5", "github-pw"])).toEqual({
       tool: "type_text_secret",
       params: { index: "5", secretName: "github-pw" },
+    });
+  });
+});
+
+describe("B22+ 实战反馈 CLI 映射", () => {
+  test("clicktext → click_text（文本 join 可含空格）", () => {
+    expect(mapCliCommand("clicktext", ["日K", "线"])).toEqual({
+      tool: "click_text",
+      params: { text: "日K 线" },
+    });
+    expect(mapCliCommand("clicktext", [])).toHaveProperty("error");
+  });
+
+  test("eval --file → expressionFile 标记（CLI 层读文件）", () => {
+    expect(mapCliCommand("eval", ["--file", "/tmp/x.js"])).toEqual({
+      tool: "eval",
+      params: { expressionFile: "/tmp/x.js" },
+    });
+    expect(mapCliCommand("eval", ["--file"])).toHaveProperty("error");
+    // 普通表达式不受影响
+    expect(mapCliCommand("eval", ["1", "+", "1"])).toEqual({
+      tool: "eval",
+      params: { expression: "1 + 1" },
     });
   });
 });

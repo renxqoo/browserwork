@@ -217,8 +217,19 @@ export async function runSessionCli(argv: string[]): Promise<number> {
   if ("error" in mapped) {
     fail(sessionId, "INVALID_ARGS", mapped.error);
   }
+  // eval --file：文件内容作为表达式（shell 引号搅局 CJK/单引号的稳定通道）
+  const params = { ...mapped.params };
+  const exprFile = params.expressionFile as string | undefined;
+  if (exprFile !== undefined) {
+    const f = Bun.file(exprFile);
+    if (!(await f.exists())) {
+      fail(sessionId, "INVALID_ARGS", `eval file not found: ${exprFile}`);
+    }
+    params.expression = await f.text();
+    delete params.expressionFile;
+  }
   try {
-    const r = await store().executeTool(sessionId, mapped.tool, mapped.params);
+    const r = await store().executeTool(sessionId, mapped.tool, params);
     if (!r.ok) {
       fail(sessionId, r.code ?? "TOOL_FAILED", r.error ?? "tool failed", HINTS[r.code ?? ""]);
     }

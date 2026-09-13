@@ -5,6 +5,7 @@
 export const ERROR_CODES = [
   // B22 文件会话新增（IMPLEMENTATION §3 错误码目录）
   "SESSION_BUSY",
+  "EVAL_ERROR",
   "CONFIRMATION_REQUIRED",
   "NOT_FOUND",
   "SESSION_LIMIT",

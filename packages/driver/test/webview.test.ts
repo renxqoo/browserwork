@@ -194,18 +194,26 @@ describe.skipIf(process.platform !== "darwin")("WebViewPage（真 webkit）", ()
     }
   });
 
-  test("evaluate：页面脚本异常 → DRIVER_ERROR 包装", async () => {
+  test("evaluate：页面运行时异常 → DRIVER_ERROR + 真实消息透传（B22+：不再回显表达式）", async () => {
     const driver = createWebViewDriver();
     try {
       const page = await driver.createPage();
       await page.navigate(DATA_PAGE);
       try {
-        await page.evaluate("throw new Error('page-side boom')");
+        await page.evaluate("(() => { throw new Error('page-side boom') })()");
         expect.unreachable();
       } catch (e) {
         expect(BWError.is(e)).toBe(true);
         expect((e as BWError).code).toBe("DRIVER_ERROR");
-        expect((e as BWError).message).toContain("page-side boom");
+        expect((e as BWError).message).toContain("page-side boom"); // 真实异常消息
+      }
+      // 非表达式（语句）输入：SyntaxError 原因透传（旧实现回显表达式——误导排查方向）
+      try {
+        await page.evaluate("throw new Error('x')");
+        expect.unreachable();
+      } catch (e) {
+        expect(BWError.is(e)).toBe(true);
+        expect((e as BWError).message).toContain("SyntaxError");
       }
     } finally {
       driver.close();

@@ -150,9 +150,9 @@ export class FakePage implements Page {
           : null;
         return (result === undefined ? null : result) as T;
       } catch (cause) {
-        throw new BWError("DRIVER_ERROR", `evaluate failed: ${expression.slice(0, 80)}`, {
-          cause,
-        });
+        // 与真实 page.ts 同步：真实异常消息透传（不回显表达式——B22+ 用户实战问题 2）
+        const msg = cause instanceof Error ? cause.message : String(cause);
+        throw new BWError("DRIVER_ERROR", `evaluate failed: ${msg}`, { cause });
       }
     };
     const p = this.#evalChain.then(run, run);

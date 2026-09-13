@@ -22,7 +22,9 @@ export const EXTRACT_EXPRESSION = `(() => {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   const INTERACTIVE =
-    'a[href], button, input, select, textarea, summary, [onclick], [contenteditable=""], [contenteditable="true"], label[for], [role]';
+    'a[href], button, input, select, textarea, summary, [onclick], [contenteditable=""], [contenteditable="true"], label[for], [role], [tabindex], [aria-selected]';
+  // B22+（用户实测百度股市通）：React SPA 的 div-tab 无 onclick/无 role——tabindex
+  // 与 aria-selected 是 ARIA tab 模式的标准痕迹；无痕 div 用 click_text 按文本兜底
   const isInteractive = (el) => {
     try {
       return el.matches(INTERACTIVE);

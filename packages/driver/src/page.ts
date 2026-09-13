@@ -156,9 +156,10 @@ export class WebViewPage implements Page {
         const result = await view.evaluate<T>(expression);
         return result === undefined ? (null as T) : result;
       } catch (cause) {
-        throw new BWError("DRIVER_ERROR", `evaluate failed: ${expression.slice(0, 80)}`, {
-          cause,
-        });
+        // 真实异常消息透传（SyntaxError 就写 SyntaxError——回显表达式曾让调用方
+        // 误以为 shell 传参吞了引号，且无从区分「页面 JS 错」与「驱动故障」）
+        const msg = cause instanceof Error ? cause.message : String(cause);
+        throw new BWError("DRIVER_ERROR", `evaluate failed: ${msg}`, { cause });
       }
     };
     const p = this.#evalChain.then(run, run);

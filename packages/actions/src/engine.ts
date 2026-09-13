@@ -625,10 +625,26 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
     });
   };
 
-  const runExpression = async (expression: string): Promise<string> => {
+  const runExpression = async (rawExpression: string): Promise<string> => {
     const page = ensureActive();
     return runExclusive(page, async () => {
       let timer: ReturnType<typeof setTimeout> | undefined;
+      // 自动 IIFE：语句序列（a.click(); b.className）不是合法表达式——Bun evaluate
+      // 包 await(<expr>) 会 SyntaxError。先试表达式；语句合法则包 (() => { ... })()
+      let expression = rawExpression;
+      try {
+        new Function(`return (${rawExpression})`);
+      } catch {
+        try {
+          new Function(rawExpression);
+          expression = `(() => { ${rawExpression} })()`;
+        } catch (e) {
+          throw new BWError(
+            "EVAL_ERROR",
+            `SyntaxError: ${e instanceof Error ? e.message : String(e)}`,
+          );
+        }
+      }
       try {
         const result = await Promise.race([
           page.evaluate(expression),
@@ -646,6 +662,12 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
           text = String(result);
         }
         return text.slice(0, EVAL_MAX_RESULT);
+      } catch (e) {
+        // 页面 JS 异常（非超时）→ EVAL_ERROR：真实消息 + 与驱动故障分离
+        if (e instanceof BWError && e.code === "DRIVER_ERROR") {
+          throw new BWError("EVAL_ERROR", e.message);
+        }
+        throw e;
       } finally {
         if (timer !== undefined) clearTimeout(timer);
       }
@@ -883,10 +905,97 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
             return { text: `selected "${action.value}" in [${node.id}]`, snapshot: snap };
           }
           case "extract_text": {
-            const text = await page.evaluate<string>(
-              `(() => { const t = (document.body && document.body.innerText) || ""; return t.replace(/\\s+/g, " ").trim().slice(0, ${EXTRACT_TEXT_MAX}); })()`,
+            // 截断可见：达上限附标记+总长（用户实测「看不出哪里截断了」）
+            const rawText = await page.evaluate<string>(
+              `(() => { const t = (document.body && document.body.innerText) || ""; const c = t.replace(/\\s+/g, " ").trim(); return JSON.stringify({ n: c.length, t: c.slice(0, ${EXTRACT_TEXT_MAX}) }); })()`,
             );
-            return { text: text ?? "", snapshot: null };
+            let parsed: { n: number; t: string };
+            try {
+              parsed = JSON.parse(String(rawText ?? '{"n":0,"t":""}')) as { n: number; t: string };
+            } catch {
+              parsed = { n: 0, t: String(rawText ?? "") };
+            }
+            const text =
+              parsed.n > EXTRACT_TEXT_MAX
+                ? `${parsed.t}\n[truncated at ${EXTRACT_TEXT_MAX}/${parsed.n} chars — scroll or extract_code for the rest]`
+                : parsed.t;
+            return { text, snapshot: null };
+          }
+          case "click_text": {
+            // 用户实测（百度股市通）：React SPA 的 div-tab 无 onclick/无 role——快照
+            // 收录不到，索引制失灵。按文本找可见元素→坐标轨点击（事件委托也能命中）。
+            let located = await page.evaluate<{
+              found: boolean;
+              x?: number;
+              y?: number;
+              w?: number;
+              h?: number;
+              matches?: number;
+              tag?: string;
+            }>(
+              `(() => {
+                const want = ${JSON.stringify(action.text)}
+                  .replace(/s+/g, " ")
+                  .trim()
+                  .toLowerCase();
+                const norm = (s) => (s ?? "").replace(/s+/g, " ").trim().toLowerCase();
+                const vis = (el) => {
+                  const r = el.getBoundingClientRect();
+                  if (r.width <= 0 || r.height <= 0) return false;
+                  const cs = getComputedStyle(el);
+                  return cs.display !== "none" && cs.visibility !== "hidden" && cs.opacity !== "0";
+                };
+                const all = [...document.querySelectorAll("*")].filter(
+                  (el) =>
+                    !["SCRIPT", "STYLE", "NOSCRIPT"].includes(el.tagName) && vis(el),
+                );
+                // 直接文本匹配优先（叶子语义）；否则包含匹配取最小面积（最具体元素）
+                let best = null;
+                let matches = 0;
+                for (const el of all) {
+                  const direct = [...el.childNodes]
+                    .filter((n) => n.nodeType === 3)
+                    .map((n) => n.textContent)
+                    .join("");
+                  const t = norm(el.innerText || direct || "");
+                  if (t === "" || !t.includes(want)) continue;
+                  matches++;
+                  const r = el.getBoundingClientRect();
+                  const score = (t === want ? 0 : 1) * 1e9 + r.width * r.height;
+                  if (best === null || score < best.score) {
+                    best = { score, x: r.x, y: r.y, w: r.width, h: r.height, tag: el.tagName.toLowerCase() };
+                  }
+                }
+                if (best === null) return { found: false };
+                return { found: true, x: best.x, y: best.y, w: best.w, h: best.h, matches, tag: best.tag };
+              })()`,
+            );
+            if (located?.found !== true) {
+              throw new BWError(
+                "ELEMENT_NOT_FOUND",
+                `no visible element with text "${action.text}"`,
+              );
+            }
+            // 视口外先滚入（WebKit 对视口外坐标静默丢弃——P0-1 同教训）
+            const viewport = viewportOf(snapshot ?? null);
+            const outside =
+              (located.y ?? 0) < 0 || (located.y ?? 0) + (located.h ?? 0) > viewport.h;
+            if (outside) {
+              await page.scroll(0, Math.max(0, (located.y ?? 0) - viewport.h / 2));
+              const fresh = await page.evaluate<typeof located>(
+                `(() => { const el = [...document.querySelectorAll("*")].find((e) => (e.innerText || "").replace(/s+/g, " ").trim().toLowerCase().includes(${JSON.stringify(action.text.toLowerCase())}) && e.getBoundingClientRect().width > 0); if (!el) return { found: false }; const r = el.getBoundingClientRect(); return { found: true, x: r.x, y: r.y, w: r.width, h: r.height, matches: ${located.matches ?? 1}, tag: ${JSON.stringify(located.tag ?? "*")} }; })()`,
+              );
+              if (fresh?.found === true) located = fresh;
+            }
+            await page.clickAt(
+              Math.round((located.x ?? 0) + (located.w ?? 0) / 2),
+              Math.round((located.y ?? 0) + (located.h ?? 0) / 2),
+            );
+            await settle(page, page.url);
+            return {
+              text: `clicked <${located.tag ?? "*"} "${action.text}">${(located.matches ?? 1) > 1 ? ` (${located.matches} matches, clicked smallest/best)` : ""}`,
+              snapshot: await settleAndExtract(page),
+            };
           }
           case "look": {
             if (secretPages.has(pageKeyOf(page.url))) {
@@ -895,6 +1004,25 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
                 "POLICY_BLOCKED",
                 "screenshot blocked: secret was typed on this page",
               );
+            }
+            if (action.fullPage === true) {
+              // 整页截图（chrome CDP captureBeyondViewport；webkit 无对应面诚实拒绝）
+              if (!driver.capabilities().cdp) {
+                throw new BWError(
+                  "INVALID_TOOL_ARGS",
+                  "full-page screenshot requires the chrome backend (webkit has no capture-beyond-viewport)",
+                );
+              }
+              const shot = await page.cdp<{ data: string }>("Page.captureScreenshot", {
+                format: "png",
+                captureBeyondViewport: true,
+              });
+              await settle(page, page.url);
+              return {
+                text: "[full-page screenshot captured]",
+                snapshot: await settleAndExtract(page),
+                image: { base64: shot.data, mimeType: "image/png" },
+              };
             }
             const png = await page.screenshot({ format: "png" });
             return {
