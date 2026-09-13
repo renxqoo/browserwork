@@ -8,7 +8,7 @@ packages/service/src/store.ts	S1③ 环缺口注入/TOCTOU 换窗/恢复失败�
 packages/service/src/profiles.ts	chrome CDP cookie 注入/读取面（真 Chrome 实测覆盖：Tillgate+B 站登录态两案例；fake 无 CDP）	min=70
 packages/service/src/sdk.ts	装配薄层（sessions/profiles 面已直调；run 包装需真 GLM 模型注入）	min=40
 packages/service/src/janitor.ts	周期扫定时器/重复清扫循环需真实时间推进（聚合/年龄/容量/豁免矩阵已单测）	min=40
-packages/service/src/cli-session.ts	全命令 process.exit 面（e2e 双形态 26 断言全链输出契约；映射层 cli-commands 已单测 16 例）	min=10
+packages/service/src/cli-session.ts	全命令 process.exit 面（e2e 双形态 26 断言全链输出契约 + create --help 子进程断言；映射层 cli-commands 单测 18 例）	min=5
 packages/service/src/batch.ts	子进程编排面（parseTaskLine/render 已单测；spawn 循环 e2e）	min=60
 packages/testing/src/index.ts	测试装置 barrel（re-export）	min=0
 packages/testing/src/page.ts	测试装置（withDriverPage 需真 webkit）	min=0

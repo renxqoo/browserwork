@@ -72,6 +72,13 @@ export function createWebViewDriver(opts?: CreateDriverOptions): Driver {
   const pages = new Set<WebViewPage>();
   let closed = false;
 
+  // 反自动化检测（B 站实测）：CDP 默认暴露 navigator.webdriver=true，风控识别
+  // 「cookie 来自真实浏览器、环境却是自动化」指纹矛盾即弹校验页。此旗标消掉
+  // webdriver 标记；用户显式 argv 追加在后（last-wins 可覆写）
+  const CHROME_STEALTH_ARGV = ["--disable-blink-features=AutomationControlled"];
+  const chromeArgv =
+    opts?.argv !== undefined ? [...CHROME_STEALTH_ARGV, ...opts.argv] : CHROME_STEALTH_ARGV;
+
   const makeView = (w: number, h: number): Bun.WebView => {
     if (backend === "chrome") {
       // 铁律：url:false 永远独立拉起，绝不自动连接运行中的 Chrome
@@ -82,7 +89,7 @@ export function createWebViewDriver(opts?: CreateDriverOptions): Driver {
           type: "chrome",
           url: false,
           ...(opts?.chromePath !== undefined ? { path: opts.chromePath } : {}),
-          ...(opts?.argv !== undefined ? { argv: opts.argv } : {}),
+          argv: chromeArgv,
           ...(opts?.stdout !== undefined ? { stdout: opts.stdout } : {}),
           ...(opts?.stderr !== undefined ? { stderr: opts.stderr } : {}),
         },

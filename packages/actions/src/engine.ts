@@ -1013,17 +1013,18 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
                   "full-page screenshot requires the chrome backend (webkit has no capture-beyond-viewport)",
                 );
               }
+              await settle(page, page.url); // 先稳定再拍（与视口截图同语义）
               const shot = await page.cdp<{ data: string }>("Page.captureScreenshot", {
                 format: "png",
                 captureBeyondViewport: true,
               });
-              await settle(page, page.url);
               return {
                 text: "[full-page screenshot captured]",
                 snapshot: await settleAndExtract(page),
                 image: { base64: shot.data, mimeType: "image/png" },
               };
             }
+            await settle(page, page.url); // 截图前等待渲染稳定（实测：刚导航即拍会白屏）
             const png = await page.screenshot({ format: "png" });
             return {
               text: "[screenshot captured]",

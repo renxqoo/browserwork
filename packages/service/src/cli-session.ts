@@ -63,7 +63,8 @@ const HELP = `bw s — session-based browser tools for external agents
 Sessions live in ~/.bw/session/<id>/ (file-based; no daemon). Use 'bw s list' to see them.
 
 Usage:
-  bw s create [--url U] [--name N] [--allow-eval] [--backend webkit|chrome] [--data-dir D] [--ua U] [--width W] [--height H]
+  bw s create [--url U] [--name N] [--profile P] [--backend webkit|chrome] [--data-dir D]
+              [--chrome-path P] [--ua U] [--width W] [--height H] [--allow-eval] [--allow-private-network]
   bw s list | gc | stop(retired)
   bw s snap <id> | status <id> | close <id> | keep <id> | rename <id> <name>
   bw s confirm <id> <cid> --yes | --no
@@ -250,6 +251,26 @@ export async function runSessionCli(argv: string[]): Promise<number> {
 
 /** create 入口（cli 分发用） */
 export async function runSessionCreate(argv: string[]): Promise<number> {
+  if (argv.includes("--help") || argv.includes("-h")) {
+    // B16 同型：help 零副作用（实测踩坑：--help 曾被当无名参数误建会话）
+    console.log(
+      [
+        "bw s create — 建文件会话",
+        "",
+        "  --url U                 起始页（免确认入白名单）",
+        "  --name N                会话名（≤80 字）",
+        "  --profile P             登录态快照注入（bw auth import-chrome / bw auth save 建）",
+        "  --backend webkit|chrome 渲染后端（默认 webkit；chrome 支持下载/上传/整页截图）",
+        "  --data-dir D            持久存储目录（cookies/localStorage）",
+        "  --chrome-path PATH      Chrome 可执行文件路径",
+        "  --width W / --height H  视口尺寸",
+        "  --ua U                  UA 覆写（仅 chrome）",
+        "  --allow-eval            开启 eval（默认禁）",
+        "  --allow-private-network 放行内网/本地地址",
+      ].join("\n"),
+    );
+    return 0;
+  }
   const url = flagValue(argv, "url") ?? flagValue(argv, "u");
   const name = flagValue(argv, "name");
   const backend = flagValue(argv, "backend") as "webkit" | "chrome" | undefined;

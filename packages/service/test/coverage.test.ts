@@ -1,6 +1,7 @@
 /** B22 S3：CLI 胶合覆盖——自旧 coverage/cli.test 移植保留面（HTTP/serve 面随删除核销），
  * 增补 B18/B19 新参数层断言（未知 flag exit 2 / 数值校验） */
 import { describe, expect, test } from "bun:test";
+import { join } from "node:path";
 import * as cliModule from "../src/cli.ts";
 import type { ProcessRendererState } from "../src/cli-run.ts";
 import { printEvent, runCliTask } from "../src/cli-run.ts";
@@ -170,6 +171,41 @@ describe("secrets 解析面（env ref / literal / 缺失）", () => {
     await expect(resolveSecretValue("noVal")).rejects.toThrow("missing value");
     delete process.env.BW_TEST_SECRET;
     rmSync(process.env.BW_HOME as string, { recursive: true, force: true });
+    delete process.env.BW_HOME;
+  });
+});
+
+describe("create --help 零副作用（B16 同型——实测曾误建会话）", () => {
+  test("runSessionCreate --help 打印用法 exit 0，不建会话", async () => {
+    process.env.BW_HOME = `/tmp/bw-ch-${Date.now()}`;
+    const { existsSync, mkdirSync, rmSync, readdirSync } = await import("node:fs");
+    mkdirSync(process.env.BW_HOME, { recursive: true });
+    const { runSessionCreate } = await import("../src/cli-session.ts");
+    // exit 会终止进程——这里只验证不抛（帮助路径 return 0 前打印；真 exit 面由 e2e 断言）
+    // 直接调用会 process.exit(0)——用子进程跑最稳：
+    const { spawnSync } = await import("node:child_process");
+    const r = spawnSync(
+      process.execPath,
+      [
+        "-e",
+        `
+      process.env.BW_HOME = ${JSON.stringify(process.env.BW_HOME)};
+      const { runSessionCreate } = await import(${JSON.stringify(join(import.meta.dir, "..", "src", "cli-session.ts"))});
+      process.exit(await runSessionCreate(["--help"]));
+    `,
+      ],
+      { encoding: "utf8" },
+    );
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("--profile");
+    expect(r.stdout).toContain("--chrome-path");
+    // 无会话被建（help 路径不触发 store——.bw/session 可能整体不存在，存在则必空）
+    const bwDir = join(process.env.BW_HOME, ".bw");
+    if (existsSync(bwDir)) {
+      const sessDir = join(bwDir, "session");
+      if (existsSync(sessDir)) expect(readdirSync(sessDir)).toEqual([]);
+    }
+    rmSync(process.env.BW_HOME, { recursive: true, force: true });
     delete process.env.BW_HOME;
   });
 });
