@@ -85,8 +85,8 @@ export interface SessionRecord {
     dataStore: string;
     /** CDP 调试口（chrome-only；0=随机。bw s cdp 读 DevToolsActivePort） */
     debugPort?: number;
-    /** 有头模式（chrome：真窗口真渲染——风控对抗向） */
-    headed?: boolean;
+    /** chrome 启动旗标透传（proxy/窗口类） */
+    chromeArgs?: string[];
     /** attach 模式：连外部 CDP 端点（Electron/调试口 Chrome）——close 只断连不杀对方 */
     cdpUrl?: string;
     /** launch 模式：spawn Electron app + attach（app 随会话 close 收走） */
@@ -110,8 +110,12 @@ export interface CreateSessionOptions {
   dataDir?: string;
   /** CDP 调试口（chrome-only；缺省不开——pipe-only 是默认安全态。0=随机端口） */
   debugPort?: number;
-  /** 有头模式（chrome：真窗口真渲染；弹窗口到桌面） */
+  /** 有头模式（chrome 真窗口）。实现 = launch 模式映射（spawn 真 Chrome 二进制 +
+   * attach）——Bun 强制 --headless 且 last-wins 无法反转（2026-09-14 实测定论），
+   * --headless=false 通道已撤除。会话 close 连带收走窗口（与 spawn 语义一致） */
   headed?: boolean;
+  /** chrome 启动旗标透传（proxy/窗口类；可多个） */
+  chromeArgs?: string[];
   /** attach 模式：连外部 CDP 端点（http://127.0.0.1:port 或 ws://…）。会话 close
    * 只断连——外部浏览器/Electron app 生命周期不受影响 */
   cdpUrl?: string;
@@ -315,7 +319,7 @@ export function createSessionStore(opts?: SessionStoreOptions) {
         ...(rec.driver.width !== undefined ? { width: rec.driver.width } : {}),
         ...(rec.driver.height !== undefined ? { height: rec.driver.height } : {}),
         ...(rec.driver.debugPort !== undefined ? { debugPort: rec.driver.debugPort } : {}),
-        ...(rec.driver.headed === true ? { headed: true } : {}),
+        ...(rec.driver.chromeArgs !== undefined ? { chromeArgs: rec.driver.chromeArgs } : {}),
         ...(rec.driver.cdpUrl !== undefined ? { cdpUrl: rec.driver.cdpUrl } : {}),
         ...(rec.driver.electronPath !== undefined
           ? {
@@ -395,13 +399,31 @@ export function createSessionStore(opts?: SessionStoreOptions) {
         const dataStore = createOpts.dataDir ?? join(dir, "datastore");
         mkdirSync(dataStore, { recursive: true });
         mkdirSync(join(dir, "downloads"), { recursive: true });
+        // headed → launch 模式映射（在 electronOpts 里组装——下方 rec 构建消费）
+        const electronOpts =
+          createOpts.headed === true &&
+          createOpts.cdpUrl === undefined &&
+          createOpts.electronPath === undefined
+            ? (() => {
+                const bin = createOpts.chromePath ?? detectChromeBinary();
+                if (bin === null) {
+                  throw new BWError(
+                    "DRIVER_ERROR",
+                    "--headed requires a Chrome binary (set --chrome-path or install Chrome)",
+                  );
+                }
+                return { electronPath: bin, electronArgs: [`--user-data-dir=${dataStore}`] };
+              })()
+            : {};
         const rec: SessionRecord = {
           schemaVersion: SESSION_SCHEMA_VERSION,
           id,
           ...(createOpts.name !== undefined ? { name: createOpts.name.slice(0, 80) } : {}),
           // attach/launch 模式驱动能力面 = chrome（归一记录，list/status 不误导）
           backend:
-            createOpts.cdpUrl !== undefined || createOpts.electronPath !== undefined
+            createOpts.cdpUrl !== undefined ||
+            createOpts.electronPath !== undefined ||
+            createOpts.headed === true
               ? "chrome"
               : (createOpts.backend ?? "webkit"),
           createdAt: Date.now(),
@@ -432,7 +454,7 @@ export function createSessionStore(opts?: SessionStoreOptions) {
             ...(createOpts.ua !== undefined ? { ua: createOpts.ua } : {}),
             ...(createOpts.chromePath !== undefined ? { chromePath: createOpts.chromePath } : {}),
             ...(createOpts.debugPort !== undefined ? { debugPort: createOpts.debugPort } : {}),
-            ...(createOpts.headed === true ? { headed: true } : {}),
+            ...(createOpts.chromeArgs !== undefined ? { chromeArgs: createOpts.chromeArgs } : {}),
             ...(createOpts.cdpUrl !== undefined ? { cdpUrl: createOpts.cdpUrl } : {}),
             ...(createOpts.electronPath !== undefined
               ? {
@@ -441,7 +463,7 @@ export function createSessionStore(opts?: SessionStoreOptions) {
                     ? { electronArgs: createOpts.electronArgs }
                     : {}),
                 }
-              : {}),
+              : electronOpts),
           },
           downloadsBytes: 0,
           activePageId: 0,
@@ -472,7 +494,7 @@ export function createSessionStore(opts?: SessionStoreOptions) {
               ...(r.driver.ua !== undefined ? { userAgent: r.driver.ua } : {}),
               ...(r.driver.chromePath !== undefined ? { chromePath: r.driver.chromePath } : {}),
               ...(r.driver.debugPort !== undefined ? { debugPort: r.driver.debugPort } : {}),
-              ...(r.driver.headed === true ? { headed: true } : {}),
+              ...(r.driver.chromeArgs !== undefined ? { chromeArgs: r.driver.chromeArgs } : {}),
               ...(r.driver.cdpUrl !== undefined ? { cdpUrl: r.driver.cdpUrl } : {}),
               ...(r.driver.electronPath !== undefined
                 ? {
@@ -491,7 +513,10 @@ export function createSessionStore(opts?: SessionStoreOptions) {
         const url = createOpts.url;
         const dir2 = sessionDirOf(root, id);
         if (url === undefined) {
-          // 无起始 URL：开 about:blank 活动页（旧语义 b13 P2-12——会话立即可交互）
+          // 无起始 URL：开 about:blank 活动页（旧语义 b13 P2-12——会话立即可交互）。
+          // attach/launch 会话（--cdp-url/--electron）的页面由外部 app 自己打开——
+          // 收养的是真实页面。必须把收养页的 host 入 S1 白名单 + 推进回滚点，否则
+          // 全部导航被 S1③ 判违规回滚 + violatedHosts 污染 → 确认门死锁（实测踩坑）
           const { driver, release } = await helperFactory(rec);
           try {
             const engine = createActionEngine(driver as Driver, {
@@ -500,9 +525,19 @@ export function createSessionStore(opts?: SessionStoreOptions) {
             const page = await driver.createPage({ url: "about:blank" });
             rec.activePageId = (page as unknown as { pageId?: number }).pageId ?? 0;
             engine.adopt(page);
+            const adoptedUrl = engine.activePage().url;
+            const adoptedHost = safeHost(adoptedUrl);
+            if (adoptedUrl !== "about:blank" && adoptedHost !== null && adoptedHost !== "") {
+              if (!rec.policy.allowedHosts.includes(adoptedHost)) {
+                rec.policy.allowedHosts.push(adoptedHost);
+              }
+              rec.currentUrl = adoptedUrl;
+              rec.lastAllowedUrl = adoptedUrl;
+            } else {
+              rec.currentUrl = "about:blank";
+              rec.lastAllowedUrl = "about:blank";
+            }
             rec.status = "active";
-            rec.currentUrl = "about:blank";
-            rec.lastAllowedUrl = "about:blank";
             writeRecord(root, rec);
             return { id, record: rec, confirmed: true };
           } catch (e) {
@@ -1442,6 +1477,18 @@ function destroySessionDir(dir: string, rec: SessionRecord | undefined): void {
 }
 
 export type SessionStore = ReturnType<typeof createSessionStore>;
+
+/** headed 映射用：常见 Chrome 安装位探测（与测试候选一致；找不到返回 null → create 报错） */
+function detectChromeBinary(): string | null {
+  const candidates = [
+    process.env.BUN_CHROME_PATH,
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/google-chrome",
+    "/usr/bin/chromium",
+  ].filter((p): p is string => p !== undefined);
+  return candidates.find((p) => existsSync(p)) ?? null;
+}
 
 function safeHost(url: string): string | null {
   try {

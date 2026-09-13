@@ -300,7 +300,8 @@ export async function runSessionCreate(argv: string[]): Promise<number> {
         "  --width W / --height H  视口尺寸",
         "  --ua U                  UA 覆写（仅 chrome）",
         "  --debug-port N          CDP 调试口（chrome；0=随机。bw s cdp <id> 查端点）",
-        "  --headed                有头模式（chrome：真窗口真渲染——风控对抗向）",
+        "  --headed                有头模式（chrome 真窗口——内部走 launch 模式映射）",
+        "  --chrome-arg A          chrome 启动旗标透传（如 --proxy-server=…；可重复）",
         "  --cdp-url URL           attach 外部浏览器（Electron/调试口 Chrome；close 只断连）",
         "  --electron PATH         spawn Electron app + attach（close 连带收走 app）",
         "                              --electron-arg A 透传 app 参数（可重复）",
@@ -324,6 +325,9 @@ export async function runSessionCreate(argv: string[]): Promise<number> {
   const electronArgs = argv
     .filter((_, i) => argv[i - 1] === "--electron-arg")
     .filter((a) => a !== undefined);
+  const chromeArgs = argv
+    .filter((_, i) => argv[i - 1] === "--chrome-arg")
+    .filter((a) => a !== undefined);
   if (cdpUrl !== undefined && electronPath !== undefined) {
     fail(undefined, "INVALID_ARGS", "--cdp-url and --electron are mutually exclusive");
   }
@@ -343,6 +347,7 @@ export async function runSessionCreate(argv: string[]): Promise<number> {
       ...(electronPath !== undefined
         ? { electronPath, ...(electronArgs.length > 0 ? { electronArgs } : {}) }
         : {}),
+      ...(chromeArgs.length > 0 ? { chromeArgs } : {}),
       allowEval: hasFlag(argv, "allow-eval"),
       allowPrivateNetwork: hasFlag(argv, "allow-private-network"),
       ...(flagValue(argv, "profile") !== undefined

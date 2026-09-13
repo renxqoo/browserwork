@@ -20,14 +20,14 @@ export interface HelperSpawnOptions {
   height?: number;
   /** CDP 调试口（chrome-only；0=随机端口。DevToolsActivePort 落 dataStore——bw s cdp 读它） */
   debugPort?: number;
-  /** 有头模式（chrome：--headless=false 反转 Bun 默认） */
-  headed?: boolean;
   /** attach 模式：连外部 CDP 端点（http://… 或 ws://…）；与 backend chrome 语义并用 */
   cdpUrl?: string;
   /** launch 模式：spawn Electron app（或任意 Chromium 系可执行文件）+ attach */
   electronPath?: string;
   /** launch 模式透传给 app 的参数（可多个） */
   electronArgs?: string[];
+  /** chrome 启动旗标透传（proxy/窗口类；可多个） */
+  chromeArgs?: string[];
   /** 就绪超时 ms（默认 20000——webkit host/chrome 冷启动） */
   readyTimeoutMs?: number;
   /** 显式 bun 可执行文件（缺省 process.execPath） */
@@ -70,7 +70,7 @@ const HELPER_ARGV = (o: HelperSpawnOptions): string[] => {
   if (o.width !== undefined) argv.push("--width", String(o.width));
   if (o.height !== undefined) argv.push("--height", String(o.height));
   if (o.debugPort !== undefined) argv.push("--debug-port", String(o.debugPort));
-  if (o.headed === true) argv.push("--headed");
+  for (const a of o.chromeArgs ?? []) argv.push("--chrome-arg", a);
   if (o.cdpUrl !== undefined) argv.push("--cdp-url", o.cdpUrl);
   if (o.electronPath !== undefined) {
     argv.push("--electron", o.electronPath);

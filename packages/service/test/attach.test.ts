@@ -76,6 +76,48 @@ describe.skipIf(!chromeAvailable || process.platform !== "darwin")("attach/launc
     }
   }, 90_000);
 
+  test("attach 收养自动入白名单（S1 死锁根因回归）", async () => {
+    const server = Bun.serve({
+      port: 0,
+      fetch: () =>
+        new Response("<!doctype html><title>Adopted</title><p>adopt-me</p>", {
+          headers: { "content-type": "text/html; charset=utf-8" },
+        }),
+    });
+    const extDir = mkdtempSync(join(tmpdir(), "bw-att-wl-"));
+    const ext = await spawnHelper({
+      sessionDir: extDir,
+      backend: "chrome",
+      dataStore: join(extDir, "data"),
+      debugPort: 0,
+    });
+    const home = mkdtempSync(join(tmpdir(), "bw-att-wl-home-"));
+    try {
+      const extConn = await connectHelper(ext.socketPath);
+      await extConn.createPage({ url: `http://127.0.0.1:${server.port}/` });
+      extConn.release();
+      await new Promise((r) => setTimeout(r, 500));
+      const [port] = readFileSync(join(extDir, "data", "DevToolsActivePort"), "utf8")
+        .trim()
+        .split("\n");
+
+      const store = createSessionStore({ bwHome: home, policyMode: "test" });
+      // 不传 url（electron 会话的标准用法——页面由 app 自己打开）
+      const r = await store.create({ cdpUrl: `http://127.0.0.1:${port}` });
+      const rec = store.get(r.id);
+      // 收养页面的 host 必须自动入白名单——否则 S1③ 把全部导航判违规死锁
+      expect(rec.policy.allowedHosts).toContain("127.0.0.1");
+      expect(rec.currentUrl).toContain("127.0.0.1");
+      expect(rec.lastAllowedUrl).toContain("127.0.0.1");
+      store.close(r.id);
+    } finally {
+      ext.killGroup();
+      server.stop(true);
+      rmSync(extDir, { recursive: true, force: true });
+      rmSync(home, { recursive: true, force: true });
+    }
+  }, 90_000);
+
   test("--electron：spawn app + attach；close 连带收走 app", async () => {
     const home = mkdtempSync(join(tmpdir(), "bw-el-home-"));
     const appData = join(home, "app-data");

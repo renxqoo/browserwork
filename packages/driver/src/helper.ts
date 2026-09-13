@@ -452,7 +452,7 @@ function driverBackend(driver: Driver): "webkit" | "chrome" {
   return driver.capabilities().cdp ? "chrome" : "webkit";
 }
 
-/** 独立进程入口：bun helper.ts --socket <path> --backend <webkit|chrome> [--data-dir …] [--ua …] [--chrome-path …] [--width --height] [--debug-port N] [--headed] */
+/** 独立进程入口：bun helper.ts --socket <path> --backend <webkit|chrome> [--data-dir …] [--ua …] [--chrome-path …] [--width --height] [--debug-port N] [--chrome-arg A] */
 async function main(): Promise<void> {
   const arg = (name: string): string | undefined => {
     const i = process.argv.indexOf(`--${name}`);
@@ -472,7 +472,15 @@ async function main(): Promise<void> {
   const width = arg("width");
   const height = arg("height");
   const debugPort = arg("debug-port"); // 0=随机；DevToolsActivePort 落 dataStore
-  const headed = process.argv.includes("--headed");
+  const chromeArgs: string[] = [];
+  for (
+    let i = process.argv.indexOf("--chrome-arg");
+    i !== -1;
+    i = process.argv.indexOf("--chrome-arg", i + 1)
+  ) {
+    const v = process.argv[i + 1];
+    if (v !== undefined) chromeArgs.push(v);
+  }
   const cdpUrl = arg("cdp-url"); // attach 模式：连外部浏览器（Electron/调试口 Chrome）
   const electronPath = arg("electron"); // launch 模式：spawn Electron app + attach
   if (cdpUrl !== undefined || electronPath !== undefined) {
@@ -493,11 +501,11 @@ async function main(): Promise<void> {
     ...(ua !== undefined ? { userAgent: ua } : {}),
     ...(width !== undefined ? { width: Number(width) } : {}),
     ...(height !== undefined ? { height: Number(height) } : {}),
-    ...(debugPort !== undefined || headed
+    ...(debugPort !== undefined || chromeArgs.length > 0
       ? {
           argv: [
             ...(debugPort !== undefined ? [`--remote-debugging-port=${debugPort}`] : []),
-            ...(headed ? ["--headless=false"] : []),
+            ...chromeArgs,
           ],
         }
       : {}),

@@ -108,6 +108,55 @@ describe.skipIf(process.platform !== "darwin")("SessionStore 文件会话", () =
     store.close(r.id);
   }, 60_000);
 
+  test("headed → launch 模式映射（Bun 强制 --headless 不可反转）；chrome-arg 透传", async () => {
+    // spawner 注入：FakeDriver 形态（进程内 runHelperServer），捕获透传参数
+    const { FakeDriver } = await import("../../driver/src/fake.ts");
+    const { runHelperServer } = await import("@bw/driver");
+    const dir = mkdtempSync(join(tmpdir(), "bw-headed-"));
+    const sockDir = mkdtempSync(join(tmpdir(), "bw-headed-sock-"));
+    let captured: Record<string, unknown> | undefined;
+    const handle = await runHelperServer(new FakeDriver() as never, join(sockDir, "h.sock"));
+    const home2 = mkdtempSync(join(tmpdir(), "bw-headed-home-"));
+    try {
+      const store = createSessionStore({
+        bwHome: home2,
+        policyMode: "test",
+        helperSpawner: async (rec) => {
+          captured = {
+            electronPath: rec.driver.electronPath,
+            electronArgs: rec.driver.electronArgs,
+            chromeArgs: rec.driver.chromeArgs,
+            dataStore: rec.driver.dataStore,
+          };
+          return {
+            pid: process.pid,
+            socketPath: join(sockDir, "h.sock"),
+            killGroup: () => {},
+          };
+        },
+      });
+      const r = await store.create({
+        headed: true,
+        chromeArgs: ["--proxy-server=http://127.0.0.1:7890"],
+        policyMode: "test",
+      });
+      expect(r.confirmed).toBe(true);
+      expect(captured).toBeDefined();
+      // headed 必须映射为 launch 模式（真 Chrome 真窗口）——不再依赖无效的
+      // --headless=false（实测 Bun 强制 --headless 不可反转）
+      expect(captured?.electronPath).toBeDefined();
+      expect(JSON.stringify(captured?.electronArgs)).toContain("--user-data-dir=");
+      // chrome-arg 原样透传到驱动 argv
+      expect(captured?.chromeArgs).toContain("--proxy-server=http://127.0.0.1:7890");
+      store.close(r.id);
+    } finally {
+      await handle.close();
+      rmSync(dir, { recursive: true, force: true });
+      rmSync(sockDir, { recursive: true, force: true });
+      rmSync(home2, { recursive: true, force: true });
+    }
+  }, 30_000);
+
   test("agent 反馈回归：extract 带 page 字段；unchanged 快照瘦身", async () => {
     const fx = await fixtureServer();
     servers.push(fx.stop);
@@ -129,12 +178,12 @@ describe.skipIf(process.platform !== "darwin")("SessionStore 文件会话", () =
     store.close(r.id);
   }, 60_000);
 
-  test("debug-port/headed 落盘；cdpEndpoint 无调试口给引导错误", async () => {
+  test("debug-port 落盘 + headed 映射 electronPath；cdpEndpoint 无调试口给引导错误", async () => {
     const store = mkStore();
-    const r = await store.create({ policyMode: "test", debugPort: 0, headed: true });
+    const r = await store.create({ policyMode: "test", debugPort: 0 });
     const rec = store.get(r.id);
     expect(rec.driver.debugPort).toBe(0);
-    expect(rec.driver.headed).toBe(true);
+    expect("headed" in rec.driver).toBe(false); // 旧通道已撤（映射见 headed 专项测试）
     await expect(store.cdpEndpoint(r.id)).rejects.toThrow("DevToolsActivePort"); // webkit 无 CDP 口
     store.close(r.id);
     const r2 = await store.create({ policyMode: "test" });

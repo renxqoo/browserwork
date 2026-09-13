@@ -105,9 +105,6 @@ export interface CreateDriverOptions {
    * about:blank 建立 CDP 会话再覆写——首个真实请求即带覆写 UA（审查 P19）。
    */
   userAgent?: string;
-  /** 有头模式（chrome；实测 --headless=false 后 last-wins 生效——真窗口/真渲染，
-   * 环境指纹从根上正常。风控对抗向：登录态会话建议开；弹真窗口到桌面是代价） */
-  headed?: boolean;
 }
 
 export function createWebViewDriver(opts?: CreateDriverOptions): Driver {
@@ -146,11 +143,7 @@ export function createWebViewDriver(opts?: CreateDriverOptions): Driver {
     "--disable-blink-features=AutomationControlled",
     `--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion} Safari/537.36`,
   ];
-  const chromeArgv = [
-    ...CHROME_STEALTH_ARGV,
-    ...(opts?.headed === true ? ["--headless=false"] : []),
-    ...(opts?.argv ?? []),
-  ];
+  const chromeArgv = [...CHROME_STEALTH_ARGV, ...(opts?.argv ?? [])];
 
   const makeView = (w: number, h: number): Bun.WebView => {
     if (backend === "chrome") {
