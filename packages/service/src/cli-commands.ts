@@ -2,11 +2,12 @@
  * B22 S0：bw s 命令面纯映射层（CLI 名 → 工具规范名 + 位置参数 → JSON 参数 + usage 文案）。
  * 从 cli-session.ts 原样抽出（audit-service §4.4 规格的行为锚）——旧 HTTP 客户端与
  * S3 的 SessionStore 直连客户端共用；金测试锁定 drift。
- * 注意：旧 CLI 面**无** extract_code / type_text_secret 命令（04-usage 的 extract_code
- * 行是 B21 文档超前——S3 按新语义补齐，见 MIGRATION-cli §4）。
+ * S3 补齐：extract_code（code=join，可含空格）/ type-secret → type_text_secret。
  */
 export const WIRE_NAMES: Record<string, string> = {
   scrollto: "scroll_to",
+  "type-secret": "type_text_secret",
+  "secret-type": "type_text_secret",
   opentab: "open_tab",
   switchtab: "switch_tab",
   closetab: "close_tab",
@@ -72,6 +73,17 @@ export function mapToolArgs(tool: string, args: string[]): MappedArgs {
     case "eval":
       if (args.length < 1) return { error: "usage: bw s eval <sessionId> <expression>" };
       return { params: { expression: args.join(" ") }, hint: "" };
+    case "extract_code":
+      // B21 文档超前、S3 补齐：code 表达式可含空格——整体 join
+      if (args.length < 1) {
+        return { error: "usage: bw s extract_code <sessionId> '<function expression>'" };
+      }
+      return { params: { code: args.join(" ") }, hint: "" };
+    case "type_text_secret":
+      if (args.length < 2) {
+        return { error: "usage: bw s type-secret <sessionId> <index> <secretName>" };
+      }
+      return { params: { index: args[0], secretName: args[1] }, hint: "" };
     case "wait":
       if (args.length < 1) return { error: "usage: bw s wait <sessionId> <seconds> [networkIdle]" };
       return {

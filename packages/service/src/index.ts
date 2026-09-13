@@ -1,28 +1,30 @@
+/** B22 S3：SDK barrel——文件会话面（serve/daemon/sup/sessions.ts 已删除，U1/U9）。
+ * S5 将在此装配 `bw` SDK 对象（sessions/run/profiles）。 */
+
+export type { BatchOptions, BatchOutcome, BatchTaskLine } from "./batch.ts";
+export { parseTaskLine, renderBatchSummary, runBatchFile } from "./batch.ts";
+export { mapCliCommand, WIRE_NAMES } from "./cli-commands.ts";
+export type { RunCliArgs } from "./cli-run.ts";
 export { runCliTask } from "./cli-run.ts";
-export { runSessionCli } from "./cli-session.ts";
-export { IDLE_EXIT_MS, setupIdleExit } from "./daemon.ts";
-export type { JanitorOptions, JanitorResult } from "./janitor.ts";
+export { runSessionCli, runSessionCreate } from "./cli-session.ts";
+export {
+  CONFIRMATION_TIMEOUT_MS,
+  expirePending,
+  listPending,
+  type PendingConfirmation,
+} from "./confirmations.ts";
+export type { JanitorOptions, JanitorResult, JanitorTarget } from "./janitor.ts";
 export { startJanitor, sweepDir } from "./janitor.ts";
 export type { ReplayOutcome } from "./replay.ts";
 export { replayTrajectory, resolveTrajectoryPath } from "./replay.ts";
-export type { ServiceConfig } from "./server.ts";
-export { createServer } from "./server.ts";
+export { loadSecretsConfig, resolveSecretValue, secretNames } from "./secrets.ts";
 export type {
+  CreateSessionOptions,
   SessionInfo,
-  SessionManager,
-  SessionManagerOptions,
-  SessionToolError,
-  SessionToolResponse,
-  SessionToolResult,
-} from "./sessions.ts";
-export { createSessionManager, SessionLimitError } from "./sessions.ts";
-export { installSignalHandlers } from "./shutdown.ts";
-export type { Supervisor, SupervisorConfig, SupInstance } from "./supervisor.ts";
-export {
-  createSupervisor,
-  readSupervisorState,
-  SupError,
-  supervisorStateDir,
-  waitForHealthUrl,
-} from "./supervisor.ts";
+  SessionRecord,
+  SessionStore,
+  SessionStoreOptions,
+  ToolResult,
+} from "./store.ts";
+export { createSessionStore, SessionBusyError } from "./store.ts";
 export { VERSION } from "./version.ts";

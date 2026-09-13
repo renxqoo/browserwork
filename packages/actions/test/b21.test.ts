@@ -1,10 +1,14 @@
 /** B21：extract_code——沙箱执行器纯函数 + 树序列化 + 引擎/agent/会话接线 + batch 嵌入 */
 import { describe, expect, test } from "bun:test";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { runTask, scriptLLM } from "@bw/agent";
 import type { Driver, DriverCapabilities } from "@bw/driver";
 import { FakeDriver, type FakePageOptions } from "@bw/driver";
 import { EXTRACT_EXPRESSION, SERIALIZE_TREE_EXPRESSION } from "@bw/perception";
-import { createSessionManager } from "@bw/service";
+import type { SessionStore } from "@bw/service";
+import { createSessionStore } from "@bw/service";
 import { createActionEngine } from "../src/engine.ts";
 import { EXTRACT_CODE_MAX_CHARS, runTreeCode } from "../src/sandbox.ts";
 import { fakeNode, makeFakeWorld } from "./helpers.ts";
@@ -220,35 +224,50 @@ describe("B21 agent 工具（假 LLM）", () => {
   });
 });
 
-describe("B21 会话模式 + redact", () => {
-  test("密码在树序列化源头已掩码（安全主保证）", async () => {
-    // redact 的结果级脱敏只掩「已注册的 secret 值」（type_text_secret 注册面）——
-    // 结构性安全在源头：密码字段序列化即 ***（perception/tree.ts），沙箱代码不可能读到明文。
-    // 这里验证：树中 input[type=password].value 恒 ***，无论代码怎么读。
-    const mgr = createSessionManager({
+describe("B21 会话模式 + redact（B22 S3 移植：store 测试缝）", () => {
+  const mkFakeStore = (extraHandler?: (expr: string) => unknown): SessionStore => {
+    // driver 每 store 私有（describe 级共享会让前一用例的 evaluateHandler 泄漏给后续——
+    // 密码树 handler 串到 batch 用例导致 (tree)=>tree.text undefined，实测）
+    let driver: ReturnType<typeof mkDriver> | null = null;
+    return createSessionStore({
+      bwHome: mkdtempSync(join(tmpdir(), "bw-b21-")), // 独立世界（不复用全局 BW_HOME——别撞上限）
       policyMode: "test",
-      driverFactory: () =>
-        mkDriver({
-          evaluateHandler: (expr: string) => {
-            if (expr === SERIALIZE_TREE_EXPRESSION) {
-              return {
-                root: {
-                  tag: "body",
-                  children: [
-                    { tag: "input", attrs: { type: "password" }, value: "***" },
-                    { tag: "input", attrs: { type: "text" }, value: "visible value" },
-                  ],
+      helperSpawner: async (rec) => ({
+        pid: 0, // 守卫语义：≤0 = 无进程可杀（pid 1 = launchd，kill(-1) 是全进程！）
+        socketPath: `fake://${rec.id}`,
+        killGroup: () => {},
+      }),
+      helperFactory: async () => {
+        // 单例 driver：真实 helper 的页面在进程内持久——假工厂必须跨调用共享同一实例
+        driver ??= mkDriver({
+          ...(extraHandler !== undefined
+            ? {
+                evaluateHandler: (expr: string) => {
+                  if (expr === SERIALIZE_TREE_EXPRESSION) return extraHandler(expr);
+                  return fakeTreeHandler(expr);
                 },
-                nodeCount: 3,
-                truncated: false,
-              };
-            }
-            return fakeTreeHandler(expr);
-          },
-        }),
+              }
+            : { evaluateHandler: fakeTreeHandler }),
+        });
+        return { driver, release: () => {}, kill: () => {} };
+      },
     });
-    const s = await mgr.create("https://fake.test/page");
-    const r = await mgr.executeTool(s.id, "extract_code", {
+  };
+
+  test("密码在树序列化源头已掩码（安全主保证）", async () => {
+    const store = mkFakeStore(() => ({
+      root: {
+        tag: "body",
+        children: [
+          { tag: "input", attrs: { type: "password" }, value: "***" },
+          { tag: "input", attrs: { type: "text" }, value: "visible value" },
+        ],
+      },
+      nodeCount: 3,
+      truncated: false,
+    }));
+    const { id } = await store.create({ url: "https://fake.test/page", policyMode: "test" });
+    const r = await store.executeTool(id, "extract_code", {
       code: "(tree) => tree.children.map(c => c.value ?? null)",
     });
     expect(r.ok).toBe(true);
@@ -256,38 +275,32 @@ describe("B21 会话模式 + redact", () => {
       expect(r.text).toContain("***");
       expect(r.text).toContain("visible value"); // 非密码字段照常可读
     }
-    mgr.closeAll();
+    store.close(id);
   });
 
   test("batch 嵌 extract_code 步过会话闸与 redact", async () => {
-    const mgr = createSessionManager({
-      policyMode: "test",
-      driverFactory: () =>
-        mkDriver({
-          evaluateHandler: (expr: string) => {
-            if (expr === SERIALIZE_TREE_EXPRESSION) {
-              return { root: { tag: "body", text: "clean" }, nodeCount: 1, truncated: false };
-            }
-            return fakeTreeHandler(expr);
-          },
-        }),
-    });
-    const s = await mgr.create("https://fake.test/page");
-    const r = await mgr.executeTool(s.id, "batch", {
+    const store = mkFakeStore(() => ({
+      root: { tag: "body", text: "clean" },
+      nodeCount: 1,
+      truncated: false,
+    }));
+    const { id } = await store.create({ url: "https://fake.test/page", policyMode: "test" });
+    const r = await store.executeTool(id, "batch", {
       steps: [
         { kind: "wait", seconds: 0.01 },
         { kind: "extract_code", code: "(tree) => tree.text" },
       ],
     });
+    if (!r.ok) console.error("DBG batch:", JSON.stringify(r));
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.text).toContain("✓ [2/2]");
-    mgr.closeAll();
+    store.close(id);
   });
 
   test("无 code / 空 code 拒绝", async () => {
-    const mgr = createSessionManager({ policyMode: "test", driverFactory: () => mkDriver() });
-    const s = await mgr.create("https://fake.test/page");
-    expect((await mgr.executeTool(s.id, "extract_code", {})).ok).toBe(false);
-    mgr.closeAll();
+    const store = mkFakeStore();
+    const { id } = await store.create({ policyMode: "test" });
+    expect((await store.executeTool(id, "extract_code", {})).ok).toBe(false);
+    store.close(id);
   });
 });

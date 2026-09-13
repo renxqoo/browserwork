@@ -16,6 +16,7 @@ import {
   acquireFlock,
   BWError,
   buildAction,
+  killHelperGroup,
   readJsonIfPossible,
   resolveBwHome,
   sessionsRoot,
@@ -100,6 +101,12 @@ export interface ToolResult {
   intent?: { kind: string; href?: string };
 }
 
+export interface SpawnedHelper {
+  pid: number;
+  socketPath: string;
+  killGroup(): void;
+}
+
 export interface SessionStoreOptions {
   bwHome?: string;
   maxSessions?: number;
@@ -108,6 +115,8 @@ export interface SessionStoreOptions {
   helperFactory?: (
     record: SessionRecord,
   ) => Promise<{ driver: RemoteDriver | Driver; release: () => void; kill: () => void }>;
+  /** 测试缝：create 的 helper 拉起（缺省真 spawnHelper；测试配 FakeDriver 用） */
+  helperSpawner?: (rec: SessionRecord, dir: string) => Promise<SpawnedHelper>;
   policyMode?: "production" | "test";
 }
 
@@ -252,11 +261,7 @@ export function createSessionStore(opts?: SessionStoreOptions) {
         release: () => driver.release(),
         kill: () => {
           driver.close();
-          try {
-            process.kill(-rec.helper.pid, "SIGKILL");
-          } catch {
-            /* 已死 */
-          }
+          killHelperGroup(rec.helper.pid);
         },
       };
     } catch {
@@ -388,30 +393,53 @@ export function createSessionStore(opts?: SessionStoreOptions) {
             }
           }
         }
-        // 拉 helper + 写记录 + 首页导航
-        const h = await spawnHelper({
-          sessionDir: dir,
-          backend: rec.backend,
-          dataStore,
-          ...(createOpts.width !== undefined ? { width: createOpts.width } : {}),
-          ...(createOpts.height !== undefined ? { height: createOpts.height } : {}),
-          ...(createOpts.ua !== undefined ? { userAgent: createOpts.ua } : {}),
-          ...(createOpts.chromePath !== undefined ? { chromePath: createOpts.chromePath } : {}),
-        });
+        // 拉 helper + 写记录 + 首页导航（spawner 缝：测试注入 FakeDriver 形态）
+        const spawner =
+          opts?.helperSpawner ??
+          (async (r: SessionRecord, d: string): Promise<SpawnedHelper> => {
+            const h = await spawnHelper({
+              sessionDir: d,
+              backend: r.backend,
+              dataStore: r.driver.dataStore,
+              ...(r.driver.width !== undefined ? { width: r.driver.width } : {}),
+              ...(r.driver.height !== undefined ? { height: r.driver.height } : {}),
+              ...(r.driver.ua !== undefined ? { userAgent: r.driver.ua } : {}),
+              ...(r.driver.chromePath !== undefined ? { chromePath: r.driver.chromePath } : {}),
+            });
+            return { pid: h.pid, socketPath: h.socketPath, killGroup: () => h.killGroup() };
+          });
+        const h = await spawner(rec, dir);
         rec.helper = { pid: h.pid, socketPath: h.socketPath, backend: rec.backend };
         writeRecord(root, rec);
         const url = createOpts.url;
+        const dir2 = sessionDirOf(root, id);
         if (url === undefined) {
-          rec.status = "active";
-          writeRecord(root, rec);
-          return { id, record: rec, confirmed: true };
+          // 无起始 URL：开 about:blank 活动页（旧语义 b13 P2-12——会话立即可交互）
+          const { driver, release } = await helperFactory(rec);
+          try {
+            const engine = createActionEngine(driver as Driver, {
+              downloadsDir: () => join(dir2, "downloads"),
+            });
+            const page = await driver.createPage({ url: "about:blank" });
+            rec.activePageId = (page as unknown as { pageId?: number }).pageId ?? 0;
+            engine.adopt(page);
+            rec.status = "active";
+            rec.currentUrl = "about:blank";
+            rec.lastAllowedUrl = "about:blank";
+            writeRecord(root, rec);
+            return { id, record: rec, confirmed: true };
+          } catch (e) {
+            destroySessionDir(dir2, rec);
+            throw e;
+          } finally {
+            release();
+          }
         }
         // S1① 前检（起始域默认入白名单——与旧 create 同语义）
         const startHost = safeHost(url) ?? "";
         if (startHost !== "") rec.policy.allowedHosts.push(startHost);
         const policy = await rebuildPolicy(rec);
         const decision = await policy.onNavigate(url);
-        const dir2 = sessionDirOf(root, id);
         if (decision.kind === "confirm") {
           writePending(dir2, {
             cid: decision.cid,
@@ -427,11 +455,7 @@ export function createSessionStore(opts?: SessionStoreOptions) {
         }
         if (decision.kind === "block") {
           // 拒绝 → 清场不占名额（§4c）
-          try {
-            process.kill(-h.pid, "SIGKILL");
-          } catch {
-            /* 已死 */
-          }
+          killHelperGroup(h.pid);
           rmSync(dir2, { recursive: true, force: true });
           throw new BWError("POLICY_BLOCKED", decision.reason);
         }
@@ -514,11 +538,7 @@ export function createSessionStore(opts?: SessionStoreOptions) {
       const dir = sessionDirOf(root, id);
       const rec = readJsonIfPossible<SessionRecord>(recordPath(dir));
       if (rec === undefined) return false; // 幂等（rm -rf 语义）
-      try {
-        process.kill(-rec.helper.pid, "SIGKILL");
-      } catch {
-        /* 已死 */
-      }
+      killHelperGroup(rec.helper.pid);
       rmSync(dir, { recursive: true, force: true });
       return true;
     },
@@ -565,11 +585,7 @@ export function createSessionStore(opts?: SessionStoreOptions) {
           continue;
         }
         if (!rec.keep && Date.now() - rec.lastActiveAt > ttlMs) {
-          try {
-            process.kill(-rec.helper.pid, "SIGKILL");
-          } catch {
-            /* 已死 */
-          }
+          killHelperGroup(rec.helper.pid);
           rmSync(dir, { recursive: true, force: true });
           reaped.push(d);
         }
@@ -588,6 +604,12 @@ export function createSessionStore(opts?: SessionStoreOptions) {
       if (lock === null) throw new SessionBusyError(id);
       try {
         return await this.runLocked(id, tool, params);
+      } catch (e) {
+        // 行为等价（旧 §5）：参数/闸面错误是工具结果不是异常——SDK/CLI 面同构
+        if (e instanceof BWError) {
+          return { ok: false, code: e.code, error: e.message };
+        }
+        throw e;
       } finally {
         lock.release();
       }
@@ -681,45 +703,51 @@ export function createSessionStore(opts?: SessionStoreOptions) {
           await adoptActive(engine, driver, rec);
 
           // S1③：消费 navEventSeq 之后的导航事件——违规回滚（下次触接模型）
-          const ring = await (driver as RemoteDriver).conn.call<{
-            events: Array<{ seq: number; url: string; pageId: number }>;
-            latest: number;
-            oldest: number;
-          }>("navEvents", { since: rec.navEventSeq });
           let rolledBack = false;
-          // S2R P2-11：环溢出缺口（since < oldest）——事件已丢，按当前 URL 保守补判
-          const gap = rec.navEventSeq > 0 && rec.navEventSeq < ring.oldest;
-          const toJudge = gap
-            ? [
-                ...ring.events,
-                {
-                  seq: ring.latest,
-                  url: engine.activePage().url,
-                  pageId: rec.activePageId,
-                  __current: true,
-                },
-              ]
-            : ring.events;
-          for (const ev of toJudge) {
-            const verdict = await policy.onNavigationSettled(ev.url);
-            if (!verdict.ok && verdict.violation !== undefined) {
-              const host = safeHost(ev.url) ?? "";
-              if (host !== "" && !rec.policy.violatedHosts.includes(host)) {
-                rec.policy.violatedHosts.push(host);
+          const remote =
+            driver instanceof Object && "conn" in driver ? (driver as RemoteDriver) : null;
+          if (remote === null) {
+            // FakeDriver seam 无事件环——无 S1③ 面
+          } else {
+            const ring = await remote.conn.call<{
+              events: Array<{ seq: number; url: string; pageId: number }>;
+              latest: number;
+              oldest: number;
+            }>("navEvents", { since: rec.navEventSeq });
+            // S2R P2-11：环溢出缺口（since < oldest）——事件已丢，按当前 URL 保守补判
+            const gap = rec.navEventSeq > 0 && rec.navEventSeq < ring.oldest;
+            const toJudge = gap
+              ? [
+                  ...ring.events,
+                  {
+                    seq: ring.latest,
+                    url: engine.activePage().url,
+                    pageId: rec.activePageId,
+                    __current: true,
+                  },
+                ]
+              : ring.events;
+            for (const ev of toJudge) {
+              const verdict = await policy.onNavigationSettled(ev.url);
+              if (!verdict.ok && verdict.violation !== undefined) {
+                const host = safeHost(ev.url) ?? "";
+                if (host !== "" && !rec.policy.violatedHosts.includes(host)) {
+                  rec.policy.violatedHosts.push(host);
+                }
+                try {
+                  await engine.act({ kind: "navigate", url: rec.lastAllowedUrl });
+                  rolledBack = true;
+                } catch {
+                  /* 回滚失败——记录违规即可 */
+                }
+              } else if (verdict.ok) {
+                // 合法落定 → 回滚点推进（S2R P0-2：否则恢复永远回 create 起始页）
+                rec.lastAllowedUrl = ev.url;
               }
-              try {
-                await engine.act({ kind: "navigate", url: rec.lastAllowedUrl });
-                rolledBack = true;
-              } catch {
-                /* 回滚失败——记录违规即可 */
-              }
-            } else if (verdict.ok) {
-              // 合法落定 → 回滚点推进（S2R P0-2：否则恢复永远回 create 起始页）
-              rec.lastAllowedUrl = ev.url;
             }
+            if (ring.events.length > 0 || gap)
+              rec.navEventSeq = Math.max(rec.navEventSeq, ring.latest);
           }
-          if (ring.events.length > 0 || gap)
-            rec.navEventSeq = Math.max(rec.navEventSeq, ring.latest);
 
           // 现提取快照（索引类命令开始——S2 词面闸/索引查找/unchanged）
           const snap: Snapshot | null = await engine.currentSnapshot();
@@ -1129,13 +1157,7 @@ export function createSessionStore(opts?: SessionStoreOptions) {
 
 /** 会话目录销毁（杀 helper 进程组 + rm——create deny/失败清场共用，S2R P1-8） */
 function destroySessionDir(dir: string, rec: SessionRecord | undefined): void {
-  if (rec !== undefined && rec.helper.pid > 0) {
-    try {
-      process.kill(-rec.helper.pid, "SIGKILL");
-    } catch {
-      /* 已死 */
-    }
-  }
+  killHelperGroup(rec?.helper.pid ?? 0); // 守卫：pid≤1 拒绝 + ps 命令核验
   rmSync(join(dir, "pending"), { recursive: true, force: true });
   rmSync(dir, { recursive: true, force: true });
 }

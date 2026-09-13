@@ -1,22 +1,20 @@
 #!/usr/bin/env bun
-import { trajectoryDir as trajectoryDirFromCore } from "@bw/core";
 import { runCliTask } from "./cli-run.ts";
 /**
  * bw CLI 入口 —— build 门禁的真实打包产物（bun build 的 target）。
- * 子命令：run / serve / replay。
+ * B22 S3：serve/sup/daemon 删除（U1/U9）；+ gc/jobs；未知 flag → exit 2（B18）；
+ * 数值 flag 校验（B19）。
  */
 import { VERSION } from "./version.ts";
 
 const HELP = `bw ${VERSION} — Browser Use on Bun.WebView
 
 Usage:
-  bw run "goal text" [--url <start-url>] [--json]   run a task
+  bw run "goal text" [--url <start-url>] [--json]      run a task
          [--verbose] [--max-steps N]
-  bw serve [--port <port>] [--token <auth-token>]   start HTTP service
-         [--trajectory-dir <dir>]
-  bw replay <taskId|file>                           print a task trajectory
-  bw sup start|status|stop [--instances N]          supervise N serve instances
+         [--jobs N --file tasks.jsonl]                 batch tasks (child process each)
   bw s [command]                                    session tools (bw s --help)
+  bw replay <taskId|file>                           print a task trajectory
   bw --version                                      print version
   bw --help                                         show this help`;
 
@@ -27,15 +25,40 @@ interface ParsedArgs {
   json: boolean;
   verbose: boolean;
   maxSteps: number | undefined;
-  port: number | undefined;
-  token: string | undefined;
-  trajectoryDir: string | undefined;
+  jobs: number | undefined;
+  file: string | undefined;
+  profile: string | undefined;
   backend: string | undefined;
   dataDir: string | undefined;
   chromePath: string | undefined;
   width: number | undefined;
   height: number | undefined;
   ua: string | undefined;
+}
+
+/** 值 flag 词表（其余 --x 一律拒绝——B18：静默吞未知 flag 曾让拼错参数静默走默认） */
+const VALUE_FLAGS = new Set([
+  "--url",
+  "-u",
+  "--max-steps",
+  "--jobs",
+  "--file",
+  "--profile",
+  "--backend",
+  "--data-dir",
+  "--chrome-path",
+  "--width",
+  "--height",
+  "--ua",
+]);
+
+function numFlag(name: string, raw: string | undefined): number | undefined {
+  if (raw === undefined) return undefined;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) {
+    throw new Error(`invalid value for ${name}: ${raw} (expect positive number)`);
+  }
+  return n;
 }
 
 export function parseArgs(argv: string[]): ParsedArgs {
@@ -46,9 +69,9 @@ export function parseArgs(argv: string[]): ParsedArgs {
     json: false,
     verbose: false,
     maxSteps: undefined,
-    port: undefined,
-    token: undefined,
-    trajectoryDir: undefined,
+    jobs: undefined,
+    file: undefined,
+    profile: undefined,
     backend: undefined,
     dataDir: undefined,
     chromePath: undefined,
@@ -58,61 +81,65 @@ export function parseArgs(argv: string[]): ParsedArgs {
   };
   const [cmd, ...rest] = argv;
   out.command = cmd;
+  const flagTarget: Record<string, keyof ParsedArgs> = {
+    "--url": "url",
+    "-u": "url",
+    "--max-steps": "maxSteps",
+    "--jobs": "jobs",
+    "--file": "file",
+    "--profile": "profile",
+    "--backend": "backend",
+    "--data-dir": "dataDir",
+    "--chrome-path": "chromePath",
+    "--width": "width",
+    "--height": "height",
+    "--ua": "ua",
+  };
   for (let i = 0; i < rest.length; i++) {
-    const a = rest[i];
-    if (a === "--url" || a === "-u") {
-      out.url = rest[i + 1];
-      i += 1;
-    } else if (a === "--json") {
+    const a: string | undefined = rest[i];
+    if (a === undefined) continue;
+    if (a === "--json") {
       out.json = true;
     } else if (a === "--verbose") {
       out.verbose = true;
-    } else if (a === "--max-steps") {
-      out.maxSteps = Number(rest[i + 1]);
+    } else if (VALUE_FLAGS.has(a)) {
+      const v = rest[i + 1];
+      if (v === undefined || v.startsWith("--")) {
+        throw new Error(`missing value for ${a}`);
+      }
       i += 1;
-    } else if (a === "--port" || a === "-p") {
-      out.port = Number(rest[i + 1]);
-      i += 1;
-    } else if (a === "--token" || a === "-t") {
-      out.token = rest[i + 1];
-      i += 1;
-    } else if (a === "--trajectory-dir") {
-      out.trajectoryDir = rest[i + 1];
-      i += 1;
-    } else if (a === "--backend") {
-      out.backend = rest[i + 1];
-      i += 1;
-    } else if (a === "--data-dir") {
-      out.dataDir = rest[i + 1];
-      i += 1;
-    } else if (a === "--chrome-path") {
-      out.chromePath = rest[i + 1];
-      i += 1;
-    } else if (a === "--width") {
-      out.width = Number(rest[i + 1]);
-      i += 1;
-    } else if (a === "--height") {
-      out.height = Number(rest[i + 1]);
-      i += 1;
-    } else if (a === "--ua") {
-      out.ua = rest[i + 1];
-      i += 1;
-    } else if (out.goal === undefined && a !== undefined && !a.startsWith("--")) {
+      const key = flagTarget[a] as keyof ParsedArgs | undefined;
+      if (key !== undefined) {
+        (out as unknown as Record<string, unknown>)[key] = v;
+      }
+    } else if (a.startsWith("--")) {
+      throw new Error(`unknown flag: ${a} (run 'bw --help')`);
+    } else if (out.goal === undefined) {
       out.goal = a;
+    } else {
+      throw new Error(`unexpected argument: ${a} (goal takes one positional)`);
     }
   }
+  // 数值校验（B19：NaN 一路传到驱动曾致未定义崩溃）
+  out.maxSteps = numFlag(
+    "--max-steps",
+    out.maxSteps === undefined ? undefined : String(out.maxSteps),
+  );
+  out.jobs = numFlag("--jobs", out.jobs === undefined ? undefined : String(out.jobs));
+  out.width = numFlag("--width", out.width === undefined ? undefined : String(out.width));
+  out.height = numFlag("--height", out.height === undefined ? undefined : String(out.height));
   return out;
 }
 
-/** daemon PID 文件清理（有 PID 文件才清）——工厂形态导出供测试 */
-export const pidFileCleanup =
-  (getInfo: () => unknown, remove: () => void): (() => void) =>
-  () => {
-    if (getInfo() !== undefined) remove();
-  };
-
 export async function main(argv?: string[]): Promise<number> {
-  const args = parseArgs(argv ?? process.argv.slice(2));
+  let args: ParsedArgs;
+  const input = argv ?? process.argv.slice(2);
+  try {
+    args = parseArgs(input);
+  } catch (e) {
+    console.error(e instanceof Error ? e.message : String(e));
+    return 2;
+  }
   const cmd = args.command;
   if (cmd === "--version" || cmd === "-v") {
     console.log(VERSION);
@@ -123,6 +150,20 @@ export async function main(argv?: string[]): Promise<number> {
     return 0;
   }
   if (cmd === "run") {
+    // --jobs：批量执行器（每任务子进程——chrome 单例隔离，DESIGN §3）
+    if (args.jobs !== undefined || args.file !== undefined) {
+      if (args.file === undefined) {
+        console.error("--jobs requires --file <tasks.jsonl>");
+        return 2;
+      }
+      const { runBatchFile, renderBatchSummary } = await import("./batch.ts");
+      const { outcomes, exitCode } = await runBatchFile({
+        jobs: args.jobs ?? 4,
+        file: args.file,
+      });
+      console.log(renderBatchSummary(outcomes));
+      return exitCode;
+    }
     if (args.goal === undefined) {
       console.error('bw run requires a goal: bw run "do something"');
       return 2;
@@ -143,59 +184,7 @@ export async function main(argv?: string[]): Promise<number> {
   }
   if (cmd === "s" || cmd === "session") {
     const { runSessionCli } = await import("./cli-session.ts");
-    return runSessionCli((argv ?? process.argv.slice(2)).slice(1));
-  }
-  if (cmd === "serve") {
-    const { createServer } = await import("./server.ts");
-    const explicit = args.token ?? process.env.BW_TOKEN;
-    // B13：轨迹默认落盘 + janitor（trajectories/downloads 双目录）
-    const bwHome = process.env.BW_HOME ?? process.env.HOME ?? "/tmp";
-    const trajectoryDir =
-      args.trajectoryDir ?? process.env.BW_TRAJECTORY_DIR ?? `${bwHome}/.bw/trajectories`;
-    const { downloadsRoot } = await import("./sessions.ts");
-    const server = createServer({
-      port: args.port ?? 3456,
-      ...(explicit !== undefined ? { authToken: explicit } : {}),
-      trajectoryDir,
-    });
-    // P0-1：未显式给 token → 服务端已自动生成（永不裸奔）；落盘 0600 供 bw s 复用
-    if (explicit === undefined) {
-      const { persistServeToken } = await import("./daemon.ts");
-      const file = persistServeToken(server.token);
-      console.log(`auth token: ${server.token} (saved to ${file})`);
-    }
-    console.log(`bw serve listening on ${server.url} (trajectories: ${trajectoryDir})`);
-    console.log("Press Ctrl+C to stop");
-    const { startJanitor } = await import("./janitor.ts");
-    startJanitor([
-      { dir: trajectoryDir, extensions: [".jsonl"] },
-      // 下载根为会话/任务子目录结构——一层展开清扫（B14 审查 P1-6）
-      { dir: downloadsRoot(), subdirs: true },
-    ]);
-    // B13：优雅退出（SIGTERM/SIGINT——daemon 停止/容器停止不再裸杀）
-    const { installSignalHandlers } = await import("./shutdown.ts");
-    const { getDaemonInfo, removePidFile, isServeIdle, setupIdleExit } = await import(
-      "./daemon.ts"
-    );
-    installSignalHandlers({
-      stop: server.stop.bind(server),
-      cleanup: pidFileCleanup(getDaemonInfo, removePidFile),
-      exit: process.exit,
-    });
-    // B13：daemon 拉起的服务空闲自动退出（BW_DAEMON 由死变量转正；手动 serve 常驻）
-    if (process.env.BW_DAEMON === "1") {
-      setupIdleExit(isServeIdle(server.stats.bind(server)));
-    }
-    setInterval(() => {}, 60_000); // 活跃定时器——Bun 事件循环保持进程
-    await new Promise(() => {}); // 永不返回——防止 main return 触发 process.exit
-  }
-  if (cmd === "sup") {
-    const { runSupCommand } = await import("./supervisor.ts");
-    const supArgv = (argv ?? process.argv.slice(2)).slice(1);
-    return runSupCommand(supArgv, {
-      createSupervisor: (await import("./supervisor.ts")).createSupervisor,
-      waitForHealthUrl: (await import("./supervisor.ts")).waitForHealthUrl,
-    });
+    return runSessionCli(input.slice(1));
   }
   if (cmd === "replay") {
     const target = args.goal;
@@ -204,7 +193,8 @@ export async function main(argv?: string[]): Promise<number> {
       return 2;
     }
     const { replayTrajectory } = await import("./replay.ts");
-    const baseDir = trajectoryDirFromCore();
+    const { trajectoryDir } = await import("@bw/core");
+    const baseDir = trajectoryDir();
     const outcome = replayTrajectory(target, baseDir);
     if (!outcome.ok) {
       console.error(outcome.error);
@@ -213,10 +203,8 @@ export async function main(argv?: string[]): Promise<number> {
     for (const line of outcome.lines) console.log(line);
     return 0;
   }
-  console.error(`unknown command: ${cmd}`);
+  console.error(
+    `unknown command: ${cmd}${cmd === "serve" || cmd === "sup" ? " (removed in B22 — sessions are file-based now; see bw s)" : ""}`,
+  );
   return 2;
-}
-
-if (import.meta.main) {
-  process.exit(await main());
 }

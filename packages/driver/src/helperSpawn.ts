@@ -6,7 +6,7 @@
 import { spawn } from "node:child_process";
 import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { BWError } from "@bw/core";
+import { BWError, killHelperGroup } from "@bw/core";
 import type { HelperReady } from "./helperProtocol.ts";
 
 export interface HelperSpawnOptions {
@@ -97,16 +97,8 @@ export async function spawnHelper(o: HelperSpawnOptions): Promise<HelperHandle> 
         socketPath,
         ready,
         killGroup(): void {
-          if (died) return; // P2-8：pid/进程组复用防护——已死不再发组信号
-          try {
-            process.kill(-pid, "SIGKILL");
-          } catch {
-            try {
-              process.kill(pid, "SIGKILL");
-            } catch {
-              /* 已死 */
-            }
-          }
+          if (died) return; // P2-8：已死不再发组信号
+          killHelperGroup(pid); // 守卫：pid≤1 拒绝 + ps 命令核验（防复用误杀）
         },
         async alive(): Promise<boolean> {
           if (died) return false;
@@ -134,15 +126,7 @@ export async function spawnHelper(o: HelperSpawnOptions): Promise<HelperHandle> 
     await sleep(120);
   }
   // P1-5：超时必须杀进程——否则泄漏一个继续启动并常驻监听的 helper（恢复循环下放大）
-  try {
-    process.kill(-pid, "SIGKILL");
-  } catch {
-    try {
-      process.kill(pid, "SIGKILL");
-    } catch {
-      /* 已死 */
-    }
-  }
+  killHelperGroup(pid);
   throw new BWError("BROWSER_DEAD", `helper not ready within ${o.readyTimeoutMs ?? 20_000}ms`);
 }
 

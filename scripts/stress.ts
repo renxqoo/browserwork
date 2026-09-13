@@ -2,7 +2,7 @@
  * 并发压测（05 §3.8）：fixture 站 + N 并发会话 × M 操作——p50/p95/错误数。
  * 手动/CI 可选（不进门禁）：bun scripts/stress.ts [--sessions 4] [--ops 8] [--backend webkit]
  */
-import { createSessionManager } from "@bw/service";
+import { createSessionStore } from "@bw/service";
 
 const arg = (name: string, dflt: number): number => {
   const i = process.argv.indexOf(`--${name}`);
@@ -32,16 +32,17 @@ const fixture = Bun.serve({
 });
 const origin = `http://127.0.0.1:${fixture.port}`;
 
-const mgr = createSessionManager({
+const mgr = createSessionStore({
   policyMode: "test",
   maxSessions: SESSIONS + 2,
-  driverOptions: {
-    backend: BACKEND,
-    ...(BACKEND === "chrome"
-      ? { chromePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" }
-      : {}),
-  },
 });
+
+const driverOpts = {
+  backend: BACKEND,
+  ...(BACKEND === "chrome"
+    ? { chromePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" }
+    : {}),
+};
 
 const results: number[] = [];
 let errors = 0;
@@ -50,7 +51,7 @@ const t0 = Date.now();
 const worker = async (n: number): Promise<void> => {
   let id: string | undefined;
   try {
-    const s = await mgr.create(origin);
+    const s = await mgr.create({ url: origin, policyMode: "test", ...driverOpts });
     id = s.id;
     for (let i = 0; i < OPS; i++) {
       const opStart = Date.now();

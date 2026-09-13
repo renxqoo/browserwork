@@ -24,8 +24,11 @@ export interface JanitorTarget {
   dir: string;
   /** 该目录的后缀过滤（缺省 = 全部常规文件） */
   extensions?: string[];
-  /** 展开一层子目录逐个清扫（downloads 根 = 会话/任务子目录结构——B14 审查 P1-6） */
+  /** 展开一层子目录清扫（B22 修正：跨子目录**聚合**计量容量——
+   * 旧实现每子目录各得预算=总量无界（审计 B22）；且跳过豁免目录） */
   subdirs?: boolean;
+  /** 豁免判定（如活跃会话目录——lock/socket 存在；B22：不能在活会话脚下删文件） */
+  isExempt?: (subdirName: string) => boolean;
 }
 
 const DEFAULT_RETENTION_DAYS = 7;
@@ -101,29 +104,78 @@ export function sweepDir(dir: string, opts?: JanitorOptions): JanitorResult {
   return { deleted, bytesFreed };
 }
 
-/** 周期清扫（启动即扫 + interval；unref 不阻退出）。返回停止函数。 */
+/** 周期清扫（启动即扫 + interval；unref 不阻退出）。返回停止函数。
+ * B22：subdirs 形态 = 聚合容量计量（全子目录文件合计对 maxTotalBytes——
+ * 不再每目录独立预算）+ isExempt 豁免（活跃会话目录跳过）。 */
 export function startJanitor(
   targets: JanitorTarget[],
   opts?: Omit<JanitorOptions, "extensions"> & { intervalMs?: number },
 ): () => void {
   const intervalMs = opts?.intervalMs ?? 3600 * 1000;
+
+  /** 聚合清扫一组目录（年龄各自过；容量按合计最旧删） */
+  const sweepAggregate = (
+    dirs: string[],
+    o: Omit<JanitorOptions, "extensions"> & { extensions?: string[] },
+  ): JanitorResult => {
+    const maxBytes = o.maxTotalBytes ?? DEFAULT_MAX_BYTES;
+    const retentionDays = o.retentionDays ?? DEFAULT_RETENTION_DAYS;
+    const now = (o.now ?? Date.now)();
+    const ageMs = retentionDays * 24 * 3600 * 1000;
+    let deleted = 0;
+    let bytesFreed = 0;
+    let all: FileEntry[] = [];
+    for (const dir of dirs) {
+      const files = listFiles(dir, o.extensions);
+      for (const f of files.filter((f2) => now - f2.mtimeMs > ageMs)) {
+        try {
+          unlinkSync(f.path);
+          deleted += 1;
+          bytesFreed += f.size;
+        } catch {
+          /* 跳过 */
+        }
+      }
+      all = [...all, ...listFiles(dir, o.extensions)];
+    }
+    all.sort((a, b) => a.mtimeMs - b.mtimeMs);
+    let total = all.reduce((acc, f) => acc + f.size, 0);
+    for (const f of all) {
+      if (total <= maxBytes) break;
+      try {
+        unlinkSync(f.path);
+        deleted += 1;
+        bytesFreed += f.size;
+        total -= f.size;
+      } catch {
+        /* 跳过 */
+      }
+    }
+    return { deleted, bytesFreed };
+  };
+
   const sweepAll = (): void => {
     for (const t of targets) {
       const o = {
         ...opts,
         ...(t.extensions !== undefined ? { extensions: t.extensions } : {}),
       };
-      sweepDir(t.dir, o);
       if (t.subdirs === true) {
         let names: string[] = [];
         try {
           names = readdirSync(t.dir, { withFileTypes: true })
             .filter((e) => e.isDirectory())
-            .map((e) => e.name);
+            .map((e) => e.name)
+            .filter((n) => !(t.isExempt?.(n) ?? false));
         } catch {
           continue;
         }
-        for (const name of names) sweepDir(join(t.dir, name), o);
+        sweepAggregate(
+          names.map((n) => join(t.dir, n)),
+          o,
+        );
+      } else {
+        sweepDir(t.dir, o);
       }
     }
   };

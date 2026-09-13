@@ -1,42 +1,14 @@
-import { mapCliCommand } from "./cli-commands.ts";
 /**
- * bw s —— 外部 agent 会话 CLI（连接 bw serve 实例）。
- * 命令即工具名，位置参数即工具参数；统一 JSON 输出（ok/error/code/hint）。
- *
- * 用法（agent 视角）：
- *   bw s create --url https://bun.com        → {"ok":true,"sessionId":"sess-xxx",...}
- *   bw s snap sess-xxx                       → {"ok":true,"snapshot":"# Page: ..."}
- *   bw s click sess-xxx 5                    → {"ok":true,"result":"clicked [5]","snapshot":"..."}
- *   bw s type sess-xxx 3 "hello"            → {"ok":true,...}
- *   bw s navigate sess-xxx "https://..."     → {"ok":true,...}
- *   bw s scroll sess-xxx down                → {"ok":true,...}
- *   bw s press sess-xxx Enter               → {"ok":true,...}
- *   bw s extract sess-xxx                    → {"ok":true,"text":"page content"}
- *   bw s look sess-xxx [--out shot.png]      → {"ok":true,"path":"shot.png"}
- *   bw s select sess-xxx 4 "b"              → {"ok":true,...}
- *   bw s scrollto sess-xxx 12               → {"ok":true,...}
- *   bw s wait sess-xxx 2                    → {"ok":true,...}
- *   bw s tabs sess-xxx                       → {"ok":true,"tabs":[...]}
- *   bw s opentab sess-xxx "https://..."      → {"ok":true,...}
- *   bw s switchtab sess-xxx 0               → {"ok":true,...}
- *   bw s closetab sess-xxx                   → {"ok":true,...}
- *   bw s confirm sess-xxx cid --yes          → {"ok":true}
- *   bw s close sess-xxx                      → {"ok":true}
- *   bw s list                                → {"ok":true,"sessions":[...]}
- *   bw s console sess-xxx                    → {"ok":true,"result":"[{t,level,text}...]"}
- *   bw s errors sess-xxx                     → {"ok":true,"result":"[...error entries]"}
- *   bw s cookies sess-xxx                    → {"ok":true,"result":"a=1; b=2"}
- *   bw s cookies-set sess-xxx a 1            → {"ok":true,...}
- *   bw s storage sess-xxx [key]              → {"ok":true,"result":"{...}"}
- *   bw s eval sess-xxx "1+1"                 → {"ok":true,"result":"2"}（create --allow-eval）
+ * B22 S3：bw s——外部 agent 模式 CLI，直连 SessionStore（文件会话）。
+ * 行为规格：audit-service §4.4（输出单行 JSON / 错误码目录 / wire 名映射 / 参数映射）；
+ * 已裁决变更：snap 未知 id → NOT_FOUND exit 1（B3）；confirm 即执行带 result（§4b）；
+ * stop 退役文案（U1）；extract_code/type_text_secret 补齐（B21 文档超前）；help 零副作用（B16）。
+ * 每命令一进程：store 实例随命令生灭。
  */
-
-export interface SessionCliConfig {
-  /** bw serve 地址（默认 http://127.0.0.1:3456；env BW_SERVER_URL） */
-  serverUrl: string;
-  /** Bearer token（env BW_TOKEN） */
-  token?: string;
-}
+import { BWError, resolveBwHome } from "@bw/core";
+import { mapCliCommand } from "./cli-commands.ts";
+import type { SessionStore } from "./store.ts";
+import { createSessionStore } from "./store.ts";
 
 function out(data: Record<string, unknown>): void {
   console.log(JSON.stringify(data));
@@ -55,289 +27,260 @@ function ok(data: Record<string, unknown>): void {
   process.exit(0);
 }
 
-async function api(
-  cfg: SessionCliConfig,
-  method: string,
-  path: string,
-  body?: Record<string, unknown>,
-): Promise<{ status: number; data: Record<string, unknown> }> {
-  let res: Response;
-  try {
-    res = await fetch(`${cfg.serverUrl}${path}`, {
-      method,
-      headers: {
-        ...(cfg.token !== undefined ? { authorization: `Bearer ${cfg.token}` } : {}),
-        ...(body !== undefined ? { "content-type": "application/json" } : {}),
-      },
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (msg.includes("ConnectionRefused") || msg.includes("Unable to connect")) {
-      console.error(
-        JSON.stringify({
-          ok: false,
-          code: "SERVER_NOT_RUNNING",
-          error: `bw serve is not running on ${cfg.serverUrl}`,
-          hint: "run 'bw s stop' then retry (daemon will auto-start), or start manually: bw serve",
-        }),
-      );
-      process.exit(1);
-    }
-    throw e;
-  }
-  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  return { status: res.status, data };
+const store = (): SessionStore =>
+  createSessionStore({
+    bwHome: resolveBwHome(),
+    policyMode: process.env.BW_POLICY_MODE === "test" ? "test" : "production",
+  });
+
+/** BWError → CLI 错误码 + hint 目录（§4.4-26 透传面） */
+const HINTS: Record<string, string> = {
+  ELEMENT_NOT_FOUND: "page changed since last snapshot — run 'bw s snap <id>' for fresh ids",
+  ELEMENT_NOT_ACTIONABLE: "element hidden/off-screen — run 'bw s scrollto <id> <index>' first",
+  SESSION_BUSY: "another command holds this session — retry after it finishes",
+  SESSION_LIMIT: "close or gc sessions first (bw s close / bw s gc)",
+  BROWSER_DEAD: "browser endpoint dead — retry (auto-recovers) or run 'bw s gc'",
+  NOT_FOUND: "no such session — run 'bw s list'",
+  EVAL_DISABLED: "re-create with --allow-eval",
+  TIMEOUT: "page JS busy — navigate or close",
+};
+
+function failFromBwError(sessionId: string | undefined, e: BWError): never {
+  return fail(sessionId, e.code, e.message, HINTS[e.code]);
 }
 
-export async function runSessionCli(argv: string[]): Promise<number> {
-  const token = process.env.BW_TOKEN;
-  const [cmd, ...rest] = argv;
+/** flag 解析（create/look 用；其余命令位置参数为主） */
+function flagValue(args: string[], name: string): string | undefined {
+  const i = args.indexOf(`--${name}`);
+  return i >= 0 ? args[i + 1] : undefined;
+}
+function hasFlag(args: string[], name: string): boolean {
+  return args.includes(`--${name}`);
+}
 
-  // stop 命令不需要服务
-  if (cmd === "stop") {
-    const { stopServer } = await import("./daemon.ts");
-    const stopped = await stopServer();
-    ok({ result: stopped ? "server stopped" : "no server running" });
-  }
+const HELP = `bw s — session-based browser tools for external agents
 
-  // 其余命令需要服务——自动拉起后台守护
-  const { ensureServer } = await import("./daemon.ts");
-  const daemon = await ensureServer(token);
-  const cfg: SessionCliConfig = {
-    serverUrl: daemon.url,
-    ...(daemon.token !== undefined ? { token: daemon.token } : {}),
-  };
-
-  if (cmd === undefined || cmd === "--help" || cmd === "-h") {
-    console.log(`bw s — session-based browser tools for external agents
-
-Server auto-starts on first use. Use 'bw s stop' to shut it down.
+Sessions live in ~/.bw/session/<id>/ (file-based; no daemon). Use 'bw s list' to see them.
 
 Usage:
-  bw s create [--url <url>] [--allow-eval]  create session, returns sessionId
-  bw s list                              list active sessions
-  bw s snap <id>                         get current snapshot
-  bw s extract <id>                      extract page text
-  bw s look <id> [--out <file>]          screenshot (saves to file or /tmp)
-  bw s click <id> <index>                click element
-  bw s type <id> <index> <text>          type text into input
-  bw s navigate <id> <url>               navigate to URL
-  bw s press <id> <key>                  press key (Enter/Tab/Escape...)
-  bw s scroll <id> <dir> [amount]        scroll up/down/left/right
-  bw s scrollto <id> <index>             scroll to element
-  bw s select <id> <index> <value>       select dropdown option
-  bw s wait <id> <seconds> [networkIdle]  wait (networkIdle=chrome 网络静默)
-  bw s batch <id> '<json steps>'         run a typed action sequence (B20)
-  bw s keep <id>                         mark session kept (TTL exempt)
-  bw s rename <id> <name>                rename session
-  bw s opentab <id> <url>                open new tab
-  bw s switchtab <id> <n>                switch tab
-  bw s closetab <id>                     close current tab
-  bw s tabs <id>                         list tabs (index + url + title)
-  bw s console <id>                      page console messages (new since last call)
-  bw s errors <id>                       page errors (onerror/unhandledrejection)
-  bw s cookies <id>                      get cookies (document.cookie; httpOnly invisible)
-  bw s cookies-set <id> <name> <value>   set cookie (path=/, SameSite=Lax)
-  bw s cookies-clear <id>                clear visible cookies
-  bw s storage <id> [key]                localStorage all or by key
-  bw s storage-set <id> <key> <value>    set localStorage entry
-  bw s storage-clear <id>                clear localStorage
-  bw s eval <id> <js-expression>         run JS (requires create --allow-eval)
-  bw s resize <id> <w> <h>               set viewport size
-  bw s reload <id>                       reload current page
-  bw s download <id> <index>             click a download link, save file (chrome only)
-  bw s upload <id> <index> <file>...     upload files to a file input (chrome only)
-  bw s requests <id>                     recent network requests (chrome only)
-  bw s cookies-all <id>                  all cookie metadata incl httpOnly (chrome only)
-  create also accepts: --backend <webkit|chrome> --data-dir <dir> --chrome-path <p>
-                       --width <n> --height <n> --ua <user-agent>
-  bw s confirm <id> <cid> --yes|--no     approve/deny confirmation
-  bw s close <id>                        close session
-  bw s stop                              stop background server
+  bw s create [--url U] [--name N] [--allow-eval] [--backend webkit|chrome] [--data-dir D] [--ua U] [--width W] [--height H]
+  bw s list | gc | stop(retired)
+  bw s snap <id> | status <id> | close <id> | keep <id> | rename <id> <name>
+  bw s confirm <id> <cid> --yes | --no
+  bw s look <id> [--out F]
+  bw s extract <id> | extract_code <id> '<fn>'
+  bw s click/type/type-secret/press/navigate/scroll/scrollto/select/wait/batch <id> <args…>
+  bw s opentab/switchtab/closetab/tabs/console/errors/requests <id> …
+  bw s cookies/cookies-set/cookies-clear/cookies-all/storage/storage-set/storage-clear/eval/resize/reload <id> …
+  bw s download/upload <id> … (chrome only)`;
 
-Env:
-  BW_SERVER_URL  use remote server (skip auto-start)
-  BW_TOKEN       bearer token`);
+export async function runSessionCli(argv: string[]): Promise<number> {
+  const [cmd, ...rest] = argv;
+  const sessionId = rest[0] !== undefined && !rest[0].startsWith("--") ? rest[0] : undefined;
+  const args = sessionId !== undefined ? rest.slice(1) : rest;
+
+  // help 零副作用（B16——旧实现先 ensureServer 再打印帮助）
+  if (cmd === undefined || cmd === "--help" || cmd === "-h") {
+    console.log(HELP);
     return 0;
   }
 
-  // ---- create
-  if (cmd === "create") {
-    const flagValue = (name: string): string | undefined => {
-      const i = rest.indexOf(name);
-      return i !== -1 ? rest[i + 1] : undefined;
-    };
-    const startUrl = flagValue("--url");
-    const allowEval = rest.includes("--allow-eval");
-    // B13：生产档 S4 生效——本地/内网地址需显式放行
-    const allowPrivate = rest.includes("--allow-private-network");
-    // B14：驱动构造透传
-    const name = flagValue("--name");
-    const backend = flagValue("--backend");
-    const dataDir = flagValue("--data-dir");
-    const chromePath = flagValue("--chrome-path");
-    const width = flagValue("--width");
-    const height = flagValue("--height");
-    const ua = flagValue("--ua");
-    const { status, data } = await api(cfg, "POST", "/sessions", {
-      ...(startUrl !== undefined ? { startUrl } : {}),
-      ...(allowEval ? { allowEval: true } : {}),
-      ...(name !== undefined ? { name } : {}),
-      ...(allowPrivate ? { allowPrivateNetwork: true } : {}),
-      ...(backend !== undefined ? { backend: backend as "webkit" | "chrome" } : {}),
-      ...(dataDir !== undefined ? { dataDir } : {}),
-      ...(chromePath !== undefined ? { chromePath } : {}),
-      ...(width !== undefined ? { width: Number(width) } : {}),
-      ...(height !== undefined ? { height: Number(height) } : {}),
-      ...(ua !== undefined ? { userAgent: ua } : {}),
-    });
-    if (status === 201) {
-      const p: Record<string, unknown> = { sessionId: String(data.id) };
-      if (data.url !== undefined) p.result = String(data.url);
-      ok(p);
-    }
-    fail(
-      undefined,
-      "CREATE_FAILED",
-      String(data.error ?? "failed to create session"),
-      `is bw serve running on ${daemon.url}?`,
-    );
+  // ---- 无会话命令 ----
+  if (cmd === "stop") {
+    ok({ result: "no daemon in this version — sessions live in ~/.bw/session/ (bw s list)" });
   }
-
-  // ---- list
   if (cmd === "list") {
-    const { status, data } = await api(cfg, "GET", "/sessions");
-    if (status === 200) {
-      ok({ sessions: Array.isArray(data) ? data : [data] });
-    }
-    fail(undefined, "LIST_FAILED", String(data.error ?? "failed"));
+    const s = store();
+    ok({
+      sessions: s.list().map((i) => ({
+        sessionId: i.id,
+        ...(i.name !== undefined ? { name: i.name } : {}),
+        createdAt: i.createdAt,
+        lastActiveAt: i.lastActiveAt,
+        keep: i.keep,
+        url: i.url,
+        steps: i.steps,
+        alive: i.alive,
+      })),
+    });
+  }
+  if (cmd === "gc") {
+    const { reaped } = store().gc();
+    ok({ result: `reaped ${reaped.length} session(s)`, reaped });
   }
 
-  // ---- 以下命令都需要 sessionId
-  const sessionId = rest[0];
+  // ---- create（无 sessionId 位置参数，独立解析） ----
+  if (cmd === "create") {
+    return await runSessionCreate(rest);
+  }
+
   if (sessionId === undefined) {
     fail(undefined, "MISSING_SESSION", "session ID required", "run 'bw s create' first");
   }
-  const args = rest.slice(1);
 
-  // ---- snap
-  if (cmd === "snap") {
-    const { status, data } = await api(cfg, "GET", `/sessions/${sessionId}/snapshot`);
-    if (status === 200) {
-      ok({ sessionId, snapshot: String(data.snapshot) });
-    }
-    fail(sessionId, "NOT_FOUND", String(data.error ?? "session not found"));
+  // ---- 会话级命令 ----
+  if (cmd === "close") {
+    store().close(sessionId);
+    ok({ sessionId });
   }
-
-  // ---- B20 §9.5：keep / rename
   if (cmd === "keep") {
-    const { status, data } = await api(cfg, "POST", `/sessions/${sessionId}/keep`, {});
-    if (status === 200) ok({ sessionId, result: "session kept (TTL exempt)" });
-    fail(sessionId, "KEEP_FAILED", String(data.error ?? "failed"));
+    if (!store().keep(sessionId, true)) {
+      fail(sessionId, "NOT_FOUND", `session not found: ${sessionId}`);
+    }
+    ok({ sessionId, result: "session kept (TTL exempt)" });
   }
   if (cmd === "rename") {
-    const name = args[0];
-    if (name === undefined) fail(sessionId, "INVALID_ARGS", "usage: bw s rename <id> <name>");
-    const { status, data } = await api(cfg, "POST", `/sessions/${sessionId}/rename`, { name });
-    if (status === 200) ok({ sessionId, result: `renamed to ${name}` });
-    fail(sessionId, "RENAME_FAILED", String(data.error ?? "failed"));
-  }
-
-  // ---- close
-  if (cmd === "close") {
-    const { status, data } = await api(cfg, "DELETE", `/sessions/${sessionId}`);
-    if (status === 200) {
-      ok({ sessionId });
+    const newName = args[0];
+    if (newName === undefined) {
+      fail(sessionId, "INVALID_ARGS", "usage: bw s rename <sessionId> <name>");
     }
-    fail(sessionId, "CLOSE_FAILED", String(data.error ?? "failed"));
+    if (!store().rename(sessionId, newName)) {
+      fail(sessionId, "NOT_FOUND", `session not found: ${sessionId}`);
+    }
+    ok({ sessionId, result: `renamed to ${newName.slice(0, 80)}` });
   }
-
-  // ---- confirm
+  if (cmd === "status") {
+    try {
+      const rec = store().get(sessionId);
+      ok({
+        sessionId,
+        status: rec.status,
+        alive: rec.helper.pid > 0,
+        url: rec.currentUrl,
+        steps: rec.budget.steps,
+        backend: rec.backend,
+      });
+    } catch (e) {
+      if (e instanceof BWError) failFromBwError(sessionId, e);
+      throw e;
+    }
+  }
+  if (cmd === "snap") {
+    try {
+      // B3 裁决：未知 id → NOT_FOUND exit 1（旧实现 ok+空串静默成功）
+      const snapshot = await store().snapshot(sessionId);
+      ok({ sessionId, snapshot });
+    } catch (e) {
+      if (e instanceof BWError) failFromBwError(sessionId, e);
+      throw e;
+    }
+  }
   if (cmd === "confirm") {
-    const cid = args[0];
-    if (cid === undefined) fail(sessionId, "MISSING_CID", "confirmation ID required");
-    const approve = args.includes("--yes") || args.includes("-y");
-    const { status, data } = await api(cfg, "POST", `/sessions/${sessionId}/confirmations/${cid}`, {
-      approve,
-    });
-    if (status === 200) {
-      ok({ sessionId, cid: cid as string });
+    if (args.length < 1) {
+      fail(sessionId, "MISSING_CID", "usage: bw s confirm <sessionId> <cid> --yes | --no");
     }
-    fail(sessionId, "CONFIRM_FAILED", String(data.error ?? "failed"));
+    try {
+      const cidArg = args[0];
+      if (cidArg === undefined) {
+        fail(sessionId, "MISSING_CID", "usage: bw s confirm <sessionId> <cid> --yes | --no");
+      }
+      const approve = hasFlag(args, "yes") || hasFlag(args, "y");
+      const r = await store().confirm(sessionId, cidArg, approve);
+      if (!r.ok) {
+        fail(sessionId, r.code ?? "CONFIRM_FAILED", r.error ?? "confirm failed");
+      }
+      // §4b：确认即执行——superset（旧 {ok,sessionId,cid} + result/snapshot）
+      ok({
+        sessionId,
+        cid: cidArg,
+        ...(r.text !== undefined ? { result: r.text } : {}),
+        ...(r.snapshot !== undefined && r.snapshot !== "" ? { snapshot: r.snapshot } : {}),
+      });
+    } catch (e) {
+      if (e instanceof BWError) failFromBwError(sessionId, e);
+      throw e;
+    }
   }
-
-  // ---- look（截图）
   if (cmd === "look") {
-    const outIdx = args.indexOf("--out");
-    const filePath: string =
-      (outIdx !== -1 ? args[outIdx + 1] : undefined) ?? `/tmp/bw-shot-${Date.now()}.png`;
-    const { status, data } = await api(cfg, "POST", `/sessions/${sessionId}/tools/look`, {});
-    if (status === 200 && data.ok === true) {
-      const image = data.image as { base64: string } | undefined;
-      if (image !== undefined) {
-        await Bun.write(filePath, Buffer.from(image.base64, "base64"));
-        ok({ sessionId, path: filePath as string });
+    try {
+      const r = await store().executeTool(sessionId, "look", {});
+      const outPath = flagValue(args, "out") ?? `/tmp/bw-shot-${Date.now()}.png`;
+      if (r.ok && r.image !== undefined) {
+        await Bun.write(outPath, Buffer.from(r.image.base64, "base64"));
+        ok({ sessionId, path: outPath });
       }
       ok({ sessionId, result: "screenshot taken (no image data)" });
+    } catch (e) {
+      if (e instanceof BWError) {
+        const hint =
+          e.code === "POLICY_BLOCKED"
+            ? "secret was typed on this page — screenshot blocked"
+            : HINTS[e.code];
+        fail(sessionId, e.code, e.message, hint);
+      }
+      throw e;
     }
-    const code = data.code !== undefined ? String(data.code) : "LOOK_FAILED";
-    const error = data.error !== undefined ? String(data.error) : "failed";
-    const hint =
-      code === "POLICY_BLOCKED" ? "secret was typed on this page — screenshot blocked" : undefined;
-    fail(sessionId, code, error, hint);
   }
 
-  // ---- 其余工具（统一走 /tools/:toolName）
+  // ---- 工具命令（wire 名归一 + store.executeTool；extract_code/type-secret 补齐） ----
   const mapped = mapCliCommand(cmd, args);
   if ("error" in mapped) {
     fail(sessionId, "INVALID_ARGS", mapped.error);
   }
-
-  // 映射层单源于 cli-commands.ts——B22 S0
-  const { status, data } = await api(
-    cfg,
-    "POST",
-    `/sessions/${sessionId}/tools/${mapped.tool}`,
-    mapped.params,
-  );
-
-  if (status === 200 && data.ok === true) {
+  try {
+    const r = await store().executeTool(sessionId, mapped.tool, mapped.params);
+    if (!r.ok) {
+      fail(sessionId, r.code ?? "TOOL_FAILED", r.error ?? "tool failed", HINTS[r.code ?? ""]);
+    }
     ok({
       sessionId,
       tool: cmd,
-      ...(data.text !== undefined ? { result: data.text as string } : {}),
-      ...(data.snapshot !== undefined && data.snapshot !== ""
-        ? { snapshot: data.snapshot as string }
-        : {}),
+      ...(r.text !== undefined ? { result: r.text } : {}),
+      ...(r.snapshot !== undefined && r.snapshot !== "" ? { snapshot: r.snapshot } : {}),
+      ...(r.unchanged !== undefined ? { unchanged: r.unchanged } : {}),
+      ...(r.cid !== undefined && r.reason !== undefined ? { cid: r.cid, reason: r.reason } : {}),
     });
+  } catch (e) {
+    if (e instanceof BWError) failFromBwError(sessionId, e);
+    throw e;
   }
+  return 0; // 不可达——ok/fail 均 process.exit
+}
 
-  // 202 = confirmation_required
-  if (status === 202) {
-    ok({
-      sessionId,
-      tool: cmd,
-      cid: data.cid as string,
-      reason: data.reason as string,
-      result: `CONFIRMATION_REQUIRED: ${data.reason}`,
+/** create 入口（cli 分发用） */
+export async function runSessionCreate(argv: string[]): Promise<number> {
+  const url = flagValue(argv, "url") ?? flagValue(argv, "u");
+  const name = flagValue(argv, "name");
+  const backend = flagValue(argv, "backend") as "webkit" | "chrome" | undefined;
+  const dataDir = flagValue(argv, "data-dir");
+  const chromePath = flagValue(argv, "chrome-path");
+  const width = flagValue(argv, "width");
+  const height = flagValue(argv, "height");
+  const ua = flagValue(argv, "ua");
+  try {
+    const r = await store().create({
+      ...(url !== undefined ? { url } : {}),
+      ...(name !== undefined ? { name } : {}),
+      ...(backend !== undefined ? { backend } : {}),
+      ...(dataDir !== undefined ? { dataDir } : {}),
+      ...(chromePath !== undefined ? { chromePath } : {}),
+      ...(width !== undefined ? { width: Number(width) } : {}),
+      ...(height !== undefined ? { height: Number(height) } : {}),
+      ...(ua !== undefined ? { ua } : {}),
+      allowEval: hasFlag(argv, "allow-eval"),
+      allowPrivateNetwork: hasFlag(argv, "allow-private-network"),
     });
+    if (r.confirmed) {
+      ok({ sessionId: r.id, ...(r.result !== undefined ? { result: r.result } : {}) });
+    }
+    // create 起始导航确认（§4c）：exit 0 + cid（与工具确认一致）
+    if (!r.confirmed) {
+      ok({
+        sessionId: r.id,
+        cid: r.cid,
+        reason: r.reason,
+        result: `CONFIRMATION_REQUIRED: ${r.reason}`,
+      });
+    }
+    return 0; // 不可达
+  } catch (e) {
+    if (e instanceof BWError) {
+      const hint =
+        e.code === "POLICY_BLOCKED" && e.message.includes("S4")
+          ? "local/private address — re-create with --allow-private-network (S4)"
+          : HINTS[e.code];
+      fail(undefined, e.code, e.message, hint);
+    }
+    throw e;
   }
-
-  // 错误
-  const code = data.code !== undefined ? String(data.code) : `TOOL_FAILED`;
-  const error = data.error !== undefined ? String(data.error) : `tool ${cmd} failed`;
-  const hints: Record<string, string> = {
-    ELEMENT_NOT_FOUND:
-      "run 'bw s snap <id>' to get the latest snapshot (ids change after each action)",
-    ELEMENT_NOT_ACTIONABLE: "element may be hidden — try 'bw s scrollto <id> <index>' first",
-    POLICY_BLOCKED: "blocked by security policy — check allowed origins",
-    CONFIRMATION_DENIED: "confirmation was denied or timed out",
-    INVALID_TOOL_ARGS: "check argument order — run 'bw s --help'",
-    DRIVER_ERROR: "session may have expired — run 'bw s list' to check",
-    EVAL_DISABLED: "re-create the session with: bw s create --url <url> --allow-eval",
-    TIMEOUT: "page JS may be stuck in a loop — navigate again or close the session",
-  };
-  const hint = hints[code];
-  fail(sessionId, code, error, hint);
 }

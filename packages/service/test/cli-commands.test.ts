@@ -6,6 +6,8 @@ describe("wire 名映射（§4.4-22，B11 回归锚）", () => {
   test("10 个 CLI 名归一为工具规范名", () => {
     expect(WIRE_NAMES).toEqual({
       scrollto: "scroll_to",
+      "type-secret": "type_text_secret",
+      "secret-type": "type_text_secret",
       opentab: "open_tab",
       switchtab: "switch_tab",
       closetab: "close_tab",
@@ -131,10 +133,15 @@ describe("usage 错误文案（§4.4-26 逐字锚）", () => {
   });
 });
 
-describe("旧 CLI 面边界（S0 锚——S3 增面时引用 MIGRATION-cli §4）", () => {
-  test("extract_code / type_text_secret 不在旧 CLI 词表（B21 文档超前，S3 补）", () => {
-    expect("extract_code" in WIRE_NAMES).toBe(false);
-    const r = mapCliCommand("extract_code", ["(t) => 1"]);
-    expect("error" in r).toBe(true);
+describe("S3 补齐面（extract_code / type-secret）", () => {
+  test("extract_code：code=join（可含空格）", () => {
+    const r = mapCliCommand("extract_code", ["(tree)", "=>", "tree.tag"]);
+    expect(r).toEqual({ tool: "extract_code", params: { code: "(tree) => tree.tag" } });
+  });
+  test("type-secret → type_text_secret（index+secretName）", () => {
+    expect(mapCliCommand("type-secret", ["5", "github-pw"])).toEqual({
+      tool: "type_text_secret",
+      params: { index: "5", secretName: "github-pw" },
+    });
   });
 });

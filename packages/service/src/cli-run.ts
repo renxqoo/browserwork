@@ -202,28 +202,46 @@ export async function runCliTask(args: RunCliArgs): Promise<number> {
     },
   );
 
-  if (args.json !== true) {
-    const st: ProcessRendererState = {
-      step: 0,
-      maxSteps: args.maxSteps ?? 50,
-      verbose: args.verbose === true,
-    };
-    for await (const e of handle.events) {
-      printEvent(e, st);
-      if (e.type === "task_done") break;
+  // G4/B21（审计）：SIGINT/SIGTERM → abort → **等 finalize（轨迹终态落盘）** → 按结果退出；
+  // 二次信号立即强退 130（旧实现裸杀 → 轨迹缺终态行）。
+  let signaled = 0;
+  const onSignal = (): void => {
+    signaled += 1;
+    if (signaled >= 2) {
+      process.exit(130);
     }
+    void handle.abort("interrupted");
+  };
+  process.on("SIGINT", onSignal);
+  process.on("SIGTERM", onSignal);
+
+  try {
+    if (args.json !== true) {
+      const st: ProcessRendererState = {
+        step: 0,
+        maxSteps: args.maxSteps ?? 50,
+        verbose: args.verbose === true,
+      };
+      for await (const e of handle.events) {
+        printEvent(e, st);
+        if (e.type === "task_done") break;
+      }
+    }
+    const result = await handle.result(); // abort 后这里拿到终态（finalize 已落轨迹）
+    if (args.json) {
+      console.log(JSON.stringify(result));
+    } else {
+      const wall = ((Date.now() - t0) / 1000).toFixed(1);
+      console.log(
+        `\n── result: ${result.status}${result.answer !== undefined ? ` — ${result.answer}` : ""}`,
+      );
+      console.log(
+        `   steps=${result.steps} · tokens ${fmtTokens(result.tokens.input)}/${fmtTokens(result.tokens.output)} · ${wall}s · trajectory=${result.trajectory}`,
+      );
+    }
+    return result.status === "done" ? 0 : 1;
+  } finally {
+    process.off("SIGINT", onSignal);
+    process.off("SIGTERM", onSignal);
   }
-  const result = await handle.result();
-  if (args.json) {
-    console.log(JSON.stringify(result));
-  } else {
-    const wall = ((Date.now() - t0) / 1000).toFixed(1);
-    console.log(
-      `\n── result: ${result.status}${result.answer !== undefined ? ` — ${result.answer}` : ""}`,
-    );
-    console.log(
-      `   steps=${result.steps} · tokens ${fmtTokens(result.tokens.input)}/${fmtTokens(result.tokens.output)} · ${wall}s · trajectory=${result.trajectory}`,
-    );
-  }
-  return result.status === "done" ? 0 : 1;
 }
