@@ -413,6 +413,10 @@ async function main(): Promise<void> {
   setInterval(() => {}, 60_000); // WebView 空闲不保活——显式保持
 }
 
-if (process.argv[1]?.endsWith("helper.ts") && process.argv.includes("--socket")) {
+const selfPath = process.argv[1] ?? "";
+if (
+  (selfPath.endsWith("helper.ts") || selfPath.endsWith("helper.js")) &&
+  process.argv.includes("--socket")
+) {
   await main();
 }

@@ -15,8 +15,20 @@ export {
 } from "./confirmations.ts";
 export type { JanitorOptions, JanitorResult, JanitorTarget } from "./janitor.ts";
 export { startJanitor, sweepDir } from "./janitor.ts";
+export type { ProfileCookie, StorageStateProfile } from "./profiles.ts";
+export {
+  assertProfileName,
+  deleteProfile,
+  listProfiles,
+  loadProfileFile,
+  readStorageState,
+  saveProfileFile,
+  writeStorageState,
+} from "./profiles.ts";
 export type { ReplayOutcome } from "./replay.ts";
 export { replayTrajectory, resolveTrajectoryPath } from "./replay.ts";
+export type { BwRunOptions, BwSdk } from "./sdk.ts";
+export { bw, createBwSdk } from "./sdk.ts";
 export { loadSecretsConfig, resolveSecretValue, secretNames } from "./secrets.ts";
 export type {
   CreateSessionOptions,

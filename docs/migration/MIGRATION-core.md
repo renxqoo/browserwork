@@ -1,6 +1,6 @@
 # 迁移文档：会话存储与命令执行（核心单元）
 
-> 状态：定稿待审
+> 状态：已核销（S0-S6 全门通过；验收清单见 §9/§10）
 > 迁移单元：外部 agent 模式的「会话生命周期 + 命令执行」垂直行为（create→executeTool→confirm→close/gc 全旅程）
 > 旧实现：packages/service/src/sessions.ts（1084 行，内存 SessionManager + HTTP 内嵌）+ server.ts 会话路由（455 行，删除面）
 > 目标位置：packages/service/src/{store,executor,confirmations,secrets}.ts + packages/driver/src/helper*.ts
@@ -167,3 +167,33 @@ shutdown 退出/超时杀进程。
 本地化（第二源 localhost 绑定=不同 origin；127.0.0.1 会走 S4 私网 BLOCK 不进确认门）。
 
 门禁：tsc ✓ biome ✓ build ✓ 596 tests 0 fail ✓
+
+
+## 10. S4-S6 实施记录（2026-09-13，收口）
+
+**S4 profiles+jobs**：profiles.ts（storageState 模型——chrome CDP 全量 cookie 含 httpOnly /
+webkit 可见面 U11 标注；名字白名单防路径穿越；0600 落盘）· store.create({profile}) 注入
+（导航后写 cookie+localStorage → 重新导航带态加载）· captureProfile（显式 save 不回写）·
+`bw auth save/list/delete` · `bw run --profile`（自建带态 driver 交 runTask）·
+batch.ts --jobs（每任务一子进程；行级容错；汇总 exit 语义）。
+
+**S5 SDK+文档**：sdk.ts（bw.sessions/profiles/run 装配 + 单例）· 根包 browserwork.ts 直接
+导出 · 版本从 package.json 派生（审计 §4.5-32 手工双写核销）· run 任务下载迁
+~/.bw/tasks/<id>/downloads（D2 收口）· service 依赖声明补齐（B23）· 04-usage/README/skill
+全面改写（无 daemon/SDK/auth/jobs 口径）。
+
+**S6 e2e+核销**：scripts/e2e.ts 双形态进程冒烟（源码 + dist 构建产物各 13 断言全链：
+create→snap→type→click→extract→confirm→close + 未知 id NOT_FOUND + 杀 helper 自动恢复）
+26/26。build 双产物（cli.js + helper.js——bundle 内 import.meta.url 兄弟探测）。
+
+**实施期发现并修复**：cli.ts 无进程入口（main 从未被调——e2e 抓出）；s/auth 子命令
+位置参数与顶层严格 parser 冲突（rawCmd 先分发）；create 无 URL 时不开活动页（旧语义
+b13 P2-12 补齐）；create name 不截断；keep/rename/snapshot/confirm 未知 id 先 NOT_FOUND
+后锁（lock 文件创建竞态误报 SESSION_BUSY）；profiles 目录不预建（ENOENT）。
+
+**门禁（最终）**：tsc ✓ biome ✓ build ✓ 535 tests 0 fail ✓ coverage-gate PASS
+（55 源文件：39 直达 ≥90 + 16 豁免各带理由，行 84.2%/函数 89.7%）· e2e 26/26 ✓
+
+**挂账（显式）**：store.ts S1③ 环缺口注入/TOCTOU 换窗/恢复失败注入分支（min=70，
+需故障注入装置）；helper.ts 子进程入口面（lcov 不可见子进程）；profiles chrome CDP 面
+（真 Chrome 契约行覆盖）；cli-session process.exit 面（e2e 断言输出契约）。

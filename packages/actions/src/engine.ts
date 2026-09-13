@@ -4,9 +4,8 @@
  * settle → 重提取；错误一律 throw BWError（LLM 自纠通道）。
  */
 import { existsSync, readdirSync, realpathSync, statSync, unlinkSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
-import { type BrowserAction, BWError, type NavigationIntent } from "@bw/core";
+import { type BrowserAction, BWError, type NavigationIntent, taskDownloadsRoot } from "@bw/core";
 import type { Driver, Page } from "@bw/driver";
 import {
   DRAIN_LOGS_EXPRESSION,
@@ -395,9 +394,7 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
     located: LocateResult,
     snapshot: Snapshot,
   ): Promise<string> => {
-    const dir =
-      opts?.downloadsDir?.() ??
-      join(process.env.BW_DOWNLOADS_DIR ?? join(homedir(), ".bw", "downloads"), "default");
+    const dir = opts?.downloadsDir?.() ?? join(taskDownloadsRoot(), "default", "downloads"); // B22 §1.2：任务下载面（BW_HOME 单源）
     if (downloadInFlight) throw new BWError("INVALID_TOOL_ARGS", "another download is in flight");
     if (downloadTotalBytes > DOWNLOAD_MAX_TOTAL_BYTES) {
       throw new BWError("INVALID_TOOL_ARGS", "download budget exhausted (1GB per session)");

@@ -37,9 +37,14 @@ export interface HelperHandle {
 }
 
 const HELPER_ARGV = (o: HelperSpawnOptions): string[] => {
-  // decodeURIComponent：URL pathname 的百分号编码在含空格/中文目录时失效（P2-12）
-  const mod =
-    o.helperModule ?? decodeURIComponent(new URL("./helper.ts", import.meta.url).pathname);
+  // 模块解析（P2-12）：优先构建产物兄弟文件 helper.js（bundle 内 import.meta.url
+  // 指向 dist/cli/cli.js）；否则源码形态的同目录 helper.ts（decodeURIComponent——
+  // URL pathname 的百分号编码在含空格/中文目录时失效）
+  const sibling = join(
+    import.meta.dir,
+    existsSync(join(import.meta.dir, "helper.js")) ? "helper.js" : "helper.ts",
+  );
+  const mod = o.helperModule ?? sibling;
   const argv = [
     mod,
     "--socket",

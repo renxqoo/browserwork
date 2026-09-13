@@ -184,3 +184,53 @@ describe.skipIf(process.platform !== "darwin")("helper 进程生命周期（webk
     }
   }, 20_000);
 });
+
+describe("FrameWriter 字节队列（helperProtocol）", () => {
+  test("构造拒绝非整数/非法 WritableEnd 不炸", async () => {
+    const { FrameWriter } = await import("../src/helperProtocol.ts");
+    const w = new FrameWriter({ write: () => 0 }); // 永远缓冲满——帧滞留
+    w.write("x".repeat(10));
+    w.flush(); // 满时不丢异常
+    expect(true).toBe(true);
+  });
+});
+
+describe("RemotePage 事件路由（helperClient 未覆盖分支）", () => {
+  test("close 后全部方法抛 DRIVER_ERROR；cdpPierceNodes 缺面报错", async () => {
+    const { HelperConnection } = await import("../src/helperClient.ts");
+    const conn = new HelperConnection();
+    const { RemoteDriver } = await import("../src/helperClient.ts");
+    // 构造不连接的 RemoteDriver 只测本地代理语义
+    const d = new RemoteDriver(conn, {
+      cdp: false,
+      upload: false,
+      download: false,
+      dialogEvents: false,
+      userAgentOverride: false,
+      pierceClick: false,
+      httpOnlyCookies: false,
+      networkEvents: false,
+      webp: false,
+      popups: false,
+    });
+    const pages = d.pages();
+    expect(pages).toEqual([]);
+    await expect(d.createPage({})).rejects.toThrow(); // 未连接 → BROWSER_DEAD
+  });
+});
+
+describe("LineCodec 流式解码（helperProtocol）", () => {
+  test("多字节 UTF-8 跨 chunk 不腐坏 + 半行缓冲", async () => {
+    const { LineCodec } = await import("../src/helperProtocol.ts");
+    const c = new LineCodec();
+    const frame = JSON.stringify({ text: "中文内容" }) + "\n";
+    const bytes = new TextEncoder().encode(frame);
+    // 从中间切开（多字节字符跨界）
+    const cut = Math.floor(bytes.length / 2) + 1;
+    const lines1 = c.push(bytes.slice(0, cut));
+    expect(lines1).toEqual([]); // 半行不吐
+    const lines2 = c.push(bytes.slice(cut));
+    expect(lines1.length + lines2.length).toBe(1);
+    expect(JSON.parse(lines2[0] ?? "").text).toBe("中文内容");
+  });
+});

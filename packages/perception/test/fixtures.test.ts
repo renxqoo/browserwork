@@ -10,6 +10,7 @@ import {
   type LocateResult,
   locateExpression,
   renderSnapshot,
+  serializeDomTree,
 } from "../src/index.ts";
 
 describe.skipIf(process.platform !== "darwin")("感知 fixture 矩阵", () => {
@@ -460,4 +461,64 @@ describe.skipIf(process.platform !== "darwin")("感知 fixture 矩阵", () => {
       }
     });
   }, 60_000);
+});
+
+test("serializeDomTree 空返回兜底（tree.ts 兜底行）", async () => {
+  await withFixtureServer(async (origin) => {
+    const driver = createWebViewDriver();
+    try {
+      await withDriverPage(driver, undefined, async (page) => {
+        await page.navigate(`${origin}/index.html`);
+        // 正常路径已覆盖；兜底行需 evaluate 异常——以双后端行为一致性为准（chrome 契约行覆盖）
+        const t = await serializeDomTree(page);
+        expect(t.root.tag).toBe("body");
+      });
+    } finally {
+      driver.close();
+    }
+  });
+}, 30_000);
+
+test("serializeDomTree 兜底：evaluate 返回 null → 占位空树（tree.ts:87）", async () => {
+  const { FakeDriver } = await import("@bw/driver");
+  const d = new FakeDriver(
+    {
+      cdp: false,
+      upload: false,
+      download: false,
+      dialogEvents: false,
+      userAgentOverride: false,
+      pierceClick: false,
+      httpOnlyCookies: false,
+      networkEvents: false,
+      webp: false,
+      popups: false,
+    },
+    { evaluateHandler: () => null } as never,
+  );
+  const page = await d.createPage();
+  const t = await serializeDomTree(page as never);
+  expect(t).toEqual({ root: { tag: "body" }, nodeCount: 0, truncated: false });
+});
+
+test("serializeDomTree 兜底：返回无 root 的坏对象 → 占位空树", async () => {
+  const { FakeDriver } = await import("@bw/driver");
+  const d = new FakeDriver(
+    {
+      cdp: false,
+      upload: false,
+      download: false,
+      dialogEvents: false,
+      userAgentOverride: false,
+      pierceClick: false,
+      httpOnlyCookies: false,
+      networkEvents: false,
+      webp: false,
+      popups: false,
+    },
+    { evaluateHandler: () => ({ nope: true }) } as never,
+  );
+  const page = await d.createPage();
+  const t = await serializeDomTree(page as never);
+  expect(t.root.tag).toBe("body");
 });

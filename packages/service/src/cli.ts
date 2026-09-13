@@ -132,8 +132,17 @@ export function parseArgs(argv: string[]): ParsedArgs {
 }
 
 export async function main(argv?: string[]): Promise<number> {
-  let args: ParsedArgs;
   const input = argv ?? process.argv.slice(2);
+  // 子命令语法域：s/auth 的位置参数不归顶层 parser 管——直接分发（严格 B18 解析只管 run/replay）
+  const rawCmd = input[0];
+  if (rawCmd === "s" || rawCmd === "session") {
+    const { runSessionCli } = await import("./cli-session.ts");
+    return runSessionCli(input.slice(1));
+  }
+  if (rawCmd === "auth") {
+    return await mainAuth(input);
+  }
+  let args: ParsedArgs;
   try {
     args = parseArgs(input);
   } catch (e) {
@@ -180,6 +189,7 @@ export async function main(argv?: string[]): Promise<number> {
       ...(args.width !== undefined ? { width: args.width } : {}),
       ...(args.height !== undefined ? { height: args.height } : {}),
       ...(args.ua !== undefined ? { ua: args.ua } : {}),
+      ...(args.profile !== undefined ? { profile: args.profile } : {}),
     });
   }
   if (cmd === "s" || cmd === "session") {
@@ -207,4 +217,63 @@ export async function main(argv?: string[]): Promise<number> {
     `unknown command: ${cmd}${cmd === "serve" || cmd === "sup" ? " (removed in B22 — sessions are file-based now; see bw s)" : ""}`,
   );
   return 2;
+}
+
+/** bw auth 子命令（U5：登录态快照管理——save/list/delete） */
+async function mainAuth(input: string[]): Promise<number> {
+  {
+    const [sub, ...authRest] = input.slice(1);
+    const { createSessionStore } = await import("./store.ts");
+    const { deleteProfile, listProfiles } = await import("./profiles.ts");
+    const jout = (d: Record<string, unknown>): void => {
+      console.log(JSON.stringify(d));
+    };
+    if (sub === "list") {
+      jout({ ok: true, profiles: listProfiles() });
+      return 0;
+    }
+    if (sub === "delete") {
+      const name = authRest[0];
+      if (name === undefined) {
+        console.error("usage: bw auth delete <name>");
+        return 2;
+      }
+      jout({ ok: true, deleted: deleteProfile(name) });
+      return 0;
+    }
+    if (sub === "save") {
+      const sessionId = authRest[0];
+      const asIdx = input.indexOf("--as");
+      const name = asIdx >= 0 ? input[asIdx + 1] : undefined;
+      if (sessionId === undefined || name === undefined) {
+        console.error("usage: bw auth save <sessionId> --as <name>");
+        return 2;
+      }
+      try {
+        const store = createSessionStore({
+          bwHome: (await import("@bw/core")).resolveBwHome(),
+        });
+        const r = await store.captureProfile(sessionId, name);
+        jout({ ok: true, name, path: r.path, cookies: r.cookies });
+        return 0;
+      } catch (e) {
+        jout({
+          ok: false,
+          code:
+            e instanceof Error && "code" in e
+              ? String((e as { code: unknown }).code)
+              : "AUTH_FAILED",
+          error: e instanceof Error ? e.message : String(e),
+        });
+        return 1;
+      }
+    }
+    console.error("usage: bw auth save <sessionId> --as <name> | list | delete <name>");
+    return 2;
+  }
+}
+
+/** 进程入口（源码/构建产物双形态） */
+if (process.argv[1]?.endsWith("cli.ts") === true || process.argv[1]?.endsWith("cli.js") === true) {
+  process.exit(await main());
 }

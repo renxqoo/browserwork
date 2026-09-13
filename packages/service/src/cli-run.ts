@@ -16,6 +16,8 @@ export interface RunCliArgs {
   width?: number;
   height?: number;
   ua?: string;
+  /** U5：登录态快照名——任务启动前注入（cookies+localStorage 带态开局） */
+  profile?: string;
 }
 
 /** 轨迹目录（B17：BW_HOME 单源——@bw/core fsx；env BW_TRAJECTORY_DIR 可改） */
@@ -167,17 +169,41 @@ export async function runCliTask(args: RunCliArgs): Promise<number> {
   });
 
   const t0 = Date.now();
+
+  // U5：--profile → 自建带态 driver（注入 cookies+localStorage 后交 runTask——
+  // 其新建页面共享同一浏览器实例的 storage/cookie 面）
+  let injectedDriver: unknown;
+  if (args.profile !== undefined && args.startUrl !== undefined) {
+    const { createWebViewDriver } = await import("@bw/driver");
+    const { loadProfileFile, writeStorageState } = await import("./profiles.ts");
+    const { createActionEngine } = await import("@bw/actions");
+    const drv = createWebViewDriver({
+      ...(args.backend !== undefined ? { backend: args.backend } : {}),
+      ...(args.dataDir !== undefined ? { dataDir: args.dataDir } : {}),
+      ...(args.chromePath !== undefined ? { chromePath: args.chromePath } : {}),
+      ...(args.width !== undefined ? { width: args.width } : {}),
+      ...(args.height !== undefined ? { height: args.height } : {}),
+      ...(args.ua !== undefined ? { userAgent: args.ua } : {}),
+    });
+    const engine = createActionEngine(drv);
+    await engine.act({ kind: "open_tab", url: args.startUrl });
+    await writeStorageState(engine.activePage(), drv.capabilities(), loadProfileFile(args.profile));
+    await engine.act({ kind: "navigate", url: args.startUrl });
+    injectedDriver = drv;
+  }
+
   const handle = runTask(
     {
       goal: args.goal,
       ...(args.startUrl !== undefined ? { startUrl: args.startUrl } : {}),
       ...(args.maxSteps !== undefined ? { budget: { maxSteps: args.maxSteps } } : {}),
-      ...(args.backend !== undefined ||
-      args.dataDir !== undefined ||
-      args.chromePath !== undefined ||
-      args.width !== undefined ||
-      args.height !== undefined ||
-      args.ua !== undefined
+      ...(injectedDriver === undefined &&
+      (args.backend !== undefined ||
+        args.dataDir !== undefined ||
+        args.chromePath !== undefined ||
+        args.width !== undefined ||
+        args.height !== undefined ||
+        args.ua !== undefined)
         ? {
             driver: {
               ...(args.backend !== undefined ? { backend: args.backend } : {}),
@@ -191,6 +217,7 @@ export async function runCliTask(args: RunCliArgs): Promise<number> {
         : {}),
     },
     {
+      ...(injectedDriver !== undefined ? { driver: injectedDriver as never } : {}),
       models: {
         fast: models.fast as never,
         ...(models.strong !== undefined ? { strong: models.strong as never } : {}),

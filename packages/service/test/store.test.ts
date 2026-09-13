@@ -367,3 +367,82 @@ describe.skipIf(process.platform !== "darwin")("SessionStore 文件会话", () =
     store.close(r.id);
   }, 60_000);
 });
+
+describe.skipIf(process.platform !== "darwin")("SessionStore 补面（覆盖率）", () => {
+  test("create 带 driver 覆写落盘（width/ua/backend 进 helper 参数）", async () => {
+    const fx = await fixtureServer();
+    servers.push(fx.stop);
+    const store = mkStore();
+    const r = await store.create({ url: fx.origin, policyMode: "test", width: 1000, height: 700 });
+    const rec = store.get(r.id);
+    expect(rec.driver.width).toBe(1000);
+    expect(rec.driver.height).toBe(700);
+    store.close(r.id);
+  }, 60_000);
+
+  test("rename/keep 落盘与 name 截断", async () => {
+    const store = mkStore();
+    const r = await store.create({ policyMode: "test", name: "x".repeat(200) });
+    expect(store.get(r.id).name?.length).toBeLessThanOrEqual(80);
+    expect(store.rename(r.id, "新名字")).toBe(true);
+    expect(store.get(r.id).name).toBe("新名字");
+    expect(store.keep(r.id)).toBe(true);
+    expect(store.get(r.id).keep).toBe(true);
+    store.close(r.id);
+  }, 30_000);
+
+  test("eval 门：未开 allowEval → EVAL_DISABLED；开则执行", async () => {
+    const fx = await fixtureServer();
+    servers.push(fx.stop);
+    const store = mkStore();
+    const r = await store.create({ url: fx.origin, policyMode: "test" });
+    const denied = await store.executeTool(r.id, "eval", { expression: "1+1" });
+    expect(denied.ok).toBe(false);
+    if (!denied.ok) expect(denied.code).toBe("EVAL_DISABLED");
+    store.close(r.id);
+
+    const r2 = await store.create({ url: fx.origin, policyMode: "test", allowEval: true });
+    const okd = await store.executeTool(r2.id, "eval", { expression: "1+1" });
+    expect(okd.ok).toBe(true);
+    if (okd.ok) expect(okd.text).toBe("2");
+    store.close(r2.id);
+  }, 90_000);
+
+  test("tabs/switchtab/closetab 旅程 + activePageId 跟随", async () => {
+    const fx = await fixtureServer();
+    servers.push(fx.stop);
+    const store = mkStore();
+    const r = await store.create({ url: fx.origin, policyMode: "test" });
+    const t1 = await store.executeTool(r.id, "tabs", {});
+    expect(t1.ok).toBe(true);
+    if (t1.ok) expect(JSON.parse(t1.text ?? "[]").length).toBe(1);
+    const sw = await store.executeTool(r.id, "switch_tab", { tab: 0 });
+    expect(sw.ok).toBe(true);
+    const cl = await store.executeTool(r.id, "close_tab", {});
+    expect(cl.ok).toBe(true); // 关后恢复开新页（引擎 close_tab 后无活动页——下一命令恢复路径覆盖）
+    store.close(r.id);
+  }, 90_000);
+
+  test("错误码目录透传：ELEMENT_NOT_FOUND（stale 索引）", async () => {
+    const fx = await fixtureServer();
+    servers.push(fx.stop);
+    const store = mkStore();
+    const r = await store.create({ url: fx.origin, policyMode: "test" });
+    const bad = await store.executeTool(r.id, "click", { index: "9999" });
+    expect(bad.ok).toBe(false);
+    if (!bad.ok) expect(bad.code).toBe("ELEMENT_NOT_FOUND");
+    store.close(r.id);
+  }, 60_000);
+
+  test("unchanged：同页第二动作标记 true", async () => {
+    const fx = await fixtureServer();
+    servers.push(fx.stop);
+    const store = mkStore();
+    const r = await store.create({ url: fx.origin, policyMode: "test" });
+    await store.executeTool(r.id, "wait", { seconds: 0.01 });
+    const second = await store.executeTool(r.id, "wait", { seconds: 0.01 });
+    expect(second.ok).toBe(true);
+    expect(second.unchanged).toBe(true);
+    store.close(r.id);
+  }, 60_000);
+});

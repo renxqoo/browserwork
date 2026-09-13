@@ -94,7 +94,82 @@ describe("cli parseArgs + main（B18/B19 新参数层）", () => {
     expect(await cliModule.main(["run"])).toBe(2);
   });
 
+  test("main auth list/delete 分发（profiles 空家）", async () => {
+    process.env.BW_HOME = `/tmp/bw-auth-${Date.now()}`;
+    const { mkdirSync, rmSync } = await import("node:fs");
+    mkdirSync(process.env.BW_HOME, { recursive: true });
+    expect(await cliModule.main(["auth", "list"])).toBe(0);
+    expect(await cliModule.main(["auth", "delete", "nope"])).toBe(0);
+    expect(await cliModule.main(["auth"])).toBe(2); // usage
+    expect(await cliModule.main(["auth", "save"])).toBe(2);
+    rmSync(process.env.BW_HOME, { recursive: true, force: true });
+    delete process.env.BW_HOME;
+  });
+
+  test("main s 子命令分发：help 零副作用 exit 0（B16）", async () => {
+    expect(await cliModule.main(["s"])).toBe(0);
+    expect(await cliModule.main(["s", "--help"])).toBe(0);
+  });
+
+  test("main run --jobs 缺 --file → 2", async () => {
+    expect(await cliModule.main(["run", "g", "--jobs", "2"])).toBe(2);
+  });
+
   test("main run 未知 flag → 2（经 main 路径）", async () => {
     expect(await cliModule.main(["run", "g", "--nope"])).toBe(2);
+  });
+});
+
+describe("SDK 装配（sdk.ts 冒烟——bun -e import 即用的进程内面）", () => {
+  test("bw.sessions/profiles/run 三面存在 + store 单例语义", async () => {
+    process.env.BW_HOME = `/tmp/bw-sdk-${Date.now()}`;
+    const { createBwSdk } = await import("../src/sdk.ts");
+    const sdk = createBwSdk();
+    expect(typeof sdk.sessions.create).toBe("function");
+    expect(typeof sdk.sessions.executeTool).toBe("function");
+    expect(typeof sdk.sessions.captureProfile).toBe("function");
+    expect(typeof sdk.profiles.list).toBe("function");
+    expect(typeof sdk.run).toBe("function");
+    expect(sdk.sessions.store()).toBe(sdk.sessions.store()); // 单例
+    // 无浏览器路径直调（空家：list/gc/profiles.list/delete 全走通）
+    expect(sdk.sessions.list()).toEqual([]);
+    expect(sdk.sessions.gc().reaped).toEqual([]);
+    expect(sdk.profiles.list()).toEqual([]);
+    expect(sdk.profiles.delete("nope")).toBe(false);
+    expect(sdk.sessions.close("sess-none")).toBe(false); // 幂等
+    expect(() => sdk.profiles.load("nope")).toThrow("not found");
+    expect(() => sdk.sessions.keep("sess-none")).toThrow("not found"); // NOT_FOUND throw
+    const { rmSync } = await import("node:fs");
+    rmSync(process.env.BW_HOME as string, { recursive: true, force: true });
+    delete process.env.BW_HOME;
+  });
+});
+
+describe("secrets 解析面（env ref / literal / 缺失）", () => {
+  test("env 引用与 literal；未声明名报 SECRET_UNRESOLVED", async () => {
+    process.env.BW_HOME = `/tmp/bw-sec-${Date.now()}`;
+    const { mkdirSync, rmSync, writeFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    mkdirSync(join(process.env.BW_HOME, ".bw"), { recursive: true });
+    writeFileSync(
+      join(process.env.BW_HOME, ".bw", "secrets"),
+      JSON.stringify({
+        fromEnv: { source: "env", ref: "BW_TEST_SECRET" },
+        literal: { source: "literal", value: "v1" },
+        badRef: { source: "env", ref: "BW_TEST_MISSING" },
+        noVal: { source: "literal" },
+      }),
+    );
+    const { resolveSecretValue, secretNames } = await import("../src/secrets.ts");
+    process.env.BW_TEST_SECRET = "env-value";
+    expect(await resolveSecretValue("fromEnv")).toBe("env-value");
+    expect(await resolveSecretValue("literal")).toBe("v1");
+    expect(secretNames().sort()).toEqual(["badRef", "fromEnv", "literal", "noVal"]);
+    await expect(resolveSecretValue("unknown")).rejects.toThrow("not declared");
+    await expect(resolveSecretValue("badRef")).rejects.toThrow("unset");
+    await expect(resolveSecretValue("noVal")).rejects.toThrow("missing value");
+    delete process.env.BW_TEST_SECRET;
+    rmSync(process.env.BW_HOME as string, { recursive: true, force: true });
+    delete process.env.BW_HOME;
   });
 });

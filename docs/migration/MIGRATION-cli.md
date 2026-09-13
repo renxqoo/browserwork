@@ -1,6 +1,6 @@
 # 迁移文档：CLI 面 + 登录态/secret/批量 + 删除面
 
-> 状态：定稿待审
+> 状态：已核销（S3-S6 全门通过；e2e 双形态 26/26）
 > 迁移单元：CLI 两种模式的用户可见行为（bw s 39 命令 / bw run 过程输出与退出码 / bw auth·gc 新面）+ serve/sup/daemon 删除与职责安家
 > 旧实现：cli-session.ts（449 行）/ cli-run.ts（230）/ cli.ts（222）/ server.ts+daemon.ts+supervisor.ts+shutdown.ts（1122，删除面）
 > 目标位置：packages/service/src/{cli-session,cli-run,cli,janitor,batch,profiles}.ts + sdk.ts

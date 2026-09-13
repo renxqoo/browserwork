@@ -8,9 +8,10 @@
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "build": "bun build packages/service/src/cli.ts --target=bun --outdir=dist/cli --minify --sourcemap=linked",
+    "build": "bun build packages/service/src/cli.ts --target=bun --outdir=dist/cli --minify --sourcemap=linked && bun build packages/driver/src/helper.ts --target=bun --outdir=dist/cli --minify --sourcemap=linked",
     "test": "bun test && bun scripts/coverage-gate.ts",
-    "doors": "bun run typecheck && bun run lint && bun run build && bun run test"
+    "doors": "bun run typecheck && bun run lint && bun run build && bun run test",
+    "e2e": "bun scripts/e2e.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.4",
@@ -38,5 +39,11 @@
   ],
   "bin": {
     "bw": "dist/cli/cli.js"
+  },
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./browserwork.ts",
+  "exports": {
+    ".": "./browserwork.ts"
   }
 }

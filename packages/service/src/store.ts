@@ -30,6 +30,12 @@ import { renderSnapshot } from "@bw/perception";
 import type { PolicyEngine } from "@bw/policies";
 import { createPolicyEngine } from "@bw/policies";
 import { confirmPending, expirePending, writePending } from "./confirmations.ts";
+import {
+  loadProfileFile,
+  readStorageState,
+  saveProfileFile,
+  writeStorageState,
+} from "./profiles.ts";
 import { resolveSecretValue, secretNames } from "./secrets.ts";
 
 export const SESSION_SCHEMA_VERSION = 1;
@@ -85,6 +91,8 @@ export interface CreateSessionOptions {
   dataDir?: string;
   /** B14 上传路径闸：允许直接上传的目录（realpath 前缀匹配；缺省仅 os.tmpdir()） */
   allowUploadDirs?: string[];
+  /** U5：注入的登录态快照名（~/.bw/profiles/<name>.json） */
+  profile?: string;
   policyMode?: "production" | "test";
 }
 
@@ -347,7 +355,7 @@ export function createSessionStore(opts?: SessionStoreOptions) {
         const rec: SessionRecord = {
           schemaVersion: SESSION_SCHEMA_VERSION,
           id,
-          ...(createOpts.name !== undefined ? { name: createOpts.name } : {}),
+          ...(createOpts.name !== undefined ? { name: createOpts.name.slice(0, 80) } : {}),
           backend: createOpts.backend ?? "webkit",
           createdAt: Date.now(),
           lastActiveAt: Date.now(),
@@ -468,6 +476,15 @@ export function createSessionStore(opts?: SessionStoreOptions) {
           const page = await (driver as RemoteDriver).createPage({ url });
           rec.activePageId = (page as unknown as { pageId: number }).pageId;
           engine.adopt(page);
+          if (createOpts.profile !== undefined) {
+            // U5：快照注入（chrome 含 httpOnly；webkit 可见面）→ 重新导航让页面带态加载
+            await writeStorageState(
+              page,
+              (driver as Driver).capabilities(),
+              loadProfileFile(createOpts.profile),
+            );
+            await engine.act({ kind: "navigate", url });
+          }
           const snap = await engine.currentSnapshot();
           rec.status = "active";
           rec.currentUrl = url;
@@ -514,6 +531,7 @@ export function createSessionStore(opts?: SessionStoreOptions) {
     },
 
     async snapshot(id: string): Promise<string> {
+      readRecord(root, id); // NOT_FOUND 先于锁
       const rec = readRecord(root, id);
       const lock = acquireFlock(join(sessionDirOf(root, id), "lock"));
       if (lock === null) throw new SessionBusyError(id);
@@ -544,6 +562,7 @@ export function createSessionStore(opts?: SessionStoreOptions) {
     },
 
     keep(id: string, on = true): boolean {
+      readRecord(root, id); // NOT_FOUND 先于锁（未知 id 的 lock openSync 失败会误报 SESSION_BUSY）
       const lock = acquireFlock(join(sessionDirOf(root, id), "lock"));
       if (lock === null) throw new SessionBusyError(id);
       try {
@@ -558,6 +577,7 @@ export function createSessionStore(opts?: SessionStoreOptions) {
     },
 
     rename(id: string, name: string): boolean {
+      readRecord(root, id); // NOT_FOUND 先于锁
       const lock = acquireFlock(join(sessionDirOf(root, id), "lock"));
       if (lock === null) throw new SessionBusyError(id);
       try {
@@ -1063,9 +1083,44 @@ export function createSessionStore(opts?: SessionStoreOptions) {
       }
     },
 
+    /** U5：从活会话捕获登录态快照（显式 save 才更新——不自动回写） */
+    async captureProfile(id: string, name: string): Promise<{ path: string; cookies: number }> {
+      readRecord(root, id); // NOT_FOUND 先于锁
+      const dir = sessionDirOf(root, id);
+      readRecord(root, id);
+      const lock = acquireFlock(join(dir, "lock"));
+      if (lock === null) throw new SessionBusyError(id);
+      try {
+        const rec = readRecord(root, id);
+        const { driver, release } = await helperFactory(rec);
+        try {
+          const engine = createActionEngine(driver as Driver);
+          await adoptActive(engine, driver, rec);
+          const state = await readStorageState(
+            engine.activePage(),
+            (driver as Driver).capabilities(),
+          );
+          const path = saveProfileFile({
+            schemaVersion: 1,
+            name,
+            createdAt: Date.now(),
+            backend: state.backend,
+            cookies: state.cookies,
+            localStorage: state.localStorage,
+          });
+          return { path, cookies: state.cookies.length };
+        } finally {
+          release();
+        }
+      } finally {
+        lock.release();
+      }
+    },
+
     /** 确认即执行（§4b：approve → 一次性放行执行；create 确认 → 置 active；
      * violatedHosts 迟到批准防护（S2R P1-5）） */
     async confirm(id: string, cid: string, approve: boolean): Promise<ToolResult> {
+      readRecord(root, id); // NOT_FOUND 先于锁
       const dir = sessionDirOf(root, id);
       readRecord(root, id);
       const lock = acquireFlock(join(dir, "lock"));

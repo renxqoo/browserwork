@@ -65,16 +65,15 @@ bw run "..." --max-steps 20       # 步数上限（默认 50）
 
 ## 2. 外部 agent 模式：bw s
 
-### 2.1 零配置启动
+### 2.1 零配置——没有服务
 
-`bw s` 第一次使用时**自动拉起后台服务**（daemon），无需手动 `bw serve`：
-
-- 服务只绑 `127.0.0.1`，鉴权 token 自动生成，经环境变量传给子进程（`ps` 不可见）
-- 状态文件在 `~/.bw/`（`serve.pid` / `serve.token`，权限 0600）
-- 无会话、无活动任务、且 60s 无（非 healthz）请求后自动退出
+`bw s` **没有任何后台服务/daemon**（B22 起删除）：每条命令是独立进程，直连
+`~/.bw/session/<id>/` 里的文件会话；每会话一个轻量 helper 进程持有浏览器
+（unix socket，无端口无 token，`bw s close` 或 TTL 过期即退）。
 
 ```bash
-bw s stop          # 手动停掉后台服务
+bw s list          # 看当前会话（~/.bw/session/ 扫描）
+bw s gc            # 清扫过期/僵尸会话
 ```
 
 ### 2.2 一个完整工作流
@@ -113,7 +112,7 @@ $ bw s close sess-1fbd1489-3d34
 | `extract_code <id> '<js>'` | 写纯函数提取结构化数据：`(tree) => …` 在冻结 DOM 树副本上沙箱执行（Worker+vm；代码≤4KB / 3s / 结果≤8KB；密码恒 `***`）。树形状见 04 附录 extract_code |
 | `look <id> [--out F]` | 截图（默认存 /tmp） |
 | `close <id>` | 关会话 |
-| `stop` | 停后台服务 |
+| `status <id>` / `gc` | 会话状态 / 清扫 |
 
 | 交互 | |
 |---|---|
@@ -215,74 +214,29 @@ $ bw s confirm <id> sc-8h2k1x9p --yes    # 或 --no
 
 ---
 
-## 3. HTTP API（外部框架直连）
+## 3. SDK（进程内二次开发——原 HTTP API 已删除）
 
-不想 shell 出 CLI 的框架可以直接走 REST。与 CLI 同一服务。
-
-**鉴权**：所有请求 `Authorization: Bearer <token>`。`bw serve` 不带 `--token` 时自动生成并打印/落盘（`~/.bw/serve.token`）。
-
-**约束**：POST 请求体必须 `content-type: application/json` 且 ≤1MB（415/413）；服务只绑 127.0.0.1。
-
-**健康检查**：`GET /healthz`（免 Bearer，仅 loopback 绑定时暴露）→ `{ok, version, uptimeMs, sessions, activeTasks}`。
-
-**多实例 supervisor**（进程级隔离）：`bw sup start [--instances N] [--data-root DIR]`——每实例独立 Chrome dataDir/端口（3460+i）/token/轨迹目录，崩溃自动退避重启、healthz 3 连败重启；`bw sup status` / `bw sup stop`。请求路由归宿主（按端口自选）。**运维**：SIGTERM/SIGINT 优雅退出（abort 任务/关会话/清 PID 文件）；轨迹默认落盘 `~/.bw/trajectories/<id>.jsonl`（`--trajectory-dir` 可改），janitor 每 7 天/512MB 清理（含 `~/.bw/downloads`）；`bw replay <taskId|file>` 只读回放轨迹。会话触顶返回 **429**（本地 http://127.0.0.1 与内网地址默认被 S4 封锁——serve 进程设 `BW_ALLOW_PRIVATE_NETWORK=1` 后 create 传 `"allowPrivateNetwork": true` 才放行：网络边界归运维，不归持 token 的请求方）。
-
-### 自治任务
-
-```
-POST /tasks              {"goal":"...", "startUrl":"..."}     → 202 {"id"}
-GET  /tasks/:id                                            → 200 {"status":"running|finished","result"?}
-GET  /tasks/:id/events    (SSE，事件流：message_update/tool_execution_*/task_done...)
-POST /tasks/:id/steer     {"text":"补充指示"}
-POST /tasks/:id/abort     {"reason":"..."}
-POST /tasks/:id/confirmations/:cid  {"approve":true}
-```
-
-### 外部会话
-
-```
-POST   /sessions                        {"startUrl":"...", "allowEval":false}  → 201 {"id","url",...}
-GET    /sessions                        → 会话列表
-GET    /sessions/:id                    → 会话信息
-DELETE /sessions/:id                    → 关闭
-GET    /sessions/:id/snapshot           → {"snapshot":"# Page: ..."}
-GET    /sessions/:id/events             (SSE)
-POST   /sessions/:id/tools/<name>       参数同 CLI（{"index":"5"} 等）
-POST   /sessions/:id/confirmations/:cid {"approve":true}
-```
-
-工具名用规范形式：`scroll_to` / `open_tab` / `switch_tab` / `close_tab` / `extract_text` / `extract_code` / `cookies_set` / `storage_set` 等。需要确认时返回 **202** + `cid`。
-
-### curl 示例
-
-```bash
-TOKEN=$(cat ~/.bw/serve.token)
-curl -s -H "Authorization: Bearer $TOKEN" -H "content-type: application/json" \
-     -d '{"startUrl":"https://bun.com"}' http://127.0.0.1:3456/sessions
-```
-
----
-
-## 4. SDK（进程内，无 HTTP）
-
-在自有 Bun 程序里直接驱动（浏览器生命周期 = 宿主进程）：
+B22 起无 HTTP 面（U1 用户裁决）。框架/程序内集成走根包直接导出的 SDK：
 
 ```ts
-import { createSessionManager } from "@bw/service";
-import { runTask } from "@bw/agent";
+import { bw } from "browserwork";
 
-// 外部会话式（自己写循环）
-const mgr = createSessionManager({ maxSessions: 4 });
-const s = await mgr.create("https://bun.com");
-const r = await mgr.executeTool(s.id, "click", { index: "3" });
-if (r.ok) console.log(r.snapshot);
-mgr.close(s.id);
+const s = await bw.sessions.create({ url: "https://bun.com" });
+const snap = await bw.sessions.snapshot(s.id);
+const r = await bw.sessions.executeTool(s.id, "click", { index: "3" });
+await bw.sessions.close(s.id);
 
-// 自治式
-const handle = runTask({ goal: "总结这个页面", startUrl: "https://bun.com" });
-for await (const e of handle.events) console.log(e.type);
-console.log(await handle.result());
+const task = bw.run({ goal: "总结 bun.com 首页三点", startUrl: "https://bun.com" });
+for await (const ev of task.events) {}
+const result = await task.result();
+
+await bw.sessions.captureProfile(s.id, "github");   // 登录态快照（显式 save）
 ```
+
+- `TaskHandle.events` 为单消费者流（多订阅互抢）
+- 会话文件布局属公开契约（`~/.bw/session/<id>/`——DESIGN §1.2）
+
+---
 
 ---
 

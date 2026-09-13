@@ -273,3 +273,46 @@ describe("工具全集冒烟（每个工具 execute 至少一次）", () => {
     expect(result.steps).toBeGreaterThanOrEqual(12);
   });
 });
+
+describe("chrome 能力注册面（B22 覆盖补）", () => {
+  test("chrome caps 注册 chrome-only 四工具；webkit 面不重复", async () => {
+    const { buildBrowserTools } = await import("../src/tools.ts");
+    const chromeCaps = {
+      cdp: true,
+      upload: true,
+      download: true,
+      dialogEvents: true,
+      userAgentOverride: true,
+      pierceClick: true,
+      httpOnlyCookies: true,
+      networkEvents: true,
+      webp: true,
+      popups: true,
+    };
+    const mkCtx = (): never =>
+      ({
+        redact: (t: string) => t,
+        policy: {
+          onNavigate: async () => ({ kind: "allow" }),
+          onAction: () => ({ kind: "allow" }),
+          checkUploadFiles: () => ({ kind: "allow" }),
+          onNavigationIntent: async () => ({ kind: "allow" }),
+          resolveSecret: async () => "x",
+          redact: (t: string) => t,
+        },
+        hooks: {},
+        current: { rendered: null, url: "https://fake.test/" },
+        inspect: async () => "[]",
+      }) as never;
+    const names = buildBrowserTools(mkCtx(), chromeCaps as never).map(
+      (t: { name: string }) => t.name,
+    );
+    expect(names).toContain("download");
+    expect(names).toContain("upload");
+    expect(names).toContain("requests");
+    expect(names).toContain("cookies_all");
+    const wk = buildBrowserTools(mkCtx(), undefined).map((t: { name: string }) => t.name);
+    expect(wk).not.toContain("download");
+    expect(wk).not.toContain("requests");
+  });
+});

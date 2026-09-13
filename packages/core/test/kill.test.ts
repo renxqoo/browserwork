@@ -44,3 +44,22 @@ describe("killProcessGroup 守卫（事故回归）", () => {
     child.kill("SIGKILL");
   });
 });
+
+test("命令匹配 → 真组杀（sleep 进程组）", async () => {
+  const { spawn } = await import("node:child_process");
+  const child = spawn("/bin/sh", ["-c", "sleep 30"]);
+  await new Promise((r) => setTimeout(r, 200));
+  const r = killProcessGroup(child.pid ?? 0, { expectCommandSubstring: "sleep" });
+  expect(r.killed).toBe(true);
+  await new Promise((r2) => child.on("exit", r2));
+});
+
+test("主进程兜底：组不在时杀主进程", async () => {
+  const { spawn } = await import("node:child_process");
+  // 非进程组组长（shell 已退，孤儿子进程）——组 kill 失败走主进程兜底
+  const child = spawn("/bin/sh", ["-c", "sleep 30 & wait"]);
+  await new Promise((r) => setTimeout(r, 200));
+  const r = killProcessGroup(child.pid ?? 0, { expectCommandSubstring: "sh" });
+  expect(r.killed).toBe(true); // 无论走组还是兜底，目标死亡即契约
+  await new Promise((r2) => child.on("exit", r2).on("error", () => r2(null)));
+});

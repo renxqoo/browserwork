@@ -9,6 +9,9 @@
   "dependencies": {
     "@bw/core": "workspace:*",
     "@bw/agent": "workspace:*",
-    "@bw/policies": "workspace:*"
+    "@bw/policies": "workspace:*",
+    "@bw/actions": "workspace:*",
+    "@bw/driver": "workspace:*",
+    "@bw/perception": "workspace:*"
   }
 }
