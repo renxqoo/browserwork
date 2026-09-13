@@ -39,6 +39,35 @@ const CHROME_CAPABILITIES: DriverCapabilities = {
 
 export type BackendKind = "webkit" | "chrome";
 
+/**
+ * CDP console-inspect 泄漏防御（B 站排障过程沉淀，机制认知见注释末）：
+ * 包装 console 方法，参数中的对象/函数在传给原生前替换为占位字符串
+ * （Object.prototype.toString 不访问自有 getter）。实测（2026-09-14）：
+ * - 中性页无泄漏——CDP 只有在订阅 console 事件（console 工具）后才 inspect 参数；
+ * - B 站页面的 getter 触发来自其自家 console 包装的 stringify（真人同样触发，
+ *   非自动化检测信号）。
+ * 保留本防御：console 工具订阅事件后泄漏面真实存在，占位替换无副作用。
+ */
+const NO_CDP_LEAK_SCRIPT = `(() => {
+  if (window.__bwNoleak) return;
+  try { Object.defineProperty(window, "__bwNoleak", { value: 1 }); } catch { return; }
+  const ph = (a) => {
+    if (a === null) return a;
+    const t = typeof a;
+    if (t !== "object" && t !== "function") return a;
+    try { return Object.prototype.toString.call(a); } catch { return "[bw]"; }
+  };
+  for (const m of ["debug","log","info","warn","error","table","dir","trace"]) {
+    try {
+      const orig = console[m];
+      if (typeof orig !== "function") continue;
+      const wrap = (...args) => { try { orig.call(console, ...args.map(ph)); } catch {} };
+      Object.defineProperty(wrap, "name", { value: m });
+      console[m] = wrap;
+    } catch {}
+  }
+})();`;
+
 /** 活进程检测：命令行带 --user-data-dir=<dir> 的 Chrome 数（0=无人持有） */
 function chromeHoldingDataDir(dir: string): number {
   // "--" 分隔：模式以 - 开头会被 pgrep 当选项（illegal option 退出 2——静默匹配不到）
@@ -173,6 +202,23 @@ export function createWebViewDriver(opts?: CreateDriverOptions): Driver {
               : `userAgent override failed: ${cause}`,
             { cause: e },
           );
+        }
+      }
+      if (backend === "chrome") {
+        // CDP 泄漏反制（B 站实测实锤）：CDP 会话会 inspect 每次 console 调用的参数
+        // 对象——站点传带 getter 的对象探 console，getter 被触发即判定自动化，
+        // 「一打开就弹 correspond/1 验证页」。反制：页面脚本运行前把 console 参数
+        // 中的对象/函数替换为占位（getter 永不暴露给 CDP）；原始值原样（console
+        // 工具的文本日志不受影响）。新文档自动注入 + 当前文档立即补一次。
+        // 前置 about:blank：未导航时 CDP target 未 attach，注入会静默失败（实测）
+        try {
+          await page.navigate("about:blank", { timeoutMs: 10_000 });
+          await page.cdp("Page.addScriptToEvaluateOnNewDocument", {
+            source: NO_CDP_LEAK_SCRIPT,
+          });
+          await page.cdp("Runtime.evaluate", { expression: NO_CDP_LEAK_SCRIPT });
+        } catch {
+          /* 注入尽力而为——不阻断建页 */
         }
       }
       if (pageOpts?.url !== undefined) {
