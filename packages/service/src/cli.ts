@@ -268,7 +268,50 @@ async function mainAuth(input: string[]): Promise<number> {
         return 1;
       }
     }
-    console.error("usage: bw auth save <sessionId> --as <name> | list | delete <name>");
+    if (sub === "import-chrome") {
+      const hostIdx = input.indexOf("--host");
+      const host = hostIdx >= 0 ? input[hostIdx + 1] : undefined;
+      const asIdx = input.indexOf("--as");
+      const asName = asIdx >= 0 ? input[asIdx + 1] : undefined;
+      const browserIdx = input.indexOf("--browser");
+      const browser = browserIdx >= 0 ? input[browserIdx + 1] : undefined;
+      if (host === undefined) {
+        console.error(
+          "usage: bw auth import-chrome --host <域名> [--as <name>] [--browser chrome|edge|brave|chromium]",
+        );
+        return 2;
+      }
+      console.error("即将读取 Keychain「Chrome Safe Storage」——macOS 会弹授权框，请点「始终允许」");
+      try {
+        const { importChromeCookies } = await import("./authImport.ts");
+        const r = importChromeCookies({
+          host,
+          ...(asName !== undefined ? { name: asName } : {}),
+          ...(browser !== undefined ? { browser: browser as never } : {}),
+        });
+        jout({
+          ok: true,
+          name: asName ?? host,
+          path: r.path,
+          cookies: r.cookies,
+          detail: `decrypted=${r.decrypted} plaintext=${r.plaintext} skipped=${r.undecryptable}`,
+        });
+        return 0;
+      } catch (e) {
+        jout({
+          ok: false,
+          code:
+            e instanceof Error && "code" in e
+              ? String((e as { code: unknown }).code)
+              : "AUTH_IMPORT_FAILED",
+          error: e instanceof Error ? e.message : String(e),
+        });
+        return 1;
+      }
+    }
+    console.error(
+      "usage: bw auth save <sessionId> --as <name> | list | delete <name> | import-chrome --host <域名>",
+    );
     return 2;
   }
 }

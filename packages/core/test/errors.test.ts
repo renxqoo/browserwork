@@ -8,6 +8,7 @@ describe("ERROR_CODES 词表封闭", () => {
     expect([...ERROR_CODES]).toEqual([
       "SESSION_BUSY",
       "EVAL_ERROR",
+      "AUTH_IMPORT_FAILED",
       "CONFIRMATION_REQUIRED",
       "NOT_FOUND",
       "SESSION_LIMIT",

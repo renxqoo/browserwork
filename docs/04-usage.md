@@ -214,6 +214,18 @@ $ bw s confirm <id> sc-8h2k1x9p --yes    # 或 --no
 
 ---
 
+### 2.7 从本机 Chrome 导入登录态
+
+```bash
+bw auth import-chrome --host example.com --as mysite   # Keychain 弹一次「始终允许」
+bw s create --url https://example.com/ --backend chrome --profile mysite
+```
+
+单站范围（只取 `--host` 精确/子域匹配的 cookie），AES-128-CBC + Keychain「Chrome Safe Storage」
+解密（SHA-1/1003 PBKDF2）；支持 `--browser chrome|chromium|edge|brave`、`--chrome-profile`。
+边界：本机同用户；Chrome 若更换加密方案将诚实报错；cookie 值不打印 stdout。IP 主机经
+CDP `url` 形态注入（实测坑：只给 `domain` 会被静默丢弃）。
+
 ## 3. SDK（进程内二次开发——原 HTTP API 已删除）
 
 B22 起无 HTTP 面（U1 用户裁决）。框架/程序内集成走根包直接导出的 SDK：

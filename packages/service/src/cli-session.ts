@@ -270,6 +270,9 @@ export async function runSessionCreate(argv: string[]): Promise<number> {
       ...(ua !== undefined ? { ua } : {}),
       allowEval: hasFlag(argv, "allow-eval"),
       allowPrivateNetwork: hasFlag(argv, "allow-private-network"),
+      ...(flagValue(argv, "profile") !== undefined
+        ? { profile: flagValue(argv, "profile") as string }
+        : {}),
     });
     if (r.confirmed) {
       ok({ sessionId: r.id, ...(r.result !== undefined ? { result: r.result } : {}) });

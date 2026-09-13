@@ -1,7 +1,7 @@
 # 豁免清单：路径<TAB>理由[<TAB>min=N]。
 # 核心包（core/driver/perception/actions/policies/agent）豁免为空。
 # service 包部分豁免——CLI 入口副作用 / 真实 LLM 凭据路径。
-packages/service/src/cli.ts	CLI 入口（process.exit 副作用；CLI 冒烟/e2e 已过）	min=70
+packages/service/src/cli.ts	CLI 入口（process.exit 副作用 + auth/import 子命令分发——e2e 双形态全链断言）	min=60
 packages/service/src/cli-run.ts	真 LLM 路径（runTask 主循环/信号面需真 GLM key+浏览器；渲染器纯函数已单测）	min=45
 packages/service/src/sdk.ts	SDK 装配薄层（面在 store/agent；bun -e 冒烟已过）	min=70
 packages/service/src/store.ts	S1③ 环缺口注入/TOCTOU 换窗/恢复失败注入分支需故障注入装置（e2e 已覆盖主干；注入面挂账）	min=70
@@ -19,3 +19,4 @@ packages/driver/src/helperClient.ts	chrome-only CDP 代理面（cdp/cdpPierceNod
 packages/agent/src/tools.ts	TypeBox mapper 闭包矩阵（词表 20 工具×注册闭包——行为面由 agent 旅程/词表封闭性测试锚定）	min=80
 packages/driver/src/helperProtocol.ts	FrameWriter 分支面（部分写/关闭语义由 e2e 双形态真实 socket 断言）	min=80
 packages/actions/src/engine.ts	chrome CDP 下载/上传/整页截图/网络监听分支需真 Chrome 故障注入（行为由 chrome 契约行+e2e 锚定）	min=85
+packages/service/src/authImport.ts	Keychain 真读/真 Chrome 面需 GUI 授权+活浏览器（解密/sqlite/host 匹配矩阵已合成数据覆盖；真链路实测过）	min=80

@@ -102,11 +102,19 @@ export async function writeStorageState(
 ): Promise<void> {
   const url = page.url;
   if (caps.httpOnlyCookies && state.cookies.length > 0) {
-    // chrome：Network.setCookies 可写 httpOnly
+    // chrome：Network.setCookies 可写 httpOnly。CDP 坑（实测）：IP 主机的 cookie 只给
+    // domain 会被静默丢弃——必须给 url（origin+path）；域名主机双给最稳
+    let origin = "";
+    try {
+      origin = new URL(url).origin;
+    } catch {
+      origin = "";
+    }
     await page.cdp("Network.setCookies", {
       cookies: state.cookies.map((c) => ({
         name: c.name,
         value: c.value,
+        ...(origin !== "" ? { url: `${origin}${c.path}` } : {}),
         domain: c.domain,
         path: c.path,
         ...(c.expires !== undefined ? { expires: c.expires } : {}),

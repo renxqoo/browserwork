@@ -1,6 +1,8 @@
 /** B22 S3：SDK barrel——文件会话面（serve/daemon/sup/sessions.ts 已删除，U1/U9）。
  * S5 将在此装配 `bw` SDK 对象（sessions/run/profiles）。 */
 
+export type { ImportOptions, ImportResult, SupportedBrowser } from "./authImport.ts";
+export { decryptCookieValue, deriveChromeKey, importChromeCookies } from "./authImport.ts";
 export type { BatchOptions, BatchOutcome, BatchTaskLine } from "./batch.ts";
 export { parseTaskLine, renderBatchSummary, runBatchFile } from "./batch.ts";
 export { mapCliCommand, WIRE_NAMES } from "./cli-commands.ts";
