@@ -36,7 +36,7 @@ describe("deriveChromeKey / decryptCookieValue", () => {
     expect(decryptCookieValue(enc, deriveChromeKey("wrong"))).toBeNull();
     expect(decryptCookieValue(new Uint8Array(5), deriveChromeKey("k"))).toBeNull();
     expect(
-      decryptCookieValue(Buffer.from("zzz" + "a".repeat(20)), deriveChromeKey("k")),
+      decryptCookieValue(Buffer.from(`zzz${"a".repeat(20)}`), deriveChromeKey("k")),
     ).toBeNull();
   });
 });

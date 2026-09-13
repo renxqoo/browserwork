@@ -213,3 +213,67 @@ describe.skipIf(!chromeAvailable)("B20 chrome 真视图（pierce/loc/batch）", 
     }
   }, 60_000);
 });
+
+test("UA 引导失败真因探测：data-dir 被另一进程的 Chrome 持有 → 报文点名残留进程", async () => {
+  // 全程子进程（bun 测试进程自身已持 Chrome 时 Bun 复用它——dataStore 不生效，
+  // 冲突不会发生；泄漏场景即跨进程 CLI，两侧都放子进程仿真）
+  const dir = join(tmpdir(), `bw-b14-held-${process.pid}`);
+  rmSync(dir, { recursive: true, force: true });
+  const { writeFileSync } = await import("node:fs");
+  const { spawn } = await import("node:child_process");
+  const backendsUrl = new URL("../src/backends.ts", import.meta.url).pathname;
+  const holderJs = join(tmpdir(), `bw-b14-holder-${process.pid}.js`);
+  const secondJs = join(tmpdir(), `bw-b14-second-${process.pid}.js`);
+  writeFileSync(
+    holderJs,
+    `import { createWebViewDriver } from ${JSON.stringify(backendsUrl)};
+       const d = createWebViewDriver({ backend: "chrome", dataStore: ${JSON.stringify(dir)} });
+       await d.createPage({ url: "about:blank" });
+       console.log("READY");
+       setInterval(() => {}, 1000);`,
+  );
+  writeFileSync(
+    secondJs,
+    `import { createWebViewDriver } from ${JSON.stringify(backendsUrl)};
+       const d = createWebViewDriver({ backend: "chrome", dataStore: ${JSON.stringify(dir)}, userAgent: "BW-Held-UA/1.0" });
+       try { await d.createPage(); console.log("NO-THROW"); }
+       catch (e) { console.log("THREW:" + (e instanceof Error ? e.message : String(e))); }
+       process.exit(0);`,
+  );
+  const holder = spawn(process.execPath, [holderJs], { stdio: ["ignore", "pipe", "pipe"] });
+  let holderErr = "";
+  holder.stderr.on("data", (c: Buffer) => {
+    holderErr += c.toString();
+  });
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const t = setTimeout(
+        () => reject(new Error(`holder not ready in 45s; stderr: ${holderErr}`)),
+        45_000,
+      );
+      holder.stdout.on("data", (c: Buffer) => {
+        if (c.toString().includes("READY")) {
+          clearTimeout(t);
+          resolve();
+        }
+      });
+      holder.on("exit", (code) =>
+        reject(new Error(`holder exited early (code ${code}); stderr: ${holderErr}`)),
+      );
+    });
+    const second = spawn(process.execPath, [secondJs], { stdio: ["ignore", "pipe", "inherit"] });
+    let out = "";
+    second.stdout.on("data", (c: Buffer) => {
+      out += c.toString();
+    });
+    await new Promise((r2) => second.on("exit", r2));
+    expect(out).toContain("held by a leftover Chrome process");
+    expect(out).toContain(dir);
+    expect(out).toContain("bw s gc");
+  } finally {
+    holder.kill("SIGKILL");
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(holderJs, { force: true });
+    rmSync(secondJs, { force: true });
+  }
+}, 90_000);

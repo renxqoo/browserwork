@@ -20,3 +20,4 @@ packages/agent/src/tools.ts	TypeBox mapper 闭包矩阵（词表 20 工具×注�
 packages/driver/src/helperProtocol.ts	FrameWriter 分支面（部分写/关闭语义由 e2e 双形态真实 socket 断言）	min=80
 packages/actions/src/engine.ts	chrome CDP 下载/上传/整页截图/网络监听分支需真 Chrome 故障注入（行为由 chrome 契约行+e2e 锚定）	min=85
 packages/service/src/authImport.ts	Keychain 真读/真 Chrome 面需 GUI 授权+活浏览器（解密/sqlite/host 匹配矩阵已合成数据覆盖；真链路实测过）	min=80
+packages/driver/src/backends.ts	UA 引导失败真因探测 catch 面运行在跨进程子进程（b14 held-dir 契约行锚定报文；lcov 看不到子进程——同 helper.ts 先例）	min=75

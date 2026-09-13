@@ -80,9 +80,20 @@ export async function runSessionCli(argv: string[]): Promise<number> {
   const sessionId = rest[0] !== undefined && !rest[0].startsWith("--") ? rest[0] : undefined;
   const args = sessionId !== undefined ? rest.slice(1) : rest;
 
-  // help 零副作用（B16——旧实现先 ensureServer 再打印帮助）
-  if (cmd === undefined || cmd === "--help" || cmd === "-h") {
-    console.log(HELP);
+  // help 零副作用（B16——旧实现先 ensureServer 再打印帮助）。
+  // 子命令也认（实测踩坑：bw s create --help 曾被当无名参数误建会话——create 自家
+  // --help 已处理，这里兜其余子命令）
+  const wantsHelp =
+    cmd === undefined ||
+    cmd === "--help" ||
+    cmd === "-h" ||
+    (cmd !== "create" && (rest.includes("--help") || rest.includes("-h")));
+  if (wantsHelp) {
+    console.log(
+      cmd !== undefined && cmd !== "--help" && cmd !== "-h" && cmd !== "create"
+        ? `${HELP}\n(子命令 ${cmd} 的参数见上表；create --help 看全部 flag)`
+        : HELP,
+    );
     return 0;
   }
 
@@ -106,8 +117,12 @@ export async function runSessionCli(argv: string[]): Promise<number> {
     });
   }
   if (cmd === "gc") {
-    const { reaped } = store().gc();
-    ok({ result: `reaped ${reaped.length} session(s)`, reaped });
+    const { reaped, orphans } = store().gc();
+    ok({
+      result: `reaped ${reaped.length} session(s), swept ${orphans} orphan process(es)`,
+      reaped,
+      orphans,
+    });
   }
 
   // ---- create（无 sessionId 位置参数，独立解析） ----
@@ -198,7 +213,8 @@ export async function runSessionCli(argv: string[]): Promise<number> {
       const outPath = flagValue(args, "out") ?? `/tmp/bw-shot-${Date.now()}.png`;
       if (r.ok && r.image !== undefined) {
         await Bun.write(outPath, Buffer.from(r.image.base64, "base64"));
-        ok({ sessionId, path: outPath });
+        // text 带「截图瞬间页面 url+title」——被风控弹走时一眼判断截没截到目标页
+        ok({ sessionId, path: outPath, page: r.text ?? undefined });
       }
       ok({ sessionId, result: "screenshot taken (no image data)" });
     } catch (e) {

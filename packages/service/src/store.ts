@@ -6,9 +6,10 @@
  * 行为规格基线：audit-sessions-driver §5（SessionManager 十方法）；确认门按
  * MIGRATION-core §4b/§4c（非阻塞 cid + create 状态机 + batch 续行）。
  */
+import { spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readdirSync, realpathSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { ActionEngine } from "@bw/actions";
 import { createActionEngine } from "@bw/actions";
 import type { BrowserAction } from "@bw/core";
@@ -16,6 +17,7 @@ import {
   acquireFlock,
   BWError,
   buildAction,
+  killChromeByDataDir,
   killHelperGroup,
   readJsonIfPossible,
   resolveBwHome,
@@ -557,6 +559,7 @@ export function createSessionStore(opts?: SessionStoreOptions) {
       const rec = readJsonIfPossible<SessionRecord>(recordPath(dir));
       if (rec === undefined) return false; // 幂等（rm -rf 语义）
       killHelperGroup(rec.helper.pid);
+      killChromeByDataDir(rec.driver.dataStore); // 组杀兜底（实测泄漏修）
       rmSync(dir, { recursive: true, force: true });
       return true;
     },
@@ -593,7 +596,69 @@ export function createSessionStore(opts?: SessionStoreOptions) {
     /** 惰性回收 + 显式清扫（gc 分类法：IMPLEMENTATION §3） */
     gc(): { reaped: string[]; orphans: number } {
       const reaped: string[] = [];
-      const orphans = 0;
+      let orphans = 0;
+      // 孤儿浏览器进程清扫：Chrome 命令行 --user-data-dir 指向已删除的会话 datastore（前次泄漏残留）
+      {
+        const r = spawnSync("pgrep", ["-f", "--", `--user-data-dir=${root}/sess-`], {
+          encoding: "utf8",
+        });
+        if (r.status === 0 && r.stdout.trim()) {
+          const liveStores = new Set(
+            existsSync(root)
+              ? readdirSync(root)
+                  .filter((d) => d.startsWith("sess-"))
+                  .map((d) => join(root, d, "datastore"))
+              : [],
+          );
+          for (const line of r.stdout.trim().split("\n")) {
+            const pidNum = Number(line.trim());
+            if (!Number.isInteger(pidNum) || pidNum <= 1 || pidNum === process.pid) continue;
+            const ps = spawnSync("ps", ["-p", String(pidNum), "-o", "command="], {
+              encoding: "utf8",
+            });
+            const cmd = (ps.stdout ?? "").trim();
+            const mm = /--user-data-dir=([^\s]+)/.exec(cmd);
+            if (mm === null) continue;
+            const dataDirArg = mm[1] ?? "";
+            if (!dataDirArg.startsWith(`${root}/sess-`)) continue;
+            const store = dataDirArg.replace(/\/datastore$/, "");
+            if (!liveStores.has(store)) {
+              try {
+                process.kill(pidNum, "SIGKILL");
+                orphans++;
+              } catch {
+                /* 已死 */
+              }
+            }
+          }
+        }
+      }
+      // 孤儿 helper 清扫：socket 所在会话目录已不存在（旧泄漏 bug 残留的僵尸 helper；
+      // create 先建目录再拉 helper——目录在=可能活着，目录没了=任何 store 都连不上它）
+      {
+        const r = spawnSync("pgrep", ["-f", "helper\\.(ts|js) --socket"], { encoding: "utf8" });
+        if (r.status === 0 && r.stdout.trim()) {
+          for (const line of r.stdout.trim().split("\n")) {
+            const pidNum = Number(line.trim());
+            if (!Number.isInteger(pidNum) || pidNum <= 1 || pidNum === process.pid) continue;
+            const ps = spawnSync("ps", ["-p", String(pidNum), "-o", "command="], {
+              encoding: "utf8",
+            });
+            const cmd = (ps.stdout ?? "").trim();
+            if (!cmd.includes("helper.") || !cmd.includes("--socket")) continue;
+            const socket = /--socket (\S+)/.exec(cmd)?.[1];
+            if (socket === undefined) continue;
+            if (!existsSync(dirname(socket))) {
+              try {
+                process.kill(pidNum, "SIGKILL");
+                orphans++;
+              } catch {
+                /* 已死 */
+              }
+            }
+          }
+        }
+      }
       if (!existsSync(root)) return { reaped, orphans };
       for (const d of readdirSync(root)) {
         if (!d.startsWith("sess-")) continue;
@@ -1218,6 +1283,7 @@ export function createSessionStore(opts?: SessionStoreOptions) {
 /** 会话目录销毁（杀 helper 进程组 + rm——create deny/失败清场共用，S2R P1-8） */
 function destroySessionDir(dir: string, rec: SessionRecord | undefined): void {
   killHelperGroup(rec?.helper.pid ?? 0); // 守卫：pid≤1 拒绝 + ps 命令核验
+  if (rec?.driver.dataStore !== undefined) killChromeByDataDir(rec.driver.dataStore);
   rmSync(join(dir, "pending"), { recursive: true, force: true });
   rmSync(dir, { recursive: true, force: true });
 }

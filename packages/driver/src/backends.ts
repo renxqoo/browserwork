@@ -1,3 +1,6 @@
+import { spawnSync } from "node:child_process";
+import { lstatSync } from "node:fs";
+import { join } from "node:path";
 /**
  * 双后端驱动（docs/03-units.md U2；01 §5；05 §3.7）。
  * chrome 铁律：默认 url:false 强制独立拉起（P1-11——防自动连上正在运行的 Chrome）。
@@ -35,6 +38,19 @@ const CHROME_CAPABILITIES: DriverCapabilities = {
 };
 
 export type BackendKind = "webkit" | "chrome";
+
+/** 活进程检测：命令行带 --user-data-dir=<dir> 的 Chrome 数（0=无人持有） */
+function chromeHoldingDataDir(dir: string): number {
+  // "--" 分隔：模式以 - 开头会被 pgrep 当选项（illegal option 退出 2——静默匹配不到）
+  const r = spawnSync("pgrep", ["-f", "--", `--user-data-dir=${dir}`], { encoding: "utf8" });
+  if (r.status !== 0 || !r.stdout.trim()) return 0;
+  let n = 0;
+  for (const line of r.stdout.trim().split("\n")) {
+    const pid = Number(line);
+    if (Number.isInteger(pid) && pid > 1 && pid !== process.pid) n += 1;
+  }
+  return n;
+}
 
 export interface CreateDriverOptions {
   /** 默认 webkit（仅 macOS）；chrome 走 CDP 后端 */
@@ -136,7 +152,27 @@ export function createWebViewDriver(opts?: CreateDriverOptions): Driver {
           await page.cdp("Emulation.setUserAgentOverride", { userAgent: opts.userAgent });
         } catch (e) {
           page.close();
-          throw new BWError("DRIVER_ERROR", "userAgent override failed", { cause: e });
+          // 真因探测（实测踩坑：data-dir 被残留 Chrome 占用时新实例当不上 singleton、
+          // CDP 连不上，报文只有 "userAgent override failed" 完全看不出真因）。
+          // 活进程持有 = 可行动信号（bw s gc 清扫）；SingletonLock 是悬空符号链接，
+          // existsSync 跟链会误判不存在——用 lstatSync
+          const cause = e instanceof Error ? e.message : String(e);
+          const dir = opts?.dataStore;
+          const lockIsSymlink = (() => {
+            try {
+              return lstatSync(join(dir ?? "", "SingletonLock")).isSymbolicLink();
+            } catch {
+              return false; // 无锁文件——正常首启
+            }
+          })();
+          const held = dir !== undefined && (chromeHoldingDataDir(dir) > 0 || lockIsSymlink);
+          throw new BWError(
+            "DRIVER_ERROR",
+            held
+              ? `userAgent override failed — data-dir is held by a leftover Chrome process: ${dir}. Run 'bw s gc' to sweep orphans, or use a fresh --data-dir`
+              : `userAgent override failed: ${cause}`,
+            { cause: e },
+          );
         }
       }
       if (pageOpts?.url !== undefined) {

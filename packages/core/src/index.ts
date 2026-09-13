@@ -15,7 +15,7 @@ export {
   trajectoryDir,
   writeFileAtomic,
 } from "./fsx.ts";
-export { killHelperGroup, killProcessGroup } from "./kill.ts";
+export { killChromeByDataDir, killHelperGroup, killProcessGroup } from "./kill.ts";
 export type {
   BudgetInput,
   SecretRef,

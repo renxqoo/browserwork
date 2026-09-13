@@ -180,7 +180,7 @@ describe("create --help 零副作用（B16 同型——实测曾误建会话）"
     process.env.BW_HOME = `/tmp/bw-ch-${Date.now()}`;
     const { existsSync, mkdirSync, rmSync, readdirSync } = await import("node:fs");
     mkdirSync(process.env.BW_HOME, { recursive: true });
-    const { runSessionCreate } = await import("../src/cli-session.ts");
+    await import("../src/cli-session.ts");
     // exit 会终止进程——这里只验证不抛（帮助路径 return 0 前打印；真 exit 面由 e2e 断言）
     // 直接调用会 process.exit(0)——用子进程跑最稳：
     const { spawnSync } = await import("node:child_process");

@@ -1019,7 +1019,7 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
                 captureBeyondViewport: true,
               });
               return {
-                text: "[full-page screenshot captured]",
+                text: `[full-page screenshot captured] ${page.url} · ${page.title}`,
                 snapshot: await settleAndExtract(page),
                 image: { base64: shot.data, mimeType: "image/png" },
               };
@@ -1027,7 +1027,8 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
             await settle(page, page.url); // 截图前等待渲染稳定（实测：刚导航即拍会白屏）
             const png = await page.screenshot({ format: "png" });
             return {
-              text: "[screenshot captured]",
+              // 带页面状态：截图瞬间被风控弹走时 agent 一眼判断「截没截到目标页」
+              text: `[screenshot captured] ${page.url} · ${page.title}`,
               snapshot: null,
               image: { base64: Buffer.from(png).toString("base64"), mimeType: "image/png" },
             };

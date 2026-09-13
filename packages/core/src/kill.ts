@@ -52,7 +52,37 @@ export function killProcessGroup(
   }
 }
 
-/** 会话 helper 的组杀（命令核验锚：helper.ts——store/close/恢复共用） */
+/** 会话 helper 的组杀（命令核验锚：helper.——源码形态 .ts / 构建产物 .js 双匹配；
+ * 实测踩坑：只锚 helper.ts 时 dist 构建跑 helper.js，核验 mismatch → 组杀被跳过 →
+ * close「成功」但 helper+Chrome 全活，data-dir 被占死）
+ */
 export function killHelperGroup(pid: number): boolean {
-  return killProcessGroup(pid, { expectCommandSubstring: "helper.ts" }).killed;
+  return killProcessGroup(pid, { expectCommandSubstring: "helper." }).killed;
+}
+
+/**
+ * 按 data-dir 扫杀残留 Chrome（组杀的兜底）：杀组后仍可能有进程逃逸/复活
+ * （Chrome 恢复逻辑可 respawn）。命令行含 `--user-data-dir=<dir>` 即精确归属。
+ * 返回杀掉的 pid 数（含 0=无残留）。
+ */
+export function killChromeByDataDir(dataDir: string): number {
+  // "--" 分隔：模式以 - 开头会被 pgrep 当选项（illegal option 退出 2——静默匹配不到）
+  const r = spawnSync("pgrep", ["-f", "--", `--user-data-dir=${dataDir}`], {
+    encoding: "utf8",
+  });
+  if (r.status !== 0 || !r.stdout.trim()) return 0;
+  let killed = 0;
+  for (const line of r.stdout.trim().split("\n")) {
+    const pid = Number(line);
+    if (!Number.isInteger(pid) || pid <= 1) continue;
+    // 自我保护：绝不杀自己
+    if (pid === process.pid) continue;
+    try {
+      process.kill(pid, "SIGKILL");
+      killed++;
+    } catch {
+      /* 已死 */
+    }
+  }
+  return killed;
 }

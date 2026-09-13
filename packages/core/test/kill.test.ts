@@ -1,7 +1,7 @@
 /** B22 事故修复回归锚（2026-09-13）：进程组杀守卫。
  * 事故：无守卫 kill(-1) = SIGKILL 用户全部进程（整机崩溃）。这些用例锁死守卫语义。 */
 import { describe, expect, test } from "bun:test";
-import { killProcessGroup } from "../src/index.ts";
+import { killChromeByDataDir, killProcessGroup } from "../src/index.ts";
 
 describe("killProcessGroup 守卫（事故回归）", () => {
   test("pid ≤ 1 一律拒绝（-1=全进程 / 1=launchd）", () => {
@@ -62,4 +62,19 @@ test("主进程兜底：组不在时杀主进程", async () => {
   const r = killProcessGroup(child.pid ?? 0, { expectCommandSubstring: "sh" });
   expect(r.killed).toBe(true); // 无论走组还是兜底，目标死亡即契约
   await new Promise((r2) => child.on("exit", r2).on("error", () => r2(null)));
+});
+
+describe("killChromeByDataDir（close 泄漏修复回归，2026-09-14）", () => {
+  test("清扫命令行持有 --user-data-dir=<dir> 的进程；无持有返回 0", async () => {
+    const { spawn } = await import("node:child_process");
+    const dir = `/tmp/bw-kill-chrome-test-${process.pid}`;
+    // pgrep -f 按全命令行匹配——sh -c 双命令块防 exec 优化、保留完整命令行，
+    // 位置参数携带 --user-data-dir 旗标仿真 Chrome 持有（sleep 拒绝非数字参）
+    const child = spawn("/bin/sh", ["-c", "sleep 5 & wait", "marker", `--user-data-dir=${dir}`]);
+    await new Promise((r) => setTimeout(r, 400));
+    const killed = killChromeByDataDir(dir);
+    expect(killed).toBe(1);
+    await new Promise((r2) => child.on("exit", r2));
+    expect(killChromeByDataDir("/tmp/bw-kill-chrome-test-none")).toBe(0);
+  });
 });
