@@ -39,6 +39,7 @@ class CdpConn {
   #ws: WebSocket;
   #nextId = 1;
   #pending = new Map<number, RpcPending>();
+  #inflight = new Map<number, string>(); // id → method（错误消息定位用）
   #eventSinks = new Set<(sessionId: string | undefined, method: string, params: unknown) => void>();
   #outbox: string[] = [];
   #opened = false;
@@ -61,9 +62,13 @@ class CdpConn {
         const p = this.#pending.get(msg.id);
         if (p === undefined) return;
         this.#pending.delete(msg.id);
+        const m = this.#inflight.get(msg.id);
+        this.#inflight.delete(msg.id);
         if (msg.error !== undefined) {
           const e = msg.error as { message?: string };
-          p.reject(new BWError("DRIVER_ERROR", `cdp failed: ${e.message ?? "unknown"}`));
+          p.reject(
+            new BWError("DRIVER_ERROR", `cdp failed: ${m ?? "?"}: ${e.message ?? "unknown"}`),
+          );
         } else {
           p.resolve(msg.result);
         }
@@ -94,6 +99,7 @@ class CdpConn {
     this.#dead = e;
     for (const p of this.#pending.values()) p.reject(e);
     this.#pending.clear();
+    this.#inflight.clear();
   }
 
   ready(): Promise<void> {
@@ -157,6 +163,7 @@ class CdpConn {
           reject(e);
         },
       });
+      this.#inflight.set(id, method);
     });
     if (this.#opened) this.#ws.send(frame);
     else this.#outbox.push(frame);
@@ -778,9 +785,17 @@ export async function createCdpAttachDriver(opts: CreateAttachDriverOptions): Pr
       if (closed) throw new BWError("DRIVER_ERROR", "driver is closed");
       // attachExisting + 首个 createPage：收养第一个非 devtools 页（Electron 的窗口
       // 就是 page target）。后续 createPage（opentab 语义）必须开新 target——
-      // 否则 opentab 会误收养旧窗口
+      // 否则 opentab 会误收养旧窗口。
+      // 等待窗口出现：Electron 的 CDP 端点先于 BrowserWindow 就绪（实测：
+      // --electron 在 /json/version 应答的瞬间 attach，窗口还没建——Target.createTarget
+      // 在 Electron 是 Not supported，必须等而不是建）
       if (opts.attachExisting === true && pages.size === 0) {
-        const targets = await pageTargets();
+        const deadline = Date.now() + 20_000;
+        let targets = await pageTargets();
+        while (targets.length === 0 && Date.now() < deadline) {
+          await sleep(250);
+          targets = await pageTargets();
+        }
         // 收养优先级：非 about:blank 的真实页 > 非 devtools 页 > 任意（实测：spawn
         // 链条常留一个初始 about:blank target，盲取第一个会收养错窗口）
         const existing =
@@ -795,11 +810,40 @@ export async function createCdpAttachDriver(opts: CreateAttachDriverOptions): Pr
           }
           return page;
         }
+        throw new BWError(
+          "DRIVER_ERROR",
+          "no page target appeared in 20s — app may have no window (main-process only?)",
+        );
       }
-      const created = await conn.call<{ targetId: string }>("Target.createTarget", {
-        url: "about:blank",
-      });
-      const page = await attach(created?.targetId ?? "");
+      // 新 target：Target.createTarget（Chrome）→ Electron 不支持时回落
+      // window.open（走 app 自己的 window-open 处理器——开窗权在 Electron 主进程）
+      let targetId: string;
+      try {
+        const created = await conn.call<{ targetId: string }>("Target.createTarget", {
+          url: "about:blank",
+        });
+        targetId = created?.targetId ?? "";
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (!msg.includes("Not supported")) throw e;
+        const first = [...pages][0];
+        if (first === undefined) throw e;
+        await first.evaluate(
+          `window.open(${JSON.stringify(pageOpts?.url ?? "about:blank")}, "_blank")`,
+        );
+        const deadline = Date.now() + 10_000;
+        for (;;) {
+          const known = new Set([...pages].map((p) => p.targetId));
+          const fresh = (await pageTargets()).find((t) => !known.has(t.targetId));
+          if (fresh !== undefined) {
+            targetId = fresh.targetId;
+            break;
+          }
+          if (Date.now() > deadline) throw e;
+          await sleep(200);
+        }
+      }
+      const page = await attach(targetId);
       if (pageOpts?.url !== undefined && pageOpts.url !== "about:blank") {
         await page.navigate(pageOpts.url, { timeoutMs: 30_000 });
       }
