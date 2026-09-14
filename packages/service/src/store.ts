@@ -987,6 +987,13 @@ export function createSessionStore(opts?: SessionStoreOptions) {
             for (const ev of toJudge) {
               const verdict = await policy.onNavigationSettled(ev.url);
               if (!verdict.ok && verdict.violation !== undefined) {
+                // 同站放宽（S1 四案终解）：Bun 的导航事件会把 iframe 加载泄漏进环
+                // （lf-zt.douyin / same.eastmoney——真人浏览器同载不劫持顶层）。
+                // 与回滚点同站（近似 eTLD+1：末两段一致）的「违规」一律静默忽略——
+                // 不记违规、不回滚、不推进回滚点；跨站劫持照严判（S1 本意）
+                if (sameRegistrableDomain(rec.lastAllowedUrl, ev.url)) {
+                  continue;
+                }
                 const host = safeHost(ev.url) ?? "";
                 if (host !== "" && !rec.policy.violatedHosts.includes(host)) {
                   rec.policy.violatedHosts.push(host);
@@ -998,8 +1005,15 @@ export function createSessionStore(opts?: SessionStoreOptions) {
                   /* 回滚失败——记录违规即可 */
                 }
               } else if (verdict.ok) {
-                // 合法落定 → 回滚点推进（S2R P0-2：否则恢复永远回 create 起始页）
-                rec.lastAllowedUrl = ev.url;
+                // 合法落定 → 回滚点推进（S2R P0-2：否则恢复永远回 create 起始页）。
+                // 残余（低危，记录在案）：同站 iframe 泄漏条目也可能推进回滚点
+                // （view.url 瞬时跟随 iframe → 主帧比对恒真，无法甄别）——回滚到
+                // 同站 url 无安全影响；跨站从严不受影响。
+                // about:blank 永不推进：建页初始落定会进环，若推进会把同站比对的
+                // 参照变成空页 → 放宽全失效（douyin 复验实测）
+                if (ev.url !== "about:blank") {
+                  rec.lastAllowedUrl = ev.url;
+                }
               }
             }
             if (ring.events.length > 0 || gap)
@@ -1488,6 +1502,20 @@ function detectChromeBinary(): string | null {
     "/usr/bin/chromium",
   ].filter((p): p is string => p !== undefined);
   return candidates.find((p) => existsSync(p)) ?? null;
+}
+
+/** 近似 eTLD+1：末两段一致视为同站（douyin.com ≈ lf-zt.douyin.com）。
+ * 对 co.uk 类多级后缀会误判同站——S1 白名单已覆盖主域，残余风险可接受 */
+function sameRegistrableDomain(a: string, b: string): boolean {
+  const tail = (u: string): string => {
+    try {
+      return new URL(u).hostname.split(".").slice(-2).join(".");
+    } catch {
+      return u;
+    }
+  };
+  const ta = tail(a);
+  return ta !== "" && ta === tail(b);
 }
 
 function safeHost(url: string): string | null {

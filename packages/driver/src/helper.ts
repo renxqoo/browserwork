@@ -87,12 +87,27 @@ export async function runHelperServer(
   };
 
   const wirePage = (pageId: number, page: Page): Promise<void> => {
-    page.onNavigated((url) => {
+    /** 入环消毒 + 记账（S1③ 事件源的唯一入口）：
+     * 1. 浏览器内部 scheme（chrome:///devtools:// 等）不是 Web 导航——NTP 启动
+     *    过渡入环会在 S1③ 记违规（zhipin 案）；
+     * 2. 连续重复 url 去重（CDP Page.enable 会重放当前帧——重放≠导航） */
+    const recordNav = (url: string): void => {
+      if (url === "" || /^(chrome|devtools|chrome-extension|edge|view-source):/i.test(url)) {
+        return;
+      }
+      if (navRing.length > 0 && navRing[navRing.length - 1]?.url === url) return;
       navSeq += 1;
       navRing.push({ seq: navSeq, url, ts: Date.now(), pageId });
       if (navRing.length > NAV_RING_MAX) navRing.splice(0, navRing.length - NAV_RING_MAX);
       push({ event: "navigated", pageId, data: { url, title: page.title } });
-    });
+    };
+    /** 事件源仅做 scheme 消毒（chrome:// 等浏览器内部过渡不是 Web 导航——zhipin
+     * 案 NTP 入环记违规）+ 连续去重。**iframe 甄别不在事件层做**：Bun 的
+     * view.onNavigated 会把 iframe 加载泄漏成本回调（四案实测：lf-zt.douyin /
+     * same.eastmoney 全是 iframe 域），且泄漏瞬间 view.url 短暂跟随（同步比对
+     * 失效）、与主帧事件交错（延迟复核误杀真导航——实测）；CDP Page 域事件
+     * spawn 路径不转发（实测环空）。同站 iframe 域由 S1③ 消费端放宽（store） */
+    page.onNavigated(recordNav);
     page.onNavigationFailed((error) => {
       // P2-13：BWError code 过线（消费者按 code 分诊，不只 message 嗅探）
       push({

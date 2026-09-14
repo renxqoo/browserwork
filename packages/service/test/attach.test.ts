@@ -118,6 +118,50 @@ describe.skipIf(!chromeAvailable || process.platform !== "darwin")("attach/launc
     }
   }, 90_000);
 
+  test("S1③ 同站放宽：iframe 域不记违规不回滚（douyin/eastmoney 四案回归）", async () => {
+    // 跨源 iframe fixture：iframe 域与主域「同站」条件用不同端口模拟泄漏
+    // （lf-zt.douyin.com 案里 iframe 与主站同注册域——本测试用同 host 不同端口
+    //  更严：sameRegistrableDomain 对同 host 必然成立）
+    const frame = Bun.serve({
+      port: 0,
+      fetch: () => new Response("<p>track</p>", { headers: { "content-type": "text/html" } }),
+    });
+    const main = Bun.serve({
+      port: 0,
+      fetch: () =>
+        new Response(
+          `<!doctype html><title>IframePage</title><p>hello</p><iframe src="http://127.0.0.1:${frame.port}/"></iframe>`,
+          { headers: { "content-type": "text/html; charset=utf-8" } },
+        ),
+    });
+    const home = mkdtempSync(join(tmpdir(), "bw-s1-e2e-"));
+    try {
+      const store = createSessionStore({ bwHome: home, policyMode: "test" });
+      const r = await store.create({
+        url: `http://127.0.0.1:${main.port}/`,
+        backend: "chrome",
+        allowEval: true,
+      });
+      expect(r.confirmed).toBe(true);
+      // 两轮命令：S1③ 消费 iframe 泄漏事件——不得记违规/回滚
+      await new Promise((r2) => setTimeout(r2, 1200));
+      const w = await store.executeTool(r.id, "wait", { seconds: 1 });
+      expect(w.ok).toBe(true);
+      const t = await store.executeTool(r.id, "extract_text", {});
+      expect(t.ok).toBe(true);
+      if (t.ok) expect(t.text).toContain("hello"); // 页面未被回滚拉走
+      const rec = store.get(r.id);
+      expect(rec.policy.violatedHosts).toEqual([]); // 核心断言：iframe 域零污染
+      // 回滚点与主站同站即可（同站 iframe 推进回滚点=低危残余，见 store 注释）
+      expect(rec.lastAllowedUrl.startsWith("http://127.0.0.1:")).toBe(true);
+      store.close(r.id);
+    } finally {
+      main.stop(true);
+      frame.stop(true);
+      rmSync(home, { recursive: true, force: true });
+    }
+  }, 90_000);
+
   test("--electron：spawn app + attach；close 连带收走 app", async () => {
     const home = mkdtempSync(join(tmpdir(), "bw-el-home-"));
     const appData = join(home, "app-data");

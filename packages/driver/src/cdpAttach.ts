@@ -245,16 +245,19 @@ export class CdpAttachPage implements Page {
     });
   }
 
-  /** 初始化：启用域 + 主帧/状态抓取。必须在建页后调用一次 */
+  /** 初始化：启用域 + 主帧/状态抓取。必须在建页后调用一次。
+   * 顺序关键（S1 四案实测）：frameTree 先于 Page.enable——enable 会重放当前帧的
+   * frameNavigated，若 #url 还没从 frameTree 初始化，重放会被当新导航发进事件环
+   * （zhipin 案：chrome://new-tab-page 入环记违规） */
   async init(): Promise<void> {
-    await this.#conn.call("Page.enable", {}, this.#sessionId);
-    await this.#conn.call("Runtime.enable", {}, this.#sessionId);
     const tree = await this.#conn.call<{ frameTree?: { frame?: { id?: string; url?: string } } }>(
       "Page.getFrameTree",
       {},
       this.#sessionId,
     );
     const frame = tree?.frameTree?.frame;
+    await this.#conn.call("Page.enable", {}, this.#sessionId);
+    await this.#conn.call("Runtime.enable", {}, this.#sessionId);
     if (frame?.id !== undefined) {
       this.#mainFrameId = frame.id;
       if (frame.url !== undefined) this.#url = frame.url;
@@ -276,7 +279,8 @@ export class CdpAttachPage implements Page {
   #onEvent(method: string, params: unknown): void {
     if (method === "Page.frameNavigated") {
       const p = params as { frame?: { id?: string; url?: string; parentId?: string } };
-      if (p.frame?.id === this.#mainFrameId || p.frame?.parentId === undefined) {
+      // 严格主帧（S1 四案实测：iframe 加载也走 frameNavigated——必须按 parentId 排除）
+      if (p.frame?.parentId === undefined) {
         if (p.frame?.id !== undefined) this.#mainFrameId = p.frame.id;
         if (p.frame?.url !== undefined && p.frame.url !== this.#url) {
           this.#url = p.frame.url;
