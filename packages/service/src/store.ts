@@ -399,6 +399,10 @@ export function createSessionStore(opts?: SessionStoreOptions) {
         const dataStore = createOpts.dataDir ?? join(dir, "datastore");
         mkdirSync(dataStore, { recursive: true });
         mkdirSync(join(dir, "downloads"), { recursive: true });
+        // launch 模式的起始 URL（headed 映射或显式 --electron）：必须作为 Chrome
+        // 位置参数传入——store 的 url 走 helper RPC createPage({url}) 导航收养页，
+        // 但收养时目标 target 可能尚未出现（等窗 20s）——Chrome 直开最可靠
+        const electronLaunchUrl = createOpts.url;
         // headed → launch 模式映射（在 electronOpts 里组装——下方 rec 构建消费）
         const electronOpts =
           createOpts.headed === true &&
@@ -412,7 +416,14 @@ export function createSessionStore(opts?: SessionStoreOptions) {
                     "--headed requires a Chrome binary (set --chrome-path or install Chrome)",
                   );
                 }
-                return { electronPath: bin, electronArgs: [`--user-data-dir=${dataStore}`] };
+                return {
+                  electronPath: bin,
+                  electronArgs: [
+                    `--user-data-dir=${dataStore}`,
+                    // URL 作位置参数直开目标页（否则 Chrome 裸启开 NTP——zhipin 实测）
+                    ...(createOpts.url !== undefined ? [createOpts.url] : []),
+                  ],
+                };
               })()
             : {};
         const rec: SessionRecord = {
@@ -459,9 +470,11 @@ export function createSessionStore(opts?: SessionStoreOptions) {
             ...(createOpts.electronPath !== undefined
               ? {
                   electronPath: createOpts.electronPath,
-                  ...(createOpts.electronArgs !== undefined
-                    ? { electronArgs: createOpts.electronArgs }
-                    : {}),
+                  // URL 追加为位置参数（Chrome 直开目标页——不传则裸启 NTP）
+                  electronArgs: [
+                    ...(createOpts.electronArgs ?? []),
+                    ...(electronLaunchUrl !== undefined ? [electronLaunchUrl] : []),
+                  ],
                 }
               : electronOpts),
           },

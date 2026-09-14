@@ -371,6 +371,30 @@ export class CdpAttachPage implements Page {
     await this.#refreshTitle();
   }
 
+  /** CDP 调用包装：session 失效（site-isolation 换进程——启动 URL target 实测）
+   * 时按 targetId 重挂一次再重试 */
+  async #call<T>(method: string, params?: Record<string, unknown>, timeoutMs?: number): Promise<T> {
+    try {
+      return await this.#conn.call<T>(method, params, this.#sessionId, timeoutMs);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (!msg.includes("Session with given id not found")) throw e;
+      const s = await this.#conn.call<{ sessionId: string }>("Target.attachToTarget", {
+        targetId: this.#targetId,
+        flatten: true,
+      });
+      if (s?.sessionId === undefined) throw e;
+      this.#sessionId = s.sessionId;
+      try {
+        await this.#conn.call("Page.enable", {}, this.#sessionId);
+        await this.#conn.call("Runtime.enable", {}, this.#sessionId);
+      } catch {
+        /* 域可能已启用 */
+      }
+      return await this.#conn.call<T>(method, params, this.#sessionId, timeoutMs);
+    }
+  }
+
   /** 裸 evaluate（不做 undefined 归一/异常包装——内部缓存用） */
   async #rawEval<T>(expression: string): Promise<T> {
     const r = await this.#conn.call<{ result?: { value?: unknown }; exceptionDetails?: unknown }>(
@@ -406,18 +430,14 @@ export class CdpAttachPage implements Page {
     y: number,
     opts?: { button?: "left" | "right" | "middle"; clickCount?: number },
   ): Promise<void> {
-    await this.#conn.call(
-      "Input.dispatchMouseEvent",
-      {
-        type,
-        x,
-        y,
-        button: opts?.button ?? "left",
-        buttons: opts?.button === "right" ? 2 : 1,
-        clickCount: opts?.clickCount ?? 1,
-      },
-      this.#sessionId,
-    );
+    await this.#call("Input.dispatchMouseEvent", {
+      type,
+      x,
+      y,
+      button: opts?.button ?? "left",
+      buttons: opts?.button === "right" ? 2 : 1,
+      clickCount: opts?.clickCount ?? 1,
+    });
   }
 
   async click(selector: string, opts?: ClickOptions): Promise<void> {
@@ -459,7 +479,7 @@ export class CdpAttachPage implements Page {
   async type(text: string): Promise<void> {
     this.#assertOpen();
     try {
-      await this.#conn.call("Input.insertText", { text }, this.#sessionId);
+      await this.#call("Input.insertText", { text });
     } catch (cause) {
       throw new BWError("DRIVER_ERROR", `type failed: ${text.slice(0, 40)}`, { cause });
     }
@@ -479,16 +499,12 @@ export class CdpAttachPage implements Page {
         nativeVirtualKeyCode: k.code,
         modifiers: mods,
       };
-      await this.#conn.call(
-        "Input.dispatchKeyEvent",
-        {
-          type: "keyDown",
-          ...base,
-          ...(k.text !== undefined ? { text: k.text, unmodifiedText: k.text } : {}),
-        },
-        this.#sessionId,
-      );
-      await this.#conn.call("Input.dispatchKeyEvent", { type: "keyUp", ...base }, this.#sessionId);
+      await this.#call("Input.dispatchKeyEvent", {
+        type: "keyDown",
+        ...base,
+        ...(k.text !== undefined ? { text: k.text, unmodifiedText: k.text } : {}),
+      });
+      await this.#call("Input.dispatchKeyEvent", { type: "keyUp", ...base });
     } catch (cause) {
       if (cause instanceof BWError) throw cause;
       throw new BWError("DRIVER_ERROR", `press failed: ${key}`, { cause });
@@ -498,17 +514,13 @@ export class CdpAttachPage implements Page {
   async scroll(dx: number, dy: number): Promise<void> {
     this.#assertOpen();
     try {
-      await this.#conn.call(
-        "Input.dispatchMouseEvent",
-        {
-          type: "mouseWheel",
-          x: this.#viewport.w / 2,
-          y: this.#viewport.h / 2,
-          deltaX: dx,
-          deltaY: dy,
-        },
-        this.#sessionId,
-      );
+      await this.#call("Input.dispatchMouseEvent", {
+        type: "mouseWheel",
+        x: this.#viewport.w / 2,
+        y: this.#viewport.h / 2,
+        deltaX: dx,
+        deltaY: dy,
+      });
     } catch (cause) {
       throw new BWError("DRIVER_ERROR", `scroll failed: (${dx},${dy})`, { cause });
     }
@@ -553,11 +565,12 @@ export class CdpAttachPage implements Page {
   async resize(width: number, height: number): Promise<void> {
     this.#assertOpen();
     try {
-      await this.#conn.call(
-        "Emulation.setDeviceMetricsOverride",
-        { width, height, deviceScaleFactor: 1, mobile: false },
-        this.#sessionId,
-      );
+      await this.#call("Emulation.setDeviceMetricsOverride", {
+        width,
+        height,
+        deviceScaleFactor: 1,
+        mobile: false,
+      });
       this.#viewport = { w: width, h: height };
     } catch (cause) {
       throw new BWError("DRIVER_ERROR", `resize failed: ${width}x${height}`, { cause });
@@ -569,7 +582,7 @@ export class CdpAttachPage implements Page {
     const settle = new Promise<void>((resolve) => {
       this.#navSettlers.push(resolve);
     });
-    await this.#conn.call("Page.reload", {}, this.#sessionId);
+    await this.#call("Page.reload", {});
     await Promise.race([
       settle,
       sleep(15_000).then(() => {
@@ -795,16 +808,21 @@ export async function createCdpAttachDriver(opts: CreateAttachDriverOptions): Pr
       // 在 Electron 是 Not supported，必须等而不是建）
       if (opts.attachExisting === true && pages.size === 0) {
         const deadline = Date.now() + 20_000;
+        // 等窗必须等「web target」——CDP 就绪瞬间常只有浏览器内部页（NTP），
+        // 目标页 target 稍后出现（zhipin 实测：等任意 target 会抢收 NTP，且
+        // attach 页在 NTP 上 navigate 静默无效、createTarget 又走 window.open
+        // 回落被弹窗拦截——导航全丢）
+        const isWeb = (u: string): boolean =>
+          !/^(about:|chrome:|devtools:|edge:|view-source:|chrome-extension:)/i.test(u);
         let targets = await pageTargets();
-        while (targets.length === 0 && Date.now() < deadline) {
+        while (!targets.some((t) => isWeb(t.url)) && Date.now() < deadline) {
           await sleep(250);
           targets = await pageTargets();
         }
-        // 收养优先级：非 about:blank 的真实页 > 非 devtools 页 > 任意（实测：spawn
-        // 链条常留一个初始 about:blank target，盲取第一个会收养错窗口）
+        // 收养优先级：真实 Web 页 > 非 devtools 页 > 任意（isWeb 见上）
         const existing =
-          targets.find((t) => t.url !== "about:blank" && !t.url.startsWith("devtools://")) ??
-          targets.find((t) => !t.url.startsWith("devtools://")) ??
+          targets.find((t) => isWeb(t.url) && t.url !== "about:blank") ??
+          targets.find((t) => !t.url.startsWith("devtools://") && !t.url.startsWith("chrome://")) ??
           targets[0];
         if (existing !== undefined) {
           const page = await attach(existing.targetId);
