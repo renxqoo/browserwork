@@ -5,6 +5,7 @@
  */
 
 import { homedir } from "node:os";
+import { join } from "node:path";
 import { type ActionEngine, createActionEngine } from "@bw/actions";
 import {
   type BrowserAction,
@@ -24,12 +25,14 @@ import {
   type PolicyEngine,
   testPolicyConfig,
 } from "@bw/policies";
+// B23：pi coding agent 工具面（read/write/bash）——系统提示词指示工作前 read 加载 skills/bw
+import { createBashTool, createReadTool, createWriteTool } from "@earendil-works/pi-coding-agent";
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
 import { Agent } from "@mariozechner/pi-agent-core";
 import type { Model } from "@mariozechner/pi-ai";
-import { glmModelsFromEnv } from "./llm.ts";
+import { modelsFromEnv } from "./llm.ts";
 import { systemPrompt } from "./prompt.ts";
-import { buildBrowserTools, buildDoneTool, SNAPSHOT_MARKER } from "./tools.ts";
+import { buildBrowserTools, buildDoneTool, resolveSkillRoot, SNAPSHOT_MARKER } from "./tools.ts";
 import { memoryTrajectorySink } from "./trajectory.ts";
 
 export interface RunTaskOptions {
@@ -46,7 +49,7 @@ export interface RunTaskOptions {
   confirmationTimeoutMs?: number;
   /** 测试档：fixture origin 白名单 + 内网放宽（默认自动判定 127.0.0.1 起始 URL） */
   testMode?: boolean;
-  /** 提供商 API key（真实路径必传；缺省回落 env GLM_API_KEY） */
+  /** 提供商 API key（真实路径必传；缺省回落 env BW_API_KEY） */
   apiKey?: string;
   /** settle 静默窗（默认 400ms；测试可调小加速） */
   settleQuietMs?: number;
@@ -91,15 +94,15 @@ export function runTask(req: TaskRequest, opts?: RunTaskOptions): TaskHandle {
   // ---- 模型三级装配（05 §3.3）：opts.models > req.model(+env) > env > no-model
   const resolvedModels: { fast: Model<never>; strong?: Model<never> } | undefined = (() => {
     if (opts?.models !== undefined) return opts.models;
-    const key = opts?.apiKey ?? process.env.GLM_API_KEY;
+    const key = opts?.apiKey ?? process.env.BW_API_KEY;
     if (key === undefined || key === "") return undefined;
-    const modelId = req.model?.fast ?? process.env.GLM_MODEL;
-    const strongId = req.model?.strong ?? process.env.GLM_STRONG_MODEL;
-    return glmModelsFromEnv({
-      GLM_API_KEY: key,
-      ...(process.env.GLM_BASE_URL !== undefined ? { GLM_BASE_URL: process.env.GLM_BASE_URL } : {}),
-      ...(modelId !== undefined && modelId !== "" ? { GLM_MODEL: modelId } : {}),
-      ...(strongId !== undefined && strongId !== "" ? { GLM_STRONG_MODEL: strongId } : {}),
+    const modelId = req.model?.fast ?? process.env.BW_MODEL;
+    const strongId = req.model?.strong ?? process.env.BW_STRONG_MODEL;
+    return modelsFromEnv({
+      BW_API_KEY: key,
+      ...(process.env.BW_BASE_URL !== undefined ? { BW_BASE_URL: process.env.BW_BASE_URL } : {}),
+      ...(modelId !== undefined && modelId !== "" ? { BW_MODEL: modelId } : {}),
+      ...(strongId !== undefined && strongId !== "" ? { BW_STRONG_MODEL: strongId } : {}),
     }) as { fast: Model<never>; strong?: Model<never> };
   })();
   // ---- 价目表（05 §3.4）：opts > env BW_PRICES_JSON（畸形 JSON = 静默停用，warn 事件兜底）
@@ -359,6 +362,8 @@ export function runTask(req: TaskRequest, opts?: RunTaskOptions): TaskHandle {
   };
 
   const done = { answer: undefined as string | undefined, called: false };
+  // B23：随包技能手册（bundle/源码双形态定位）——提示词指示 agent 开工前 read 它
+  const skillRoot = resolveSkillRoot(import.meta.dir);
   const tools = [
     ...buildBrowserTools(
       {
@@ -371,6 +376,10 @@ export function runTask(req: TaskRequest, opts?: RunTaskOptions): TaskHandle {
       },
       driver.capabilities(),
     ),
+    // pi coding agent 三工具（cwd = 进程工作目录）
+    createReadTool(process.cwd()),
+    createWriteTool(process.cwd()),
+    createBashTool(process.cwd()),
     buildDoneTool((answer) => {
       // 首个 done 定案：pi 批终止是 every() 语义——升级发生在批中段时整批不收束，
       // 可能多跑一轮旧模型并重复调 done；重复调用不覆写（B12 审查 P2-9 处置）
@@ -387,7 +396,9 @@ export function runTask(req: TaskRequest, opts?: RunTaskOptions): TaskHandle {
     (resolvedModels?.fast as { reasoning?: boolean } | undefined)?.reasoning === true;
   const agent = new Agent({
     initialState: {
-      systemPrompt: systemPrompt(budgetLimits.maxSteps),
+      systemPrompt: systemPrompt(
+        skillRoot !== undefined ? join(skillRoot, "bw", "SKILL.md") : undefined,
+      ),
       model: fastModel,
       tools: tools as never,
       // GLM 5.3 flash 等常思考模型不支持关闭（探针 p11）：reasoning 模型默认 low
@@ -395,7 +406,7 @@ export function runTask(req: TaskRequest, opts?: RunTaskOptions): TaskHandle {
     },
     toolExecution: "sequential",
     ...(opts?.streamFn !== undefined ? { streamFn: opts.streamFn as never } : {}),
-    getApiKey: () => opts?.apiKey ?? process.env.GLM_API_KEY ?? undefined,
+    getApiKey: () => opts?.apiKey ?? process.env.BW_API_KEY ?? undefined,
     transformContext: async (messages: AgentMessage[]) =>
       compactSnapshots(messages, {
         ...(budgetLimits.contextWindow !== undefined

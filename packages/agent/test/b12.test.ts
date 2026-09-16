@@ -421,17 +421,17 @@ describe("B12 §3.4 costUsd", () => {
 });
 
 describe("B12 装配面（env 路径覆盖）", () => {
-  test("模型三级装配：无 opts.models 时按 req.model/env 解析（GLM_STRONG_MODEL 生效）", async () => {
+  test("模型三级装配：无 opts.models 时按 req.model/env 解析（BW_STRONG_MODEL 生效）", async () => {
     const { node, locate } = fakeNode("11", {});
     const world = makeFakeWorld({ locateResults: { 11: locate }, rawExtract: { nodes: [node] } });
     const llm = scriptLLM([
       { toolCalls: [{ name: "wait", arguments: { seconds: 0.01 } }] },
       { toolCalls: [{ name: "done", arguments: { answer: "ok" } }] },
     ]);
-    const prevModel = process.env.GLM_MODEL;
-    const prevStrong = process.env.GLM_STRONG_MODEL;
-    process.env.GLM_MODEL = "env-fast-id";
-    process.env.GLM_STRONG_MODEL = "env-strong-id";
+    const prevModel = process.env.BW_MODEL;
+    const prevStrong = process.env.BW_STRONG_MODEL;
+    process.env.BW_MODEL = "env-fast-id";
+    process.env.BW_STRONG_MODEL = "env-strong-id";
     try {
       const handle = runTask(
         { goal: "x", startUrl: "https://fake.test/page" },
@@ -449,10 +449,10 @@ describe("B12 装配面（env 路径覆盖）", () => {
       expect(llm.callModels[0]).toBe("env-fast-id");
       expect((await handle.result()).status).toBe("done");
     } finally {
-      if (prevModel === undefined) delete process.env.GLM_MODEL;
-      else process.env.GLM_MODEL = prevModel;
-      if (prevStrong === undefined) delete process.env.GLM_STRONG_MODEL;
-      else process.env.GLM_STRONG_MODEL = prevStrong;
+      if (prevModel === undefined) delete process.env.BW_MODEL;
+      else process.env.BW_MODEL = prevModel;
+      if (prevStrong === undefined) delete process.env.BW_STRONG_MODEL;
+      else process.env.BW_STRONG_MODEL = prevStrong;
     }
   });
 

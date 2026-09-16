@@ -6,11 +6,12 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@bw/actions": "workspace:*",
     "@bw/core": "workspace:*",
     "@bw/driver": "workspace:*",
     "@bw/perception": "workspace:*",
-    "@bw/actions": "workspace:*",
     "@bw/policies": "workspace:*",
+    "@earendil-works/pi-coding-agent": "0.85.1",
     "@mariozechner/pi-agent-core": "0.73.1",
     "@mariozechner/pi-ai": "0.73.1",
     "@sinclair/typebox": "0.34.52"

@@ -4,92 +4,121 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-给 LLM 用的浏览器。一句话目标 → agent 自己看页面、做决策、跑完任务；或把浏览器工具按步交给任意外部 LLM。
+[English](README.md) | [简体中文](README.zh-CN.md)
+
+A browser for LLMs. One-line goal → the agent looks at pages itself, makes decisions, and finishes the task; or hand the browser tools step-by-step to any external LLM.
 
 ```bash
-bun install && bun run build
-alias bw='bun dist/cli/cli.js'
+bun i -g browserwork     # or from source: bun install && bun run build
 
-bw run "总结 https://bun.com 首页三个要点"        # 自治模式（一句话，agent 自己跑完）
-bw s create --url https://bun.com && bw s snap <id>  # 外部会话模式（REST/CLI 给任意 LLM 用）
+bw run "Summarize the three key points of the https://bun.com homepage"  # autonomous mode (one sentence, agent runs it to the end)
+bw s create --url https://bun.com && bw s snap <id>                     # external session mode (REST/CLI for any LLM)
 ```
 
-## 为什么
+## Why
 
-对打 playwright-mcp（同一 GLM 驱动，真站 5 任务）——**token 少 43%、步数少 21%，完成率持平**：
+Benchmarked against playwright-mcp (same GLM driver, 5 real-site tasks) — **43% fewer tokens, 21% fewer steps, same completion rate**:
 
-| 指标 | bw | playwright-mcp |
+| Metric | bw | playwright-mcp |
 |---|---|---|
-| 完成/命中 | 5/5 · 5/5 | 5/5 · 5/5 |
-| 总步数 | **11** | 14 |
-| 总 tokens | **60,206** | 104,802 |
+| Completed / hit | 5/5 · 5/5 | 5/5 · 5/5 |
+| Total steps | **11** | 14 |
+| Total tokens | **60,206** | 104,802 |
 
-完整口径、原始数据与局限见 **[BENCHMARKS.md](BENCHMARKS.md)**（含复现命令）。
+Full methodology, raw data and limitations in **[BENCHMARKS.md](BENCHMARKS.md)** (with reproduction commands).
 
-## 特性
+## Features
 
-- **零浏览器下载**（macOS）：驱动层是 Bun 内置 `Bun.WebView`——系统 WebKit；Linux 走 Chrome/CDP 后端（下载/上传/网络监听/httpOnly cookie 元数据/UA 覆写）
-- **省 token 的感知层**：索引化 DOM 快照（`[n] link "Docs" -> url`）+ unchanged 标记 + 上下文渐进压缩 + 截图按需（只保最近 1 张在上下文内）
-- **代码级数据提取**：`extract_code`——LLM 写纯函数跑在冻结 DOM 树副本上（Worker+vm 沙箱），一次调用返回结构化 JSON，读列表/表格不用逐行扫快照
-- **安全内建**（S1–S6，代码级强制非建议）：origin 白名单三道闸、敏感词/提交确认门、URL/IP 封锁、secret 绑定 origin + 全链路脱敏、四维预算（步数/token/墙钟/费用）
-- **生产可用性**：轨迹落盘可回放（`bw replay`）、浏览器崩溃自动恢复（会话级，文件会话 + 每会话 helper）、janitor 清理；无 daemon/端口/token（B22）
-- **双模式**：自治 `bw run`（紧凑过程输出）+ 外部会话 `bw s`（CLI 直连文件会话，给 Claude Code/GPT/任意框架一步步驱动）；SDK 根包 `browserwork` 直接导出（进程内二次开发）；登录态快照 `bw auth`（storageState 模型）；批量 `bw run --jobs N --file tasks.jsonl`
+- **Zero browser download** (macOS): the driver layer is Bun's built-in `Bun.WebView` — the system WebKit; Linux uses the Chrome/CDP backend (downloads/uploads/network interception/httpOnly cookie metadata/UA override)
+- **Token-lean perception**: indexed DOM snapshots (`[n] link "Docs" -> url`) + unchanged markers + progressive context compression + on-demand screenshots (only the latest one kept in context)
+- **Code-level data extraction**: `extract_code` — the LLM writes a pure function that runs on a frozen copy of the DOM tree (Worker + vm sandbox); one call returns structured JSON, so reading lists/tables doesn't mean scanning snapshots row by row
+- **Security built in** (S1–S6, enforced in code, not advice): origin allowlist with three gates, sensitive-word/submit confirmation gates, URL/IP blocking, secrets bound to origin + full-chain redaction, four-dimension budgets (steps/tokens/wall-clock/cost)
+- **Production readiness**: trajectories persisted and replayable (`bw replay`), automatic recovery from browser crashes (per-session file sessions + one helper per session), janitor cleanup; no daemon/port/token (B22)
+- **Dual mode**: autonomous `bw run` (compact progress output) + external sessions `bw s` (CLI drives file sessions directly, for Claude Code/GPT/any framework to drive step-by-step); SDK exported by the root package `browserwork` (in-process secondary development); login-state snapshots `bw auth` (storageState model); batch `bw run --jobs N --file tasks.jsonl`
 
-## 快速开始
+## Quick Start
+
+Install (requires [Bun](https://bun.com) ≥ 1.4; macOS uses the system WebKit, no browser download; Linux needs Chrome):
+
+```bash
+bun i -g browserwork     # then use bw directly; or one-off via bunx browserwork
+```
+
+Or from source:
 
 ```bash
 bun install
-bun run build        # → dist/cli/cli.js（单文件 ~2.5MB）
-export GLM_API_KEY=xxx          # 自治模式需要（默认 glm-5.3-flash）
+bun run build        # → dist/cli/cli.js (single file, includes the pi coding-agent toolset)
+export BW_API_KEY=xxx           # required for autonomous mode — see LLM Configuration below
 
-bw run "打开 https://example.com 并报告页面标题"           # 过程：▸ [1/50] navigate … ↳ Example Domain
-bw run "…" --verbose            # 每步打印快照头
-bw run "…" --json               # 机器可读
+bw run "Open https://example.com and report the page title"  # progress: ▸ [1/50] navigate … ↳ Example Domain
+bw run "…" --verbose            # print the snapshot header each step
+bw run "…" --json               # machine-readable
 
-bw s create --url https://example.com    # 外部会话模式（文件会话，无 daemon）
-bw s snap <sessionId>                    # 索引化快照
-bw s click <sessionId> 3                 # 动作后返回新快照
+bw s create --url https://example.com    # external session mode (file sessions, no daemon)
+bw s snap <sessionId>                    # indexed snapshot
+bw s click <sessionId> 3                 # returns a new snapshot after the action
 ```
 
-程序内集成走 SDK：`import { bw } from "browserwork"`（见[使用文档](docs/04-usage.md)）。
+In-process integration via the SDK: `import { bw } from "browserwork"` (see the [usage doc](docs/04-usage.md)).
 
-## 架构
+## LLM Configuration
 
-```
-service ──→ agent ──→ policies ──→ core（类型/契约/错误分类法）
-   │           │         │
-   │           ↓         ↓
-   │        actions ──→ perception（索引化 DOM 快照）
-   │           │           │
-   │           └────→ driver ──→ Bun.WebView（webkit | chrome/CDP）
-   └──→ 轨迹/回放/janitor + 每会话 helper（unix socket）
-```
+Autonomous mode (`bw run`) requires an OpenAI-compatible API key. Resolution order, per key: process env → `./.env` → `~/.bw/.env`.
 
-monorepo（bun workspaces，`@bw/*`）：core → driver → perception → actions → policies → agent → service → eval。单向依赖，逐层可测。
-
-## 文档
-
-| 文档 | 内容 |
-|---|---|
-| [docs/04-usage.md](docs/04-usage.md) | 使用文档（全命令/HTTP API/SDK/安全模型/env） |
-| [BENCHMARKS.md](BENCHMARKS.md) | 对打基准（口径/数据/复现/局限） |
-| [docs/01-baseline.md](docs/01-baseline.md) | 设计基线（目标/契约/安全基线 S1–S8/并发预算） |
-| [docs/02-build-plan.md](docs/02-build-plan.md) | 施工图（批次/门禁/测试装置） |
-| [docs/05-hardening-plan.md](docs/05-hardening-plan.md) | 硬化施工图 B12–B18 |
-| [docs/hardening-closeout.md](docs/hardening-closeout.md) | B12–B17 收口验收（含数字） |
-| [docs/probe-report.md](docs/probe-report.md) | Bun.WebView 行为探针实证（含上游限制登记） |
-
-## 开发
+| Variable | Purpose | Default |
+|---|---|---|
+| `BW_API_KEY` | API key (required) | — |
+| `BW_BASE_URL` | Any OpenAI-compatible endpoint | GLM official (`https://open.bigmodel.cn/api/paas/v4`) |
+| `BW_MODEL` | Model id | `glm-5.3-flash` |
+| `BW_STRONG_MODEL` | Strong model for stuck-task escalation (optional) | — |
 
 ```bash
-bun run doors       # 四门：typecheck + lint(0-0) + build + test(含覆盖率门 ≥90 逐文件)
-bun test            # 514 用例（真 webkit 集成在门内；chrome 契约在有 Chrome 时跑）
-BW_REAL=1 bun scripts/eval-b16.ts    # 真站对打（消耗 GLM 额度）
-bun scripts/stress.ts                # 并发压测
+# Any OpenAI-compatible provider works, e.g. DeepSeek:
+export BW_BASE_URL=https://api.deepseek.com/v1
+export BW_MODEL=deepseek-chat
+export BW_API_KEY=sk-...
 ```
 
-CI：GitHub Actions 双平台矩阵（macOS=webkit+chrome；Ubuntu=chrome）。贡献流程见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+Or persist it: `echo 'BW_API_KEY=xxx' >> ~/.bw/.env`. Cost metering is off by default; enable with `BW_PRICES_JSON='{"deepseek-chat":{"input":0.27,"output":1.1}}'` (USD per 1M tokens). SDK callers can pass `runTask(req, { apiKey: "..." })` instead of env vars.
+
+## Architecture
+
+```
+service ──→ agent ──→ policies ──→ core (types / contracts / error taxonomy)
+   │           │         │
+   │           ↓         ↓
+   │        actions ──→ perception (indexed DOM snapshots)
+   │           │           │
+   │           └────→ driver ──→ Bun.WebView (webkit | chrome/CDP)
+   └──→ trajectory/replay/janitor + one helper per session (unix socket)
+```
+
+Monorepo (bun workspaces, `@bw/*`): core → driver → perception → actions → policies → agent → service → eval. One-way dependencies, each layer testable on its own.
+
+## Docs
+
+| Doc | Contents |
+|---|---|
+| [docs/04-usage.md](docs/04-usage.md) | Usage (all commands / HTTP API / SDK / security model / env) |
+| [BENCHMARKS.md](BENCHMARKS.md) | Benchmarks (methodology / data / reproduction / limitations) |
+| [docs/01-baseline.md](docs/01-baseline.md) | Design baseline (goals / contracts / security baseline S1–S8 / concurrency budgets) |
+| [docs/02-build-plan.md](docs/02-build-plan.md) | Build plan (batches / gates / test fixtures) |
+| [docs/05-hardening-plan.md](docs/05-hardening-plan.md) | Hardening plan B12–B18 |
+| [docs/hardening-closeout.md](docs/hardening-closeout.md) | B12–B17 closeout acceptance (with numbers) |
+| [docs/probe-report.md](docs/probe-report.md) | Bun.WebView behavior probes (upstream limitations logged) |
+
+## Development
+
+```bash
+bun run doors       # four gates: typecheck + lint(0-0) + build + test (per-file coverage gate ≥90)
+bun test            # 568 cases (real webkit integration inside the gate; chrome contracts run when Chrome exists)
+BW_REAL=1 bun scripts/eval-b16.ts    # real-site benchmark (consumes GLM quota)
+bun scripts/stress.ts                # concurrency stress test
+```
+
+CI: GitHub Actions two-platform matrix (macOS=webkit+chrome; Ubuntu=chrome). Contribution workflow in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-[MIT](LICENSE) © wangrenren
+[MIT](LICENSE) © Renxqoo

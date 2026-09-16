@@ -97,8 +97,8 @@ B8 评测集：23 任务 × fixture 站 × 脚本化 LLM——**不是 token 效
 ## 7. 复现（真站对打）
 
 ```bash
-# 前置：GLM_API_KEY（消耗真实额度；5 任务×2 端约 16 万 token）
-export GLM_API_KEY=xxx
+# 前置：BW_API_KEY（消耗真实额度；5 任务×2 端约 16 万 token）
+export BW_API_KEY=xxx
 BW_REAL=1 bun scripts/eval-b16.ts --tasks 5 --runs 1     # 生成 docs/eval-report-B16.md
 BW_REAL=1 bun scripts/eval-b16.ts --tasks 20 --runs 3    # 全量口径（20+ 任务 × 3 轮取中位——待跑）
 ```

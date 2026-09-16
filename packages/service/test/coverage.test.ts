@@ -42,11 +42,11 @@ describe("cli-run 分支", () => {
   });
 
   test("json 模式 / 缺 key exit 2", async () => {
-    const prev = process.env.GLM_API_KEY;
-    delete process.env.GLM_API_KEY;
+    const prev = process.env.BW_API_KEY;
+    delete process.env.BW_API_KEY;
     const code = await runCliTask({ goal: "x", json: true });
     expect(code).toBe(2);
-    if (prev !== undefined) process.env.GLM_API_KEY = prev;
+    if (prev !== undefined) process.env.BW_API_KEY = prev;
   });
 });
 

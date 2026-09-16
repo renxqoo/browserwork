@@ -1,6 +1,6 @@
 /** bw run：CLI 单任务执行（读 .env 或环境变量配置 LLM）。B18：紧凑双行过程输出 + 轨迹默认落盘。 */
 
-import { fileTrajectorySink, glmModelsFromEnv, runTask } from "@bw/agent";
+import { fileTrajectorySink, modelsFromEnv, runTask } from "@bw/agent";
 import type { TaskEvent } from "@bw/core";
 import { trajectoryDir as trajectoryDirFromCore } from "@bw/core";
 
@@ -136,36 +136,30 @@ export function printEvent(e: TaskEvent, st: ProcessRendererState): void {
 }
 
 export async function runCliTask(args: RunCliArgs): Promise<number> {
-  // key 优先级：进程 env > .env > ~/.bw/.env
+  // 优先级（逐键）：进程 env > .env > ~/.bw/.env
   const envFiles = {
     ...(await loadEnvFile(".env")),
     ...(await loadEnvFile(`${process.env.HOME ?? ""}/.bw/.env`)),
   };
-  let key = process.env.GLM_API_KEY;
-  let baseUrl = process.env.GLM_BASE_URL;
-  let model = process.env.GLM_MODEL;
-  let strongModel = process.env.GLM_STRONG_MODEL;
-  if (key === undefined) {
-    key = envFiles.GLM_API_KEY;
-    baseUrl = baseUrl ?? envFiles.GLM_BASE_URL;
-    model = model ?? envFiles.GLM_MODEL;
-    strongModel = strongModel ?? envFiles.GLM_STRONG_MODEL;
-  }
+  const key = process.env.BW_API_KEY ?? envFiles.BW_API_KEY;
+  const baseUrl = process.env.BW_BASE_URL ?? envFiles.BW_BASE_URL;
+  const model = process.env.BW_MODEL ?? envFiles.BW_MODEL;
+  const strongModel = process.env.BW_STRONG_MODEL ?? envFiles.BW_STRONG_MODEL;
   // 价目表也认 .env（B12 审查 P2-8）——runTask 读 process.env
   if (process.env.BW_PRICES_JSON === undefined && envFiles.BW_PRICES_JSON !== undefined) {
     process.env.BW_PRICES_JSON = envFiles.BW_PRICES_JSON;
   }
   if (key === undefined) {
-    console.error("GLM_API_KEY not found (env, .env, or ~/.bw/.env)");
+    console.error("BW_API_KEY not found (env, .env, or ~/.bw/.env)");
     return 2;
   }
 
-  const models = glmModelsFromEnv({
-    GLM_API_KEY: key,
-    ...(baseUrl !== undefined ? { GLM_BASE_URL: baseUrl } : {}),
-    ...(model !== undefined ? { GLM_MODEL: model } : {}),
-    // 05 §3.3：GLM_STRONG_MODEL（env > .env）配了才有升级路径
-    ...(strongModel !== undefined ? { GLM_STRONG_MODEL: strongModel } : {}),
+  const models = modelsFromEnv({
+    BW_API_KEY: key,
+    ...(baseUrl !== undefined ? { BW_BASE_URL: baseUrl } : {}),
+    ...(model !== undefined ? { BW_MODEL: model } : {}),
+    // 05 §3.3：BW_STRONG_MODEL（env > .env）配了才有升级路径
+    ...(strongModel !== undefined ? { BW_STRONG_MODEL: strongModel } : {}),
   });
 
   const t0 = Date.now();

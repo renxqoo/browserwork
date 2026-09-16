@@ -1,24 +1,48 @@
-/** 覆盖缺口补齐：glmModelFromEnv、fileTrajectorySink、DNS/env secrets、非测试档装配 */
+/** 覆盖缺口补齐：modelFromEnv、fileTrajectorySink、DNS/env secrets、非测试档装配 */
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { TaskEvent } from "@bw/core";
 import { fakeNode, makeFakeWorld } from "../../actions/test/helpers.ts";
 import { runTask, scriptLLM } from "../src/index.ts";
-import { glmModelFromEnv } from "../src/llm.ts";
+import { modelFromEnv } from "../src/llm.ts";
+import { systemPrompt } from "../src/prompt.ts";
+import { resolveSkillRoot } from "../src/tools.ts";
 import { fileTrajectorySink } from "../src/trajectory.ts";
 
-describe("glmModelFromEnv", () => {
+describe("resolveSkillRoot", () => {
+  test("bundle 形态（../skills 命中）与未命中返回 undefined", () => {
+    const tmp = join(import.meta.dir, "tmp-skillroot");
+    rmSync(tmp, { recursive: true, force: true });
+    mkdirSync(join(tmp, "a", "skills", "bw"), { recursive: true });
+    writeFileSync(join(tmp, "a", "skills", "bw", "SKILL.md"), "# x");
+    mkdirSync(join(tmp, "b"), { recursive: true });
+    expect(resolveSkillRoot(join(tmp, "a", "cli"))).toBe(join(tmp, "a", "skills"));
+    expect(resolveSkillRoot(join(tmp, "b"))).toBeUndefined();
+    rmSync(tmp, { recursive: true, force: true });
+  });
+});
+
+describe("systemPrompt（B23 技能段）", () => {
+  test("带技能路径注入 Skill manual 段；不带则无", () => {
+    expect(systemPrompt()).not.toContain("Skill manual");
+    const p = systemPrompt("/x/skills/bw/SKILL.md");
+    expect(p).toContain("Skill manual");
+    expect(p).toContain("/x/skills/bw/SKILL.md");
+  });
+});
+
+describe("modelFromEnv", () => {
   test("缺省端点 + 自定义模型 + 剥离 /chat/completions 后缀", () => {
-    const m1 = glmModelFromEnv({ GLM_API_KEY: "k" });
+    const m1 = modelFromEnv({ BW_API_KEY: "k" });
     expect(m1.baseUrl).toBe("https://open.bigmodel.cn/api/paas/v4");
     expect(m1.id).toBe("glm-5.3-flash");
     expect(m1.reasoning).toBe(true);
 
-    const m2 = glmModelFromEnv({
-      GLM_API_KEY: "k",
-      GLM_BASE_URL: "https://open.bigmodel.cn/api/paas/v4/chat/completions",
-      GLM_MODEL: "glm-custom",
+    const m2 = modelFromEnv({
+      BW_API_KEY: "k",
+      BW_BASE_URL: "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+      BW_MODEL: "glm-custom",
     });
     expect(m2.baseUrl).toBe("https://open.bigmodel.cn/api/paas/v4");
     expect(m2.id).toBe("glm-custom");

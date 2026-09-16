@@ -5,7 +5,7 @@ import { describe, expect, test } from "bun:test";
 import type { TaskEvent } from "@bw/core";
 import { createWebViewDriver } from "@bw/driver";
 import { withFixtureServer } from "@bw/testing";
-import { glmModelFromEnv, runTask, scriptLLM } from "../src/index.ts";
+import { modelFromEnv, runTask, scriptLLM } from "../src/index.ts";
 import { memoryTrajectorySink } from "../src/trajectory.ts";
 
 describe.skipIf(process.platform !== "darwin")("U6 真 webkit 旅程（假 LLM）", () => {
@@ -65,13 +65,13 @@ describe.skipIf(process.platform !== "darwin")("U6 真 webkit 旅程（假 LLM�
   }, 120_000);
 });
 
-/** real 门：BW_REAL=1 + GLM key 才跑（默认门禁不含） */
+/** real 门：BW_REAL=1 + BW_API_KEY 才跑（默认门禁不含） */
 describe.skipIf(
   process.env.BW_REAL !== "1" ||
-    process.env.GLM_API_KEY === undefined ||
+    process.env.BW_API_KEY === undefined ||
     process.platform !== "darwin",
-)("real 门：GLM 真模型冒烟", () => {
-  test("GLM 驱动真 webkit：打开 fixture → 找链接 → done", async () => {
+)("real 门：真模型冒烟", () => {
+  test("真模型驱动真 webkit：打开 fixture → 找链接 → done", async () => {
     await withFixtureServer(async (origin) => {
       const envText = await Bun.file("/Users/wrr/work/pi/app/.env").text();
       const env: Record<string, string> = {};
@@ -79,10 +79,10 @@ describe.skipIf(
         const m = /^([A-Z_]+)=(.*)$/.exec(line.trim());
         if (m) env[m[1] as string] = (m[2] as string).replace(/^["']|["']$/g, "");
       }
-      const model = glmModelFromEnv({
-        GLM_API_KEY: env.GLM_API_KEY ?? process.env.GLM_API_KEY ?? "",
-        ...(env.GLM_BASE_URL !== undefined ? { GLM_BASE_URL: env.GLM_BASE_URL } : {}),
-        ...(env.GLM_MODEL !== undefined ? { GLM_MODEL: env.GLM_MODEL } : {}),
+      const model = modelFromEnv({
+        BW_API_KEY: env.BW_API_KEY ?? process.env.BW_API_KEY ?? "",
+        ...(env.BW_BASE_URL !== undefined ? { BW_BASE_URL: env.BW_BASE_URL } : {}),
+        ...(env.BW_MODEL !== undefined ? { BW_MODEL: env.BW_MODEL } : {}),
       });
       const handle = runTask(
         {
@@ -93,7 +93,7 @@ describe.skipIf(
         {
           models: { fast: model as never },
           testMode: true,
-          ...(env.GLM_API_KEY !== undefined ? { apiKey: env.GLM_API_KEY } : {}),
+          ...(env.BW_API_KEY !== undefined ? { apiKey: env.BW_API_KEY } : {}),
         },
       );
       const events: TaskEvent[] = [];

@@ -1,5 +1,5 @@
 /**
- * B16 小规模真跑（BW_REAL=1 + GLM_API_KEY；用户裁决 3-5 任务 × 双端对打）。
+ * B16 小规模真跑（BW_REAL=1 + BW_API_KEY；用户裁决 3-5 任务 × 双端对打）。
  * 本方：runTask（产品自带提示词——被测系统的一部分）
  * 对照：bunx @playwright/mcp --headless（最小通用提示词——提示词差异在报告披露）
  * 运行：bun scripts/eval-b16.ts [--tasks 5] [--runs 1]
@@ -14,15 +14,15 @@ const arg = (name: string, dflt: number): number => {
 const N_TASKS = Math.min(arg("tasks", 5), SMALL_TASKS.length);
 const RUNS = arg("runs", 1);
 
-if (process.env.BW_REAL !== "1" || process.env.GLM_API_KEY === undefined) {
-  console.error("requires BW_REAL=1 and GLM_API_KEY (real-gate: costs tokens)");
+if (process.env.BW_REAL !== "1" || process.env.BW_API_KEY === undefined) {
+  console.error("requires BW_REAL=1 and BW_API_KEY (real-gate: costs tokens)");
   process.exit(2);
 }
 const BASE = (
-  process.env.GLM_BASE_URL ?? "https://open.bigmodel.cn/api/paas/v4/chat/completions"
+  process.env.BW_BASE_URL ?? "https://open.bigmodel.cn/api/paas/v4/chat/completions"
 ).replace(/\/chat\/completions\/?$/, "");
-const MODEL = process.env.GLM_MODEL ?? "glm-5.3-flash";
-const KEY = process.env.GLM_API_KEY as string;
+const MODEL = process.env.BW_MODEL ?? "glm-5.3-flash";
+const KEY = process.env.BW_API_KEY as string;
 
 interface Row {
   task: string;

@@ -10,7 +10,7 @@ bun run doors        # 四门一条命令
 ```
 
 - 平台：macOS 跑全量（webkit + chrome 双真视图）；Linux/CI 跑 chrome（webkit 用例 skipIf 显式跳过）
-- 自治模式测试需要 `GLM_API_KEY`（真站评测 `BW_REAL=1` 是 opt-in，不进门禁）
+- 自治模式测试需要 `BW_API_KEY`（真站评测 `BW_REAL=1` 是 opt-in，不进门禁）
 
 ## 四道门（每个 PR 必须全绿）
 

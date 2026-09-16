@@ -1,0 +1,68 @@
+{
+  "skill_name": "bw",
+  "evals": [
+    {
+      "id": 0,
+      "name": "docs-link",
+      "prompt": "帮我打开 bun.com，告诉我导航里的 Docs 链接指向哪个 URL",
+      "expected_output": "用真实浏览器访问后给出 Docs 的完整 URL（https://bun.com/docs）；answer.md 含该 URL",
+      "files": [],
+      "assertions": [
+        "answer.md 给出 Docs 链接完整绝对 URL 且与 ground truth 一致（https://bun.com/docs，尾斜杠可接受）",
+        "答复直接回答问题：URL 以 https:// 开头，且没把其他链接误当 Docs"
+      ]
+    },
+    {
+      "id": 1,
+      "name": "screenshot",
+      "prompt": "用浏览器打开 example.com 给我截个图，保存成 /tmp/shot-bw-eval.png",
+      "expected_output": "/tmp/shot-bw-eval.png 存在且为有效 PNG（真浏览器渲染的页面截图）",
+      "files": [],
+      "assertions": [
+        "/tmp/shot-bw-eval.png 存在",
+        "文件是有效 PNG（魔数 0x89504E47）且 >10KB（真实渲染页面）",
+        "outputs/ 目录内有同一截图的副本"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "h1-title",
+      "prompt": "打开 https://bun.com，用浏览器看一下页面大标题（h1）写的是什么，原文给我",
+      "expected_output": "给出 h1 原文（含 Bun is a fast JavaScript runtime），来自真实渲染页面",
+      "files": [],
+      "assertions": [
+        "answer.md 含 h1 原文核心：Bun is a fast JavaScript runtime",
+        "answer.md 含完整原文（含 toolkit 与 All in one）",
+        "原文未被翻译或改写（英文原样）"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "ddg-search",
+      "prompt": "用浏览器打开 lite.duckduckgo.com，搜索 bun webview，告诉我第一条结果的标题和它指向的链接",
+      "expected_output": "多步交互完成：输入查询→提交→读结果页，给出第一条结果标题+完整 URL",
+      "files": [],
+      "assertions": [
+        "answer.md 给出第一条结果的标题文本",
+        "answer.md 给出完整 URL（https:// 开头）",
+        "结果与查询词相关（标题或 URL 含 bun 字样）"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "skillhub-replica",
+      "prompt": "1:1 复刻 https://skillhub.cn/ 首页为可本地打开的静态页面（ui-polisher 执行，视觉由用户人工评估）",
+      "expected_output": "outputs/replica/index.html 重写实现；标题/H1/板块文案/导航还原；本地可直接打开",
+      "files": [],
+      "assertions": [
+        "replica/index.html 存在且 >5KB",
+        "无需构建可打开：无 localhost 引用、无构建工具痕迹",
+        "标题含 SkillHub 与 AI Skills",
+        "H1 文案还原（让你的 AI 装上 SkillHub）",
+        "7 个关键板块 ≥5 个出现",
+        "导航 6 项 ≥5 项出现",
+        "图片引用可用（https 远端或本地存在，无死本地引用）"
+      ]
+    }
+  ]
+}

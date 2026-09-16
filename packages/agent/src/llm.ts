@@ -1,28 +1,28 @@
 /**
- * LLM 装配（U6）：GLM（OpenAI 兼容）真实模型 + ScriptedLLM 测试替身。
+ * LLM 装配（U6）：任意 OpenAI 兼容端点（默认 GLM）+ ScriptedLLM 测试替身。
  * GLM 实证见 docs/probe-report.md p11：端点 200、tools 正确、reasoning 计入 completion。
  */
 import type { AssistantMessage, Context, Model, ToolCall, Usage } from "@mariozechner/pi-ai";
 import { createAssistantMessageEventStream } from "@mariozechner/pi-ai";
 
-export interface GlmEnv {
-  GLM_API_KEY: string;
+export interface LlmEnv {
+  BW_API_KEY: string;
   /** 完整端点或 base（兼容两种写法——.env 实测是完整端点） */
-  GLM_BASE_URL?: string;
-  GLM_MODEL?: string;
+  BW_BASE_URL?: string;
+  BW_MODEL?: string;
   /** 卡死升级用强模型 id（05 §3.3；未设 = 无升级） */
-  GLM_STRONG_MODEL?: string;
+  BW_STRONG_MODEL?: string;
 }
 
-export function glmModelFromEnv(env: GlmEnv): Model<"openai-completions"> {
-  const rawBase = env.GLM_BASE_URL ?? "https://open.bigmodel.cn/api/paas/v4/chat/completions";
+export function modelFromEnv(env: LlmEnv): Model<"openai-completions"> {
+  const rawBase = env.BW_BASE_URL ?? "https://open.bigmodel.cn/api/paas/v4/chat/completions";
   const baseUrl = rawBase.replace(/\/chat\/completions\/?$/, "");
-  const id = env.GLM_MODEL ?? "glm-5.3-flash";
+  const id = env.BW_MODEL ?? "glm-5.3-flash";
   return {
     id,
-    name: `GLM ${id}`,
+    name: id,
     api: "openai-completions",
-    provider: "zai",
+    provider: "custom",
     baseUrl,
     reasoning: true,
     input: ["text", "image"],
@@ -34,20 +34,20 @@ export function glmModelFromEnv(env: GlmEnv): Model<"openai-completions"> {
 }
 
 /** fast + 可选 strong 双模型装配（05 §3.3 三级装配的 env 层） */
-export function glmModelsFromEnv(env: GlmEnv): {
+export function modelsFromEnv(env: LlmEnv): {
   fast: Model<"openai-completions">;
   strong?: Model<"openai-completions">;
 } {
-  const fast = glmModelFromEnv(env);
-  if (env.GLM_STRONG_MODEL === undefined || env.GLM_STRONG_MODEL === "") {
+  const fast = modelFromEnv(env);
+  if (env.BW_STRONG_MODEL === undefined || env.BW_STRONG_MODEL === "") {
     return { fast };
   }
   return {
     fast,
     strong: {
       ...fast,
-      id: env.GLM_STRONG_MODEL,
-      name: `GLM ${env.GLM_STRONG_MODEL}`,
+      id: env.BW_STRONG_MODEL,
+      name: env.BW_STRONG_MODEL,
     },
   };
 }

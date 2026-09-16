@@ -9,8 +9,8 @@ import { join } from "node:path";
 import { fileTrajectorySink, runTask } from "@bw/agent";
 import { grade, SMALL_TASKS } from "@bw/eval";
 
-if (process.env.BW_REAL !== "1" || process.env.GLM_API_KEY === undefined) {
-  console.error("requires BW_REAL=1 and GLM_API_KEY");
+if (process.env.BW_REAL !== "1" || process.env.BW_API_KEY === undefined) {
+  console.error("requires BW_REAL=1 and BW_API_KEY");
   process.exit(2);
 }
 const dir = process.env.BW_TRAJECTORY_DIR ?? join(homedir(), ".bw", "trajectories");
@@ -20,7 +20,7 @@ const rows: Array<Record<string, unknown>> = [];
 for (const t of tasks) {
   const h = runTask(
     { goal: t.goal, startUrl: t.startUrl, budget: { maxSteps: t.maxSteps } },
-    { apiKey: process.env.GLM_API_KEY, trajectory: (id) => fileTrajectorySink(dir, id) },
+    { apiKey: process.env.BW_API_KEY, trajectory: (id) => fileTrajectorySink(dir, id) },
   );
   for await (const _e of h.events) void _e;
   const r = await h.result();

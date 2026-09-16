@@ -33,15 +33,15 @@ bun dist/cli/cli.js --help
 
 一句话给目标，agent 自己循环「快照 → 决策 → 动作」直到完成，全程事件流输出。
 
-**前置**：需要 GLM 凭据（三处任选，优先级从高到低）：
+**前置**：需要 LLM 凭据（任意 OpenAI 兼容端点，默认 GLM；三处任选，优先级从高到低）：
 
-1. 进程环境变量：`GLM_API_KEY` / `GLM_BASE_URL` / `GLM_MODEL`
+1. 进程环境变量：`BW_API_KEY` / `BW_BASE_URL` / `BW_MODEL`
 2. 当前目录 `.env`
 3. `~/.bw/.env`
 
 ```bash
-export GLM_API_KEY=xxx
-export GLM_MODEL=glm-5.3-flash    # 推理模型；内部自动 thinkingLevel=low
+export BW_API_KEY=xxx
+export BW_MODEL=glm-5.3-flash    # 推理模型；内部自动 thinkingLevel=low
 
 bw run "打开 https://bun.com 并总结首页三个要点"
 bw run "搜索 Bun 的 GitHub 星数" --url https://github.com
@@ -274,12 +274,12 @@ await bw.sessions.captureProfile(s.id, "github");   // 登录态快照（显式 
 | `BW_SERVER_URL` | 指定远程 bw serve 地址（跳过本地 daemon；空串视为未设置） |
 | `BW_TOKEN` | 手动 serve/远程连接时的 Bearer token |
 | `BW_HOME` | 状态目录（默认 `~/.bw`；测试隔离用） |
-| `GLM_API_KEY` / `GLM_BASE_URL` / `GLM_MODEL` | 自治模式 LLM 凭据 |
-| `GLM_STRONG_MODEL` | 卡死升级用强模型 id（B12：连续 3 步页面同态时切换续跑） |
+| `BW_API_KEY` / `BW_BASE_URL` / `BW_MODEL` | 自治模式 LLM 凭据（任意 OpenAI 兼容端点；默认 GLM） |
+| `BW_STRONG_MODEL` | 卡死升级用强模型 id（B12：连续 3 步页面同态时切换续跑） |
 | `BW_ALLOW_PRIVATE_NETWORK` | `=1` 时才接受 create 的 allowPrivateNetwork（本地/内网 S4 放行的总闸） |
 | `BW_PRICES_JSON` | 价目表 `{"模型id":{"input":USD,"output":USD}}`（每 1M token；CLI 也认 .env）；配了才有 `cost` 计量 |
 
-> 注意：serve 进程的 env 里有 `GLM_API_KEY` 时，`POST /tasks` 会自动装配模型——上下文窗口治理（0.5×窗口压缩、50%/80% 预警、contextWindow 硬预算）随之生效，长任务可能以 `budget_exceeded(contextWindow)` 提前终局（B12 起的行为）。
+> 注意：serve 进程的 env 里有 `BW_API_KEY` 时，`POST /tasks` 会自动装配模型——上下文窗口治理（0.5×窗口压缩、50%/80% 预警、contextWindow 硬预算）随之生效，长任务可能以 `budget_exceeded(contextWindow)` 提前终局（B12 起的行为）。
 
 手动起服务（一般不需要）：
 

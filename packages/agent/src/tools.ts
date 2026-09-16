@@ -5,6 +5,8 @@
  * onNavigationIntent + onAction；确认门挂起在工具内（pi 语义即长工具）。
  */
 
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import type { ActionResult } from "@bw/actions";
 import { type BrowserAction, BWError, buildAction, type NavigationIntent } from "@bw/core";
 import type { DriverCapabilities } from "@bw/driver";
@@ -421,4 +423,15 @@ export function buildDoneTool(onDone: (answer: string | undefined) => void): Age
       return { content: [{ type: "text", text: "task complete" }] };
     },
   } as unknown as AgentTool<never>;
+}
+
+/**
+ * 随包技能目录定位（B23）：bundle 形态 dist/cli|sdk → ../skills；
+ * 源码形态 packages/agent/src → ../../../skills（仓库根）。找不到 = 无技能面。
+ */
+export function resolveSkillRoot(fromDir: string): string | undefined {
+  for (const c of [join(fromDir, "..", "skills"), join(fromDir, "..", "..", "..", "skills")]) {
+    if (existsSync(join(c, "bw", "SKILL.md"))) return c;
+  }
+  return undefined;
 }

@@ -1,28 +1,6 @@
 {
   "name": "browserwork",
-  "private": true,
-  "workspaces": [
-    "packages/*"
-  ],
-  "scripts": {
-    "typecheck": "tsc --noEmit",
-    "lint": "biome check .",
-    "lint:fix": "biome check --write .",
-    "build": "bun build packages/service/src/cli.ts --target=bun --outdir=dist/cli --minify --sourcemap=linked && bun build packages/driver/src/helper.ts --target=bun --outdir=dist/cli --minify --sourcemap=linked",
-    "test": "bun test && bun scripts/coverage-gate.ts",
-    "doors": "bun run typecheck && bun run lint && bun run build && bun run test",
-    "e2e": "bun scripts/e2e.ts"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^2.3.4",
-    "@types/bun": "^1.2.25",
-    "typescript": "^5.9.3",
-    "@bw/service": "workspace:*",
-    "@bw/agent": "workspace:*",
-    "@bw/eval": "workspace:*"
-  },
-  "packageManager": "bun@1.4.2",
-  "license": "MIT",
+  "version": "0.0.1",
   "description": "bw — a browser for LLM agents: token-lean DOM snapshots, policy-enforced automation, built on Bun.WebView",
   "keywords": [
     "browser-use",
@@ -35,15 +13,54 @@
     "mcp-client"
   ],
   "authors": [
-    "wangrenren"
+    "Renxqoo"
   ],
+  "license": "MIT",
+  "type": "module",
   "bin": {
     "bw": "dist/cli/cli.js"
   },
-  "version": "0.0.1",
-  "type": "module",
-  "main": "./browserwork.ts",
+  "main": "./dist/sdk/browserwork.js",
   "exports": {
-    ".": "./browserwork.ts"
-  }
+    ".": "./dist/sdk/browserwork.js"
+  },
+  "files": [
+    "dist/cli/cli.js",
+    "dist/cli/helper.js",
+    "dist/sdk/browserwork.js",
+    "dist/sdk/helper.js",
+    "dist/skills"
+  ],
+  "engines": {
+    "bun": ">=1.4.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/renxqoo/browserwork.git"
+  },
+  "bugs": "https://github.com/renxqoo/browserwork/issues",
+  "homepage": "https://github.com/renxqoo/browserwork#readme",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "build": "bun build packages/service/src/cli.ts --target=bun --outdir=dist/cli --minify --sourcemap=linked && bun build packages/driver/src/helper.ts --target=bun --outdir=dist/cli --minify --sourcemap=linked && bun build browserwork.ts --target=bun --outdir=dist/sdk --minify && cp dist/cli/helper.js dist/sdk/helper.js && cp -R skills dist/",
+    "test": "bun test && bun scripts/coverage-gate.ts",
+    "doors": "bun run typecheck && bun run lint && bun run build && bun run test",
+    "e2e": "bun scripts/e2e.ts",
+    "prepack": "bun run build",
+    "prepublishOnly": "bun run build"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.4",
+    "@types/bun": "^1.2.25",
+    "typescript": "^5.9.3",
+    "@bw/service": "workspace:*",
+    "@bw/agent": "workspace:*",
+    "@bw/eval": "workspace:*"
+  },
+  "packageManager": "bun@1.4.2"
 }

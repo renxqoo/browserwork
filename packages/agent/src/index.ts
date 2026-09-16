@@ -1,5 +1,5 @@
-export type { GlmEnv, ScriptStep } from "./llm.ts";
-export { glmModelFromEnv, glmModelsFromEnv, scriptLLM } from "./llm.ts";
+export type { LlmEnv, ScriptStep } from "./llm.ts";
+export { modelFromEnv, modelsFromEnv, scriptLLM } from "./llm.ts";
 export type { CompactOptions, RunTaskOptions } from "./run.ts";
 export { compactSnapshots, runTask } from "./run.ts";
 export {
