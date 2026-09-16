@@ -9,7 +9,7 @@
 给 LLM 用的浏览器。一句话目标 → agent 自己看页面、做决策、跑完任务；或把浏览器工具按步交给任意外部 LLM。
 
 ```bash
-bun i -g browserwork     # 或从源码：bun install && bun run build
+bun i -g browserwork      # npm i -g 亦可；免安装一次性执行：bunx browserwork
 
 bw run "总结 https://bun.com 首页三个要点"        # 自治模式（一句话，agent 自己跑完）
 bw s create --url https://bun.com && bw s snap <id>  # 外部会话模式（REST/CLI 给任意 LLM 用）
@@ -32,7 +32,7 @@ bw s create --url https://bun.com && bw s snap <id>  # 外部会话模式（REST
 - **零浏览器下载**（macOS）：驱动层是 Bun 内置 `Bun.WebView`——系统 WebKit；Linux 走 Chrome/CDP 后端（下载/上传/网络监听/httpOnly cookie 元数据/UA 覆写）
 - **省 token 的感知层**：索引化 DOM 快照（`[n] link "Docs" -> url`）+ unchanged 标记 + 上下文渐进压缩 + 截图按需（只保最近 1 张在上下文内）
 - **代码级数据提取**：`extract_code`——LLM 写纯函数跑在冻结 DOM 树副本上（Worker+vm 沙箱），一次调用返回结构化 JSON，读列表/表格不用逐行扫快照
-- **安全内建**（S1–S6，代码级强制非建议）：origin 白名单三道闸、敏感词/提交确认门、URL/IP 封锁、secret 绑定 origin + 全链路脱敏、四维预算（步数/token/墙钟/费用）
+- **安全内建**（S1–S6，代码级强制非建议）：硬阻断（私网 / URL / IP / 外发 secret 检测）、`bw s` 会话交互确认门（非交互 `bw run` 自动批准）、secret 绑定 origin + 全链路脱敏、四维预算（步数/token/墙钟/费用）
 - **生产可用性**：轨迹落盘可回放（`bw replay`）、浏览器崩溃自动恢复（会话级，文件会话 + 每会话 helper）、janitor 清理；无 daemon/端口/token（B22）
 - **双模式**：自治 `bw run`（紧凑过程输出）+ 外部会话 `bw s`（CLI 直连文件会话，给 Claude Code/GPT/任意框架一步步驱动）；SDK 根包 `browserwork` 直接导出（进程内二次开发）；登录态快照 `bw auth`（storageState 模型）；批量 `bw run --jobs N --file tasks.jsonl`
 
@@ -41,7 +41,8 @@ bw s create --url https://bun.com && bw s snap <id>  # 外部会话模式（REST
 安装（需要 [Bun](https://bun.com) ≥ 1.4；macOS 用系统 WebKit 无需下载浏览器，Linux 需 Chrome）：
 
 ```bash
-bun i -g browserwork     # 之后直接用 bw；临时执行用 bunx browserwork
+bun i -g browserwork        # 全局安装（或 npm i -g browserwork），之后直接用 bw
+bunx browserwork s list     # 免安装一次性执行——下文的 bw 替换为 bunx browserwork 即可
 ```
 
 或从源码：

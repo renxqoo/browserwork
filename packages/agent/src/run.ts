@@ -47,6 +47,8 @@ export interface RunTaskOptions {
   /** 轨迹 sink 或按任务 id 的工厂（B13：serve 落盘 `<dir>/<taskId>.jsonl`） */
   trajectory?: TrajectorySink | ((taskId: string) => TrajectorySink);
   confirmationTimeoutMs?: number;
+  /** B24：确认门自动批准（默认 true——非交互自治；false = 等 handle.confirm，超时拒绝） */
+  autoConfirm?: boolean;
   /** 测试档：fixture origin 白名单 + 内网放宽（默认自动判定 127.0.0.1 起始 URL） */
   testMode?: boolean;
   /** 提供商 API key（真实路径必传；缺省回落 env BW_API_KEY） */
@@ -219,6 +221,9 @@ export function runTask(req: TaskRequest, opts?: RunTaskOptions): TaskHandle {
       ? opts.trajectory(id)
       : (opts?.trajectory ?? memoryTrajectorySink());
   const confirmationTimeoutMs = opts?.confirmationTimeoutMs ?? 120_000;
+  // B24：非交互自治（run/serve/batch）确认门默认自动批准——与 handle.confirm(cid,true)
+  // 同语义（origin 进会话 allowlist，同站后续放行）；SDK 传 false 恢复人工确认
+  const autoConfirm = opts?.autoConfirm ?? true;
 
   // ---- 事件总线（出域 redact）
   const eventQueue: TaskEvent[] = [];
@@ -233,8 +238,12 @@ export function runTask(req: TaskRequest, opts?: RunTaskOptions): TaskHandle {
 
   // ---- 确认门状态机（唯一计时器）
   const pendingConfirmations = new Map<string, (approve: boolean) => void>();
-  const awaitConfirmation = (cid: string): Promise<boolean> =>
-    new Promise((resolve) => {
+  const awaitConfirmation = (cid: string): Promise<boolean> => {
+    if (autoConfirm) {
+      policy.resolveConfirmation(cid, true);
+      return Promise.resolve(true);
+    }
+    return new Promise((resolve) => {
       const timer = setTimeout(() => {
         pendingConfirmations.delete(cid);
         resolve(false); // 超时 = deny
@@ -245,6 +254,7 @@ export function runTask(req: TaskRequest, opts?: RunTaskOptions): TaskHandle {
         resolve(approve);
       });
     });
+  };
 
   // ---- 预算 / 步数 / 卡死（声明在 engine 之前——intentSink 闭包引用）
   // wallClock 计量：记录上一次计量点，每步消费其间距（P1-3）

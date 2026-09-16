@@ -84,6 +84,7 @@ describe("U6 假 LLM 旅程", () => {
         models: { fast: llm.model as never },
         streamFn: llm.streamFn as never,
         testMode: true,
+        autoConfirm: false,
       },
     );
     // 等确认事件并批准
@@ -120,6 +121,7 @@ describe("U6 假 LLM 旅程", () => {
         models: { fast: llm.model as never },
         streamFn: llm.streamFn as never,
         testMode: true,
+        autoConfirm: false,
       },
     );
     const collectPromise = collect(handle, (e) => e.type === "task_done");
@@ -158,6 +160,7 @@ describe("U6 假 LLM 旅程", () => {
         models: { fast: llm.model as never },
         streamFn: llm.streamFn as never,
         testMode: true,
+        autoConfirm: false,
         confirmationTimeoutMs: 150,
       },
     );
@@ -166,6 +169,34 @@ describe("U6 假 LLM 旅程", () => {
     const result = await handle.result();
     expect(result.status).toBe("done"); // LLM 收到 denied 后按剧本 done
     expect((world.createdPages[0] as FakePage).clicks.length).toBe(0);
+  });
+
+  test("B24 默认自动批准：新域导航不等人工确认，事件仍留痕", async () => {
+    const { node, locate } = fakeNode("10", {
+      tag: "a",
+      text: "Auto",
+      locate: { linkHref: "https://auto.test/" },
+    });
+    const world = makeFakeWorld({ locateResults: { 10: locate }, rawExtract: { nodes: [node] } });
+    const script: ScriptStep[] = [
+      { toolCalls: [{ name: "click", arguments: { index: "10" } }] },
+      { toolCalls: [{ name: "done", arguments: { answer: "auto approved" } }] },
+    ];
+    const llm = scriptLLM(script);
+    const handle = runTask(
+      { goal: "auto confirm", startUrl: "https://fake.test/page" },
+      {
+        driver: world.driver as never,
+        models: { fast: llm.model as never },
+        streamFn: llm.streamFn as never,
+        testMode: true,
+      },
+    );
+    const events = await collect(handle, (e) => e.type === "task_done");
+    expect(events.some((e) => e.type === "confirmation_required")).toBe(true); // 事件仍发（留痕）
+    const result = await handle.result();
+    expect(result.status).toBe("done");
+    expect((world.createdPages[0] as FakePage).clicks.length).toBe(1); // 无人工干预即执行
   });
 
   test("预算触顶：maxSteps=1 → 第二个工具动作 → task_done(budget_exceeded)", async () => {
@@ -428,6 +459,7 @@ describe("B6 审查回归", () => {
         models: { fast: llm.model as never },
         streamFn: llm.streamFn as never,
         testMode: true,
+        autoConfirm: false,
         confirmationTimeoutMs: 150,
       },
     );
@@ -471,6 +503,7 @@ describe("B6 审查回归", () => {
         models: { fast: llm.model as never },
         streamFn: llm.streamFn as never,
         testMode: true,
+        autoConfirm: false,
         confirmationTimeoutMs: 150,
       },
     );

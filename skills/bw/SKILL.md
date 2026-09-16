@@ -15,10 +15,11 @@ description: 用 bw CLI 驱动真实浏览器完成网页任务——打开页�
 
 ## CLI 入口
 
-在仓库根目录执行（下文 `bw` 均指它）：
+已发布 npm——两种用法（下文 `bw` 均指安装后的命令）：
 
 ```bash
-bun dist/cli/cli.js s <子命令>
+bun i -g browserwork        # 全局安装（或 npm i -g browserwork），之后直接用 bw
+bunx browserwork s list     # 免安装一次性执行——下文的 bw 替换为 bunx browserwork 即可
 ```
 
 ## 任务→工具决策表（先看这里再动手）

@@ -9,7 +9,7 @@
 A browser for LLMs. One-line goal → the agent looks at pages itself, makes decisions, and finishes the task; or hand the browser tools step-by-step to any external LLM.
 
 ```bash
-bun i -g browserwork     # or from source: bun install && bun run build
+bun i -g browserwork      # or npm i -g browserwork; one-off without installing: bunx browserwork
 
 bw run "Summarize the three key points of the https://bun.com homepage"  # autonomous mode (one sentence, agent runs it to the end)
 bw s create --url https://bun.com && bw s snap <id>                     # external session mode (REST/CLI for any LLM)
@@ -32,7 +32,7 @@ Full methodology, raw data and limitations in **[BENCHMARKS.md](BENCHMARKS.md)**
 - **Zero browser download** (macOS): the driver layer is Bun's built-in `Bun.WebView` — the system WebKit; Linux uses the Chrome/CDP backend (downloads/uploads/network interception/httpOnly cookie metadata/UA override)
 - **Token-lean perception**: indexed DOM snapshots (`[n] link "Docs" -> url`) + unchanged markers + progressive context compression + on-demand screenshots (only the latest one kept in context)
 - **Code-level data extraction**: `extract_code` — the LLM writes a pure function that runs on a frozen copy of the DOM tree (Worker + vm sandbox); one call returns structured JSON, so reading lists/tables doesn't mean scanning snapshots row by row
-- **Security built in** (S1–S6, enforced in code, not advice): origin allowlist with three gates, sensitive-word/submit confirmation gates, URL/IP blocking, secrets bound to origin + full-chain redaction, four-dimension budgets (steps/tokens/wall-clock/cost)
+- **Security built in** (S1–S6, enforced in code, not advice): hard blocks (private network / URL / IP / egress-secret detection), interactive confirmation gates in `bw s` sessions (auto-approved in non-interactive `bw run`), secrets bound to origin + full-chain redaction, four-dimension budgets (steps/tokens/wall-clock/cost)
 - **Production readiness**: trajectories persisted and replayable (`bw replay`), automatic recovery from browser crashes (per-session file sessions + one helper per session), janitor cleanup; no daemon/port/token (B22)
 - **Dual mode**: autonomous `bw run` (compact progress output) + external sessions `bw s` (CLI drives file sessions directly, for Claude Code/GPT/any framework to drive step-by-step); SDK exported by the root package `browserwork` (in-process secondary development); login-state snapshots `bw auth` (storageState model); batch `bw run --jobs N --file tasks.jsonl`
 
@@ -41,7 +41,8 @@ Full methodology, raw data and limitations in **[BENCHMARKS.md](BENCHMARKS.md)**
 Install (requires [Bun](https://bun.com) ≥ 1.4; macOS uses the system WebKit, no browser download; Linux needs Chrome):
 
 ```bash
-bun i -g browserwork     # then use bw directly; or one-off via bunx browserwork
+bun i -g browserwork        # global install (or npm i -g browserwork); then use bw directly
+bunx browserwork s list     # one-off without installing — replace bw with bunx browserwork below
 ```
 
 Or from source:

@@ -65,8 +65,8 @@ describe("B18 渲染器纯函数", () => {
     } finally {
       console.log = origLog;
     }
-    expect(lines.join("\n")).toContain("120s 后自动拒绝");
-    expect(lines.join("\n")).toContain("--url 预授权");
+    expect(lines.join("\n")).toContain("已自动批准");
+    expect(lines.join("\n")).toContain("bw s 会话");
   });
 
   test("printEvent：verbose 打快照头；非 verbose 不打", () => {

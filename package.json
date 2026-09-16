@@ -1,6 +1,6 @@
 {
   "name": "browserwork",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "bw — a browser for LLM agents: token-lean DOM snapshots, policy-enforced automation, built on Bun.WebView",
   "keywords": [
     "browser-use",
@@ -47,7 +47,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "build": "bun build packages/service/src/cli.ts --target=bun --outdir=dist/cli --minify --sourcemap=linked && bun build packages/driver/src/helper.ts --target=bun --outdir=dist/cli --minify --sourcemap=linked && bun build browserwork.ts --target=bun --outdir=dist/sdk --minify && cp dist/cli/helper.js dist/sdk/helper.js && cp -R skills dist/",
+    "build": "bun build packages/service/src/cli.ts --target=bun --outdir=dist/cli --minify && bun build packages/driver/src/helper.ts --target=bun --outdir=dist/cli --minify && bun build browserwork.ts --target=bun --outdir=dist/sdk --minify && cp dist/cli/helper.js dist/sdk/helper.js && cp -R skills dist/",
     "test": "bun test && bun scripts/coverage-gate.ts",
     "doors": "bun run typecheck && bun run lint && bun run build && bun run test",
     "e2e": "bun scripts/e2e.ts",
