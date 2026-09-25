@@ -15,6 +15,51 @@
  * - 已知限制（登记 U3 不处理）：frameset/frame、<object> 嵌入不遍历；
  *   同源 iframe 内部滚动不参与 isSameView（只有主文档 scrollX/Y）
  */
+/**
+ * B25 Fix C：console/error 钩子安装表达式（单源）。
+ * 旧形态内嵌在 EXTRACT_EXPRESSION 尾部——首次提取前（首屏渲染期）的消息
+ * 永久丢失（RNW scrollEventThrottle 告警正属此类）。抽出后三个消费点：
+ * 1) EXTRACT_EXPRESSION 拼接（保持既有行为）；
+ * 2) engine 的 console/errors 动作先装后 drain（对已导航页面救回后续消息）；
+ * 3) driver chrome 分支 init 注入（复本守卫：与 NO_CDP_LEAK_SCRIPT 同位注入）。
+ * 幂等闸 __bwLogHooked；环形缓冲 200 条；文本链 500。
+ */
+export const INSTALL_LOG_HOOK_EXPRESSION = `(() => {
+  if (window.__bwLogHooked) return "hooked";
+  try {
+    window.__bwLogHooked = true;
+    const buf = (window.__bwLog = []);
+    const push = (level, parts) => {
+      try {
+        buf.push({
+          t: Date.now(),
+          level,
+          text: parts
+          .map((a) => {
+            try {
+              return typeof a === "string" ? a : JSON.stringify(a);
+            } catch {
+              return String(a);
+            }
+          })
+          .join(" ")
+          .slice(0, 500),
+        });
+        if (buf.length > 200) buf.splice(0, buf.length - 200);
+      } catch {}
+    };
+    for (const m of ["log", "info", "warn", "error", "debug"]) {
+      const orig = console[m] && console[m].bind(console);
+      if (orig) console[m] = (...args) => { push(m, args); orig(...args); };
+    }
+    window.addEventListener("error", (e) =>
+      push("error", [e.message + (e.filename ? " @" + e.filename + ":" + e.lineno : "")]));
+    window.addEventListener("unhandledrejection", (e) =>
+      push("error", ["UnhandledRejection: " + ((e.reason && e.reason.message) || e.reason)]));
+    return "installed";
+  } catch { return "failed"; }
+})()`;
+
 export const EXTRACT_EXPRESSION = `(() => {
   const clean = (s) => String(s ?? "").replace(/\\s+/g, " ").trim();
   const clampText = (s, max) => clean(s).slice(0, max) || undefined;
@@ -231,40 +276,9 @@ export const EXTRACT_EXPRESSION = `(() => {
   attach();
 
   // ---- console/error 捕获（B11）：幂等安装环形缓冲（bw s console/errors 数据源）
-  // 每次提取时确保已装——导航后新 document 自动重装；已知限制：装载前的消息不可见
-  if (!window.__bwLogHooked) {
-    try {
-      window.__bwLogHooked = true;
-      const buf = (window.__bwLog = []);
-      const push = (level, parts) => {
-        try {
-          buf.push({
-            t: Date.now(),
-            level,
-            text: parts
-              .map((a) => {
-                try {
-                  return typeof a === "string" ? a : JSON.stringify(a);
-                } catch {
-                  return String(a);
-                }
-              })
-              .join(" ")
-              .slice(0, 500),
-          });
-          if (buf.length > 200) buf.splice(0, buf.length - 200);
-        } catch {}
-      };
-      for (const m of ["log", "info", "warn", "error", "debug"]) {
-        const orig = console[m] && console[m].bind(console);
-        if (orig) console[m] = (...args) => { push(m, args); orig(...args); };
-      }
-      window.addEventListener("error", (e) =>
-        push("error", [e.message + (e.filename ? " @" + e.filename + ":" + e.lineno : "")]));
-      window.addEventListener("unhandledrejection", (e) =>
-        push("error", ["UnhandledRejection: " + ((e.reason && e.reason.message) || e.reason)]));
-    } catch {}
-  }
+  // 每次提取时确保已装——导航后新 document 自动重装。
+  // B25 Fix C：安装体单源到 INSTALL_LOG_HOOK_EXPRESSION（此处拼接保持既有行为）
+  ${INSTALL_LOG_HOOK_EXPRESSION};
 
   const headings = [];
   const walkHeadings = (root) => {

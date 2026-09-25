@@ -5,7 +5,7 @@
  */
 import { describe, expect, test } from "bun:test";
 import type { Driver, DriverCapabilities } from "@bw/driver";
-import { FakeDriver, type FakePageOptions } from "@bw/driver";
+import { FakeDriver } from "@bw/driver";
 import { CLICK_TEXT_LOCATE_EXPRESSION, EXTRACT_EXPRESSION } from "@bw/perception";
 import { createActionEngine } from "../src/engine.ts";
 
@@ -63,9 +63,7 @@ describe("click_text 引擎语义（B25 Fix A）", () => {
       settleCapMs: 200,
     });
     await engine.act({ kind: "open_tab", url: "https://t/" });
-    await expect(engine.act({ kind: "click_text", text: "" })).rejects.toThrow(
-      /non-blank/i,
-    );
+    await expect(engine.act({ kind: "click_text", text: "" })).rejects.toThrow(/non-blank/i);
   });
 
   test("纯空白文本 → INVALID_TOOL_ARGS（归一后为空同样拒绝）", async () => {
@@ -74,27 +72,23 @@ describe("click_text 引擎语义（B25 Fix A）", () => {
       settleCapMs: 200,
     });
     await engine.act({ kind: "open_tab", url: "https://t/" });
-    await expect(engine.act({ kind: "click_text", text: "  \n\t " })).rejects.toThrow(
-      /non-blank/i,
-    );
+    await expect(engine.act({ kind: "click_text", text: "  \n\t " })).rejects.toThrow(/non-blank/i);
   });
 
   test("全候选被遮挡 → ELEMENT_NOT_FOUND + occluded 理由", async () => {
-    const engine = createActionEngine(
-      mkEngine({ found: false, reason: "occluded", matches: 2 }),
-      { settleQuietMs: 10, settleCapMs: 200 },
-    );
+    const engine = createActionEngine(mkEngine({ found: false, reason: "occluded", matches: 2 }), {
+      settleQuietMs: 10,
+      settleCapMs: 200,
+    });
     await engine.act({ kind: "open_tab", url: "https://t/" });
-    await expect(engine.act({ kind: "click_text", text: "深色" })).rejects.toThrow(
-      /occluded|遮挡/,
-    );
+    await expect(engine.act({ kind: "click_text", text: "深色" })).rejects.toThrow(/occluded|遮挡/);
   });
 
   test("全候选出界且滚入后仍无 → ELEMENT_NOT_FOUND + offscreen 理由", async () => {
-    const engine = createActionEngine(
-      mkEngine({ found: false, reason: "offscreen", matches: 1 }),
-      { settleQuietMs: 10, settleCapMs: 200 },
-    );
+    const engine = createActionEngine(mkEngine({ found: false, reason: "offscreen", matches: 1 }), {
+      settleQuietMs: 10,
+      settleCapMs: 200,
+    });
     await engine.act({ kind: "open_tab", url: "https://t/" });
     await expect(engine.act({ kind: "click_text", text: "返回" })).rejects.toThrow(
       /outside viewport/i,
@@ -145,7 +139,10 @@ describe("click_text 引擎语义（B25 Fix A）", () => {
     const r = await engine.act({ kind: "click_text", text: "深色" });
     expect(r.text).toContain('clicked <div "深色">');
     // 页内滚入：不再发 page.scroll（window 滚动）——滚入在定位表达式内完成
-    const page = driver.pages()[0] as unknown as { scrolls: unknown[]; clicks: Array<{ x: number; y: number }> };
+    const page = driver.pages()[0] as unknown as {
+      scrolls: unknown[];
+      clicks: Array<{ x: number; y: number }>;
+    };
     expect(page.scrolls).toHaveLength(0);
     expect(page.clicks).toHaveLength(1);
     expect([page.clicks[0]?.x, page.clicks[0]?.y]).toEqual([25, 310]);

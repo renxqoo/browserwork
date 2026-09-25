@@ -20,6 +20,7 @@ import {
   DRAIN_LOGS_EXPRESSION,
   ENTER_SUBMIT_INTENT_EXPRESSION,
   extractSnapshot,
+  INSTALL_LOG_HOOK_EXPRESSION,
   type LocateResult,
   locateExpression,
   type PageLogEntry,
@@ -575,6 +576,14 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
         }
         case "console":
         case "errors": {
+          // B25 Fix C：先装钩子再 drain——旧形态只在 EXTRACT 时装，首次提取前
+          //（首屏渲染期）的消息永久丢失；console 动作对已导航页面先补装，
+          // 后续消息可救回。安装失败不阻断 drain（尽力而为）
+          try {
+            await page.evaluate<string>(INSTALL_LOG_HOOK_EXPRESSION);
+          } catch {
+            /* 页面可能已死——仍尝试 drain */
+          }
           const logs = (await page.evaluate<PageLogEntry[]>(DRAIN_LOGS_EXPRESSION)) ?? [];
           const out = kind === "errors" ? logs.filter((l) => l.level === "error") : logs;
           return JSON.stringify(out);
@@ -930,7 +939,7 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
               throw new BWError("INVALID_TOOL_ARGS", "click_text requires non-blank text");
             }
             const viewport0 = viewportOf(snapshot ?? null);
-            let located = await page.evaluate<{
+            const located = await page.evaluate<{
               found: boolean;
               x?: number;
               y?: number;

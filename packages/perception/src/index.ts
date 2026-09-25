@@ -10,6 +10,7 @@ export {
   CLICK_TEXT_LOCATE_EXPRESSION,
   DRAIN_LOGS_EXPRESSION,
   EXTRACT_EXPRESSION,
+  INSTALL_LOG_HOOK_EXPRESSION,
 } from "./script.ts";
 export type {
   ExtractOptions,

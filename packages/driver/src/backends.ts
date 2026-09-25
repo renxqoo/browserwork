@@ -69,6 +69,50 @@ const NO_CDP_LEAK_SCRIPT = `(() => {
   }
 })();`;
 
+/**
+ * B25 Fix C：console/error 钩子的 chrome init 注入复本。
+ * 与 @bw/perception INSTALL_LOG_HOOK_EXPRESSION 逐字节一致——守卫测试
+ * （packages/actions/test/b25-console-hook.test.ts）抽取比对，漂移即红。
+ * driver 不能 import perception（依赖方向：perception→driver），故复本 + 守卫。
+ * 注入时点：Page.addScriptToEvaluateOnNewDocument（新文档自动装）+ 当前文档
+ * 立即补一次——首屏渲染期的消息（如 RNW scrollEventThrottle 告警）不再丢失。
+ */
+const LOG_HOOK_DRIVER_COPY = `/* __bwLogHookSourceBegin */(() => {
+  if (window.__bwLogHooked) return "hooked";
+  try {
+    window.__bwLogHooked = true;
+    const buf = (window.__bwLog = []);
+    const push = (level, parts) => {
+      try {
+        buf.push({
+          t: Date.now(),
+          level,
+          text: parts
+          .map((a) => {
+            try {
+              return typeof a === "string" ? a : JSON.stringify(a);
+            } catch {
+              return String(a);
+            }
+          })
+          .join(" ")
+          .slice(0, 500),
+        });
+        if (buf.length > 200) buf.splice(0, buf.length - 200);
+      } catch {}
+    };
+    for (const m of ["log", "info", "warn", "error", "debug"]) {
+      const orig = console[m] && console[m].bind(console);
+      if (orig) console[m] = (...args) => { push(m, args); orig(...args); };
+    }
+    window.addEventListener("error", (e) =>
+      push("error", [e.message + (e.filename ? " @" + e.filename + ":" + e.lineno : "")]));
+    window.addEventListener("unhandledrejection", (e) =>
+      push("error", ["UnhandledRejection: " + ((e.reason && e.reason.message) || e.reason)]));
+    return "installed";
+  } catch { return "failed"; }
+})()/* __bwLogHookSourceEnd */`;
+
 /** 活进程检测：命令行带 --user-data-dir=<dir> 的 Chrome 数（0=无人持有） */
 function chromeHoldingDataDir(dir: string): number {
   // "--" 分隔：模式以 - 开头会被 pgrep 当选项（illegal option 退出 2——静默匹配不到）
@@ -238,6 +282,12 @@ export function createWebViewDriver(opts?: CreateDriverOptions): Driver {
             source: NO_CDP_LEAK_SCRIPT,
           });
           await page.cdp("Runtime.evaluate", { expression: NO_CDP_LEAK_SCRIPT });
+          // B25 Fix C：console 钩子前移到文档创建时（新文档自动装 + 当前文档补装）——
+          // 旧形态等首次 extract 才装，首屏渲染期消息永久丢失
+          await page.cdp("Page.addScriptToEvaluateOnNewDocument", {
+            source: LOG_HOOK_DRIVER_COPY,
+          });
+          await page.cdp("Runtime.evaluate", { expression: LOG_HOOK_DRIVER_COPY });
         } catch {
           /* 注入尽力而为——不阻断建页 */
         }
