@@ -241,6 +241,16 @@ export function createWebViewDriver(opts?: CreateDriverOptions): Driver {
         } catch {
           /* 注入尽力而为——不阻断建页 */
         }
+        // B25 Fix B（接在 about:blank 引导之后——时序实测裁决）：chrome 构造器
+        // 不落实 width/height（390×844 请求实得 500×757，宽度恒 500），view.resize
+        // 落实；但过早 resize 落在未 attach 的 target 上会静默失败（被 catch 吞）。
+        // 放在引导导航之后、目标导航之前。失败不阻断建页（与注入同级尽力而为）。
+        // webkit 构造器本就落实，不双轨。
+        try {
+          await page.resize(pageOpts?.width ?? width, pageOpts?.height ?? height);
+        } catch {
+          /* resize 尽力而为——失败维持构造器尺寸 */
+        }
       }
       if (pageOpts?.url !== undefined) {
         try {

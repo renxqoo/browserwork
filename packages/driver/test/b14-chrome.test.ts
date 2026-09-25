@@ -74,6 +74,39 @@ describe.skipIf(!chromeAvailable)("B14 chrome 真视图", () => {
     }
   }, 45_000);
 
+  test("create 期视口即生效（B25 Fix B 回归：旧实现 390×844 请求实得 500×757——构造器不落实，resize 才落实）", async () => {
+    const f = startFixture();
+    const driver = createWebViewDriver({ backend: "chrome", width: 390, height: 844 });
+    try {
+      const page = await driver.createPage({ url: `${f.origin}/` });
+      const wh = await page.evaluate<{ w: number; h: number }>(
+        "({ w: window.innerWidth, h: window.innerHeight })",
+      );
+      // ±2px 容差（DPR 圆整）
+      expect(Math.abs((wh?.w ?? 0) - 390)).toBeLessThanOrEqual(2);
+      expect(Math.abs((wh?.h ?? 0) - 844)).toBeLessThanOrEqual(2);
+    } finally {
+      driver.close();
+      f.stop();
+    }
+  }, 45_000);
+
+  test("pageOpts 级视口同样生效（每页尺寸语义不变）", async () => {
+    const f = startFixture();
+    const driver = createWebViewDriver({ backend: "chrome" });
+    try {
+      const page = await driver.createPage({ url: `${f.origin}/`, width: 900, height: 600 });
+      const wh = await page.evaluate<{ w: number; h: number }>(
+        "({ w: window.innerWidth, h: window.innerHeight })",
+      );
+      expect(Math.abs((wh?.w ?? 0) - 900)).toBeLessThanOrEqual(2);
+      expect(Math.abs((wh?.h ?? 0) - 600)).toBeLessThanOrEqual(2);
+    } finally {
+      driver.close();
+      f.stop();
+    }
+  }, 45_000);
+
   test("resize/cdp/webp/reload", async () => {
     const f = startFixture();
     const driver = createWebViewDriver({ backend: "chrome" });
