@@ -1,6 +1,6 @@
 {
   "name": "browserwork",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "bw — a browser for LLM agents: token-lean DOM snapshots, policy-enforced automation, built on Bun.WebView",
   "keywords": [
     "browser-use",

@@ -80,8 +80,11 @@ const NO_CDP_LEAK_SCRIPT = `(() => {
 const LOG_HOOK_DRIVER_COPY = `/* __bwLogHookSourceBegin */(() => {
   if (window.__bwLogHooked) return "hooked";
   try {
-    window.__bwLogHooked = true;
-    const buf = (window.__bwLog = []);
+    // 不可枚举伪装（B25+）：__bwNoleak 同款手法——网站枚举 Object.keys(window)
+    // 不得看到自动化痕迹（B25 把钩子提前到每个页面加载即装，暴露频率放大）
+    Object.defineProperty(window, "__bwLogHooked", { value: true, configurable: false });
+    const buf = [];
+    Object.defineProperty(window, "__bwLog", { get: () => buf, configurable: false });
     const push = (level, parts) => {
       try {
         buf.push({
