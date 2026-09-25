@@ -1,7 +1,16 @@
 # RNW 实战四问题修复（B25）方案
 
-> 状态：已核销（对抗审查 10 条处置完毕；四门全绿 + 真实 chrome 回归冒烟全过）
+> 状态：已核销（对抗审查 10 条处置完毕；四门全绿 + 真实 chrome 回归冒烟全过；
+> 遗留三项后续裁决见下）
 > 级别：中（跨 perception/actions/driver 三包；无外部契约新增，工具词表不变）
+
+## 遗留项终裁（2026-09-26 二次追问后）
+
+| 项 | 裁决 | 证据 |
+| --- | --- | --- |
+| webkit 首屏 console | **平台无能力面，非不为** | probes/p25-webkit-console.ts 实测：A) 导航后立即 evaluate 只能抓装载后的消息（early 丢、late 可救）；B) onNavigated 触发时首屏脚本已跑完；C) WebView.cdp() 在 webkit 直接拒绝（无 addScriptToEvaluateOnNewDocument 等价面）；D) 构造器 html 项的 script 不执行。四路全堵——Bun.WebView 没有文档创建前钩子 |
+| resize 失败静默 | **已修**：stderr 告警 + 落定后回读校验，失配即报文点名（比静默错误尺寸更可行动） | 畸形尺寸实测报 `viewport mismatch after create: wanted …, got …`；正常路径 ±3px 容差不误伤 |
+| 宿主侧日志 | **架构外，不纳入**：日志在宿主进程 stdout，与浏览器进程物理隔离；bw 是浏览器自动化层无进程面。可操作替代：宿主自重定向 `expo start > log 2>&1` + tail——上轮实战正是靠后台任务日志修复 | skill 文档已明示边界 |
 
 ## 对抗审查处置记录（独立会话，2026-09-26）
 

@@ -303,12 +303,37 @@ export function createWebViewDriver(opts?: CreateDriverOptions): Driver {
         // B25 Fix B（接在 about:blank 引导之后——时序实测裁决）：chrome 构造器
         // 不落实 width/height（390×844 请求实得 500×757，宽度恒 500），view.resize
         // 落实；但过早 resize 落在未 attach 的 target 上会静默失败（被 catch 吞）。
-        // 放在引导导航之后、目标导航之前。失败不阻断建页（与注入同级尽力而为）。
+        // 放在引导导航之后、目标导航之前。失败不阻断建页（与注入同级尽力而为），
+        // 但不再静默：stderr 告警 + 落定后校验回读，不达标即报文点名
+        //（审查 4 处置：resize 失败必须给用户可行动信号）。
         // webkit 构造器本就落实，不双轨。
+        const wantW = pageOpts?.width ?? width;
+        const wantH = pageOpts?.height ?? height;
         try {
-          await page.resize(pageOpts?.width ?? width, pageOpts?.height ?? height);
-        } catch {
-          /* resize 尽力而为——失败维持构造器尺寸 */
+          await page.resize(wantW, wantH);
+        } catch (e) {
+          process.stderr.write(
+            `bw: chrome viewport resize failed (${wantW}x${wantH}): ${
+              e instanceof Error ? e.message : String(e)
+            } — falling back to constructor default\n`,
+          );
+        }
+        // 回读校验：±3px 容差（DPR 圆整）；失配即抛——用户拿到了错误视口，
+        // 与其静默错误尺寸不如让 create 报错（可行动：换尺寸/重试/查环境）
+        try {
+          const got = await page.evaluate<{ w: number; h: number }>(
+            "({ w: window.innerWidth, h: window.innerHeight })",
+          );
+          if (Math.abs((got?.w ?? 0) - wantW) > 3 || Math.abs((got?.h ?? 0) - wantH) > 3) {
+            page.close();
+            throw new BWError(
+              "DRIVER_ERROR",
+              `chrome viewport mismatch after create: wanted ${wantW}x${wantH}, got ${got?.w}x${got?.h}`,
+            );
+          }
+        } catch (e) {
+          if (e instanceof BWError) throw e;
+          // 回读本身失败（页面异常）——不阻断，维持尽力而为语义
         }
       }
       if (pageOpts?.url !== undefined) {
