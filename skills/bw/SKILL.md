@@ -73,6 +73,9 @@ bw s close sess-xxx
 | `navigate <id> <url>` / `batch <id> '<json>'` | 跳转 / 批量动作序列 |
 | `tabs <id>` / `opentab <id> <url>` / `switchtab <id> <n>` / `closetab <id>` | 标签页 |
 | `wait <id> <seconds>` / `console <id>` / `errors <id>` | 等待 / 增量读 console / 页面报错 |
+
+**console 的边界**：`console`/`errors` 只抓页面进程内的消息（含首屏——钩子在文档创建时装）。**宿主进程日志（Metro/Expo/webpack dev server 终端、Node 服务 stdout）不在此面**——那些日志归宿主终端，bw 看不到；排查构建/热更新/HMR 问题要自己去盯宿主输出。
+
 | `list` / `status <id>` / `gc` / `close <id>` | 会话管理 |
 
 **chrome 后端独占**：`download` / `upload` / `requests`（网络请求）/ `cookies-all`（含 httpOnly 元数据）/ `look --full`。webkit 后端（macOS 系统 WebKit）无这几项——但零安装、启动快，作为 chrome 被风控弹走时的备选指纹族。

@@ -11,7 +11,10 @@ import { createActionEngine } from "../src/engine.ts";
 
 describe.skipIf(process.platform !== "darwin")("click_text 通用网页旅程（B25）", () => {
   const withEngine = async (
-    fn: (page: Awaited<ReturnType<Driver["createPage"]>>, engine: ReturnType<typeof createActionEngine>) => Promise<void>,
+    fn: (
+      page: Awaited<ReturnType<Driver["createPage"]>>,
+      engine: ReturnType<typeof createActionEngine>,
+    ) => Promise<void>,
   ): Promise<void> => {
     await withFixtureServer(async (origin) => {
       const driver = createWebViewDriver();

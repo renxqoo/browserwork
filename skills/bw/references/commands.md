@@ -74,7 +74,7 @@ bw s type <id> 3 "搜索词"
 bw s press <id> Enter                # 单键；组合键 Control+a
 ```
 - 索引点击走 selector 轨；shadow DOM / iframe 自动切换坐标轨
-- clicktext：精确匹配优先 → 包含匹配取最小面积；多匹配时汇报 `clicked <div "日K"> (3 matches, clicked smallest/best)`；文本命中敏感词照样走确认门
+- clicktext：空白不敏感匹配（换行/多空格等价）；精确匹配优先 → 包含匹配取最小面积；屏外/被裁剪（carousel 旧屏、下拉裁剪区）与被遮罩盖住的候选自动出局，需要时会先滚入（含嵌套滚动容器）；多匹配时汇报 `clicked <div "日K"> (3 matches, clicked smallest/best)`；全候选被遮挡/出界时报 occluded/offscreen 理由；文本命中敏感词照样走确认门
 - 密码框 value 在快照恒 `***`
 
 ### select / scroll / scrollto / wait / resize / reload

@@ -1,7 +1,19 @@
 # RNW 实战四问题修复（B25）方案
 
-> 状态：定稿
+> 状态：已实施（对抗审查中）
 > 级别：中（跨 perception/actions/driver 三包；无外部契约新增，工具词表不变）
+
+## 实施后的补充裁决（落档）
+
+- **squeeze 归一取代 \\s→" " 折叠**（实测裁决）：源码换行在 innerText 里是渲染空格，
+  用户文本无空格——折叠仍失配，删除全部空白才稳。
+- **新增祖先裁剪判定**（场景泛化暴露）：元素可在视口内、但在 overflow:auto/hidden
+  祖主裁剪区外（下拉/feed/侧栏）——rect 照常返回但不可见不可点。滚入判定含裁剪。
+- **滚入改页内 scrollIntoView**：取代 engine 的 window.scroll+二次 re-locate 往返；
+  一次定位表达式内完成，覆盖嵌套滚动容器。
+- **fixture 泛化**：rnw-like.html → text-cases.html，八场景矩阵
+ （React tab/嵌套 div/常规按钮/大容器包含/遮挡/内部滚动/图标按钮/叠屏）——
+  通用网页点击能力，不绑定 RNW。
 
 ## 背景与实证
 
