@@ -16,6 +16,7 @@ import {
 } from "@bw/core";
 import type { Driver, Page } from "@bw/driver";
 import {
+  CLICK_TEXT_LOCATE_EXPRESSION,
   DRAIN_LOGS_EXPRESSION,
   ENTER_SUBMIT_INTENT_EXPRESSION,
   extractSnapshot,
@@ -922,6 +923,13 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
           case "click_text": {
             // 用户实测（百度股市通）：React SPA 的 div-tab 无 onclick/无 role——快照
             // 收录不到，索引制失灵。按文本找可见元素→坐标轨点击（事件委托也能命中）。
+            // B25：定位逻辑单源到 @bw/perception CLICK_TEXT_LOCATE_EXPRESSION（旧内联
+            // 实现的 /s+/g 字母-s 归一 bug、无横向出界判定、无遮挡复核、滚动后
+            // 文档序 re-locate 四缺陷均在单源修复——RNW 实测暴雷面）。
+            if (action.text.replace(/\s+/g, "").trim() === "") {
+              throw new BWError("INVALID_TOOL_ARGS", "click_text requires non-blank text");
+            }
+            const viewport0 = viewportOf(snapshot ?? null);
             let located = await page.evaluate<{
               found: boolean;
               x?: number;
@@ -930,61 +938,24 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
               h?: number;
               matches?: number;
               tag?: string;
-            }>(
-              `(() => {
-                const want = ${JSON.stringify(action.text)}
-                  .replace(/s+/g, " ")
-                  .trim()
-                  .toLowerCase();
-                const norm = (s) => (s ?? "").replace(/s+/g, " ").trim().toLowerCase();
-                const vis = (el) => {
-                  const r = el.getBoundingClientRect();
-                  if (r.width <= 0 || r.height <= 0) return false;
-                  const cs = getComputedStyle(el);
-                  return cs.display !== "none" && cs.visibility !== "hidden" && cs.opacity !== "0";
-                };
-                const all = [...document.querySelectorAll("*")].filter(
-                  (el) =>
-                    !["SCRIPT", "STYLE", "NOSCRIPT"].includes(el.tagName) && vis(el),
-                );
-                // 直接文本匹配优先（叶子语义）；否则包含匹配取最小面积（最具体元素）
-                let best = null;
-                let matches = 0;
-                for (const el of all) {
-                  const direct = [...el.childNodes]
-                    .filter((n) => n.nodeType === 3)
-                    .map((n) => n.textContent)
-                    .join("");
-                  const t = norm(el.innerText || direct || "");
-                  if (t === "" || !t.includes(want)) continue;
-                  matches++;
-                  const r = el.getBoundingClientRect();
-                  const score = (t === want ? 0 : 1) * 1e9 + r.width * r.height;
-                  if (best === null || score < best.score) {
-                    best = { score, x: r.x, y: r.y, w: r.width, h: r.height, tag: el.tagName.toLowerCase() };
-                  }
-                }
-                if (best === null) return { found: false };
-                return { found: true, x: best.x, y: best.y, w: best.w, h: best.h, matches, tag: best.tag };
-              })()`,
-            );
+              reason?: string;
+            }>(CLICK_TEXT_LOCATE_EXPRESSION(action.text, viewport0.w, viewport0.h));
             if (located?.found !== true) {
+              // B25：给可行动理由（全被遮挡 vs 全在视口外 vs 真不存在）——
+              // RNW 多屏常驻场景「点了没反应」的正确诊断面
+              const why =
+                located?.reason === "occluded"
+                  ? ` (${located.matches ?? 0} match(es) all occluded — covered by another element)`
+                  : located?.reason === "offscreen"
+                    ? ` (${located.matches ?? 0} match(es) all outside viewport and not scrollable)`
+                    : "";
               throw new BWError(
                 "ELEMENT_NOT_FOUND",
-                `no visible element with text "${action.text}"`,
+                `no visible element with text "${action.text}"${why}`,
               );
             }
-            // 视口外先滚入（WebKit 对视口外坐标静默丢弃——P0-1 同教训）
-            const viewport = viewportOf(snapshot ?? null);
-            const outside =
-              (located.y ?? 0) < 0 || (located.y ?? 0) + (located.h ?? 0) > viewport.h;
-            if (outside) {
-              await page.scroll(0, Math.max(0, (located.y ?? 0) - viewport.h / 2));
-              const fresh = await page.evaluate<typeof located>(
-                `(() => { const el = [...document.querySelectorAll("*")].find((e) => (e.innerText || "").replace(/s+/g, " ").trim().toLowerCase().includes(${JSON.stringify(action.text.toLowerCase())}) && e.getBoundingClientRect().width > 0); if (!el) return { found: false }; const r = el.getBoundingClientRect(); return { found: true, x: r.x, y: r.y, w: r.width, h: r.height, matches: ${located.matches ?? 1}, tag: ${JSON.stringify(located.tag ?? "*")} }; })()`,
-              );
-              if (fresh?.found === true) located = fresh;
-            }
+            // 滚入在定位表达式内完成（scrollIntoView——覆盖嵌套滚动容器，
+            // B25）；此处坐标即滚入后坐标，直接点击
             await page.clickAt(
               Math.round((located.x ?? 0) + (located.w ?? 0) / 2),
               Math.round((located.y ?? 0) + (located.h ?? 0) / 2),

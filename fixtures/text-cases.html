@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>BW Fixture Text Cases</title>
+    <style>
+      body { margin: 0; font: 16px sans-serif; }
+      .screen { position: fixed; inset: 0; width: 100vw; height: 100vh; overflow: hidden; }
+      /* 叠屏语义（stack navigator / carousel / wizard）：旧屏常驻 DOM、
+         transform 平移出屏（display/visibility/opacity 全过——不可点） */
+      .off-left { transform: translateX(-100vw); }
+      .off-right { transform: translateX(100vw); }
+      .row { display: flex; flex-direction: row; align-items: center; gap: 8px; padding: 4px 12px; }
+      .pad { padding: 2px 6px; cursor: pointer; }
+      .tabs { display: flex; gap: 4px; padding: 4px 12px; }
+      /* 内部滚动容器（overflow:auto 的 list/panel/feed——网页极常见形态） */
+      .scroller { height: 120px; overflow: auto; border: 1px solid #ccc; margin: 4px 12px; }
+      .scroller div { padding: 3px 8px; }
+    </style>
+  </head>
+  <body>
+    <!-- 场景 1：React 式无痕 div-tab（百度股市通形态：无 onclick 属性、无 role） -->
+    <div class="tabs" id="tabs">
+      <div class="pad" data-k="d">日K</div>
+      <div class="pad" data-k="w">周K</div>
+      <div class="pad" data-k="m">月K</div>
+    </div>
+
+    <!-- 场景 2：嵌套 div 换行文本（RNW 形态：dir=auto 层层包，逻辑文本带换行） -->
+    <div class="row">
+      <div dir="auto"><div dir="auto">查看示例
+对话</div></div>
+    </div>
+
+    <!-- 场景 3：普通按钮/链接（常规网页基线） -->
+    <div class="row">
+      <div class="pad" id="dark-toggle">深色</div>
+      <div class="pad" id="back-btn">返回</div>
+      <a class="pad" href="#nowhere">Dark Mode</a>
+    </div>
+
+    <!-- 场景 4：大容器包含匹配候选（最小面积规则：选叶子不选容器） -->
+    <div id="wide-container" style="width: 90vw; height: 40px;">
+      <span>外层宽容器文本 深色 只是小字</span>
+    </div>
+
+    <!-- 场景 5：遮挡（toast/overlay/modal 盖住下方元素） -->
+    <div style="position: relative; width: 200px; height: 60px;">
+      <div id="under-mask" class="pad" style="width: 80px; height: 20px;">被盖住</div>
+      <div style="position: absolute; inset: 0; background: rgba(0,0,0,0.01);"></div>
+    </div>
+
+    <!-- 场景 6：内部滚动容器（overflow:auto——window.scroll 滚不进来） -->
+    <div class="scroller" id="inner-scroller">
+      <div class="pad" id="deep-item-1">第一项</div>
+      <div class="pad" id="deep-item-2">第二项</div>
+      <div class="pad" id="deep-item-3">第三项</div>
+      <div class="pad" id="deep-item-4">第四项</div>
+      <div class="pad" id="deep-item-5">第五项</div>
+      <div class="pad" id="deep-item-6">第六项</div>
+      <div class="pad" id="deep-item-7">第七项</div>
+      <div class="pad" id="deep-item-8">第八项</div>
+      <div class="pad" id="deep-item-9">第九项</div>
+      <div class="pad" id="deep-item-10">第十项</div>
+      <div class="pad" id="deep-item-11">第十一项</div>
+      <div class="pad" id="deep-item-12">第十二项</div>
+    </div>
+    <div style="height: 150vh"></div><!-- 保证 window 也可滚 -->
+
+    <!-- 场景 7：图标按钮（无文本，aria-label 承载语义——click_text 应找不到而非乱点） -->
+    <div class="row">
+      <button id="icon-btn" aria-label="提交表单" style="width: 28px; height: 28px;">✓</button>
+    </div>
+  </div>
+
+  <!-- 场景 8：屏外副本（carousel/stack 旧屏——同文本在屏外，不可点） -->
+  <div class="screen off-right" id="screen-b">
+    <div class="row"><div class="pad">深色</div></div>
+  </div>
+
+  <script>
+    window.__clicks = [];
+    const mark = (id) => { window.__clicks.push(id); };
+    // React 语义：事件委托挂容器（div-tab 无 onclick 属性）
+    document.getElementById("tabs").addEventListener("click", (e) => {
+      mark(`tab:${e.target.dataset.k}`);
+    });
+    // 常规 onclick（普通网页）
+    document.getElementById("dark-toggle").addEventListener("click", () => mark("dark"));
+    document.getElementById("back-btn").addEventListener("click", () => mark("back"));
+    document.getElementById("icon-btn").addEventListener("click", () => mark("icon"));
+    // 嵌套 div（RNW Pressable 委托）
+    document.querySelector(".row div[dir=auto] div").addEventListener("click", (e) => {
+      mark("nested");
+      e.stopPropagation();
+    });
+    // 内部滚动容器项
+    document.getElementById("inner-scroller").addEventListener("click", (e) => {
+      if (e.target.classList.contains("pad")) mark(e.target.textContent.trim());
+    });
+    // 加载期日志（console 钩子前移的验证载体——首屏即打，早于任何 extract）
+    console.log("early message from page load");
+    console.warn("scrollEventThrottle-style warning at load");
+  </script>
+</body>
+</html>

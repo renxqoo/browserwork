@@ -6,7 +6,11 @@ export {
   selectBwIdExpression,
 } from "./locate.ts";
 export type { PageLogEntry } from "./script.ts";
-export { DRAIN_LOGS_EXPRESSION, EXTRACT_EXPRESSION } from "./script.ts";
+export {
+  CLICK_TEXT_LOCATE_EXPRESSION,
+  DRAIN_LOGS_EXPRESSION,
+  EXTRACT_EXPRESSION,
+} from "./script.ts";
 export type {
   ExtractOptions,
   SnapHeading,

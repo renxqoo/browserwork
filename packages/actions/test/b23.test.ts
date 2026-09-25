@@ -18,7 +18,7 @@ const CAPS: DriverCapabilities = {
   popups: false,
 };
 
-const CLICK_TEXT_EXPR_PREFIX = "(() => {\n                const want =";
+const CLICK_TEXT_EXPR_PREFIX = "/* __bwLocateText */";
 const snapHandler = (expr: string): unknown => {
   if (expr === EXTRACT_EXPRESSION) {
     return {
