@@ -50,7 +50,16 @@ export const INSTALL_LOG_HOOK_EXPRESSION = `(() => {
     };
     for (const m of ["log", "info", "warn", "error", "debug"]) {
       const orig = console[m] && console[m].bind(console);
-      if (orig) console[m] = (...args) => { push(m, args); orig(...args); };
+      if (orig) {
+        const wrap = (...args) => { push(m, args); orig(...args); };
+        // 指纹伪装（B25 审查 10）：包装后 toString 不得暴露非原生
+        try {
+          Object.defineProperty(wrap, "toString", {
+            value: () => "function " + m + "() { [native code] }",
+          });
+        } catch {}
+        console[m] = wrap;
+      }
     }
     window.addEventListener("error", (e) =>
       push("error", [e.message + (e.filename ? " @" + e.filename + ":" + e.lineno : "")]));
@@ -328,60 +337,73 @@ export const EXTRACT_EXPRESSION = `(() => {
  *   空格，用户给的文本无空格；折叠为单空格仍会失配，删净才稳。同时修复旧实现
  *   /s+/g 字母-s bug——嵌套 div 的 innerText 含换行必失配）；
  * - 出界判定含横向 x（carousel/wizard/stack 的 transform 屏外副本 display/opacity
- *   全过、rect 合法——纵向判定拦不住，被最小面积规则选中即坐标轨静默丢弃）；
- * - 遮挡复核（elementFromPoint 中心单采样）：toast/overlay/modal 盖住的元素不参与竞赛；
- * - 直接文本（叶子语义）优先于包含匹配；同分取最小面积；
- * - 出界时页内 scrollIntoView 滚入后重取坐标：覆盖 window 滚动与任意嵌套
- *   overflow:auto 容器（内部滚动容器里的元素 window.scroll 永远滚不进来——
- *   通用网页极常见形态）；滚后重验遮挡与出界。
- * 返回：{ found, x, y, w, h, matches, tag, reason? }——reason ∈ occluded|offscreen
- * （found=false 且 matches>0 时给用户可行动理由）。
+ *   全过、rect 合法——纵向判定拦不住，被最小面积规则选中即坐标轨静默丢弃）。
+ *   视口默认读 live window.innerWidth/Height（审查 6：烘焙 1280×720 与小视口
+ *   打架——出界判定/采样钳制按错误视口算会假 ELEMENT_NOT_FOUND）；参数仅测试
+ *   注入用（显式给则优先）。
+ * - 祖先裁剪（审查 2）：中心点逐级判定而非全外矩形（半裁剪元素中心可见即可点）；
+ *   跳过 fixed/sticky 元素（CSS 语义：overflow 祖先不裁剪 fixed 后代；body
+ *   overflow-x:hidden 全站标配下固定横幅不得假阳性）与 html/body 两级。
+ * - 遮挡复核（elementFromPoint 中心单采样）：toast/overlay/modal 盖住的元素
+ *   不参与竞赛。
+ * - 两阶段（审查 1/7）：阶段 1 纯收集不滚动（避免候选间滚动互相顶走 best、
+ *   O(matches) 布局抖动）；阶段 2 按分序（精确匹配→最小面积）对选定候选逐个
+ *   尝试：滚入（scrollIntoView 覆盖 window + 嵌套 overflow:auto 容器）→
+ *   重验出界/裁剪/遮挡 → 首个通过者胜出。
+ * - 直接文本（叶子语义）优先于包含匹配；同分取最小面积。
+ * 返回：{ found, x, y, w, h, matches, tag?, reason? }——reason ∈ occluded|offscreen
+ *（found=false 且 matches>0 时给可行动理由）；offscreenCount/occludedCount 双报
+ *（审查 8：混合场景不互相顶掉）。
  */
 export const CLICK_TEXT_LOCATE_EXPRESSION = (
   text: string,
-  viewportW: number,
-  viewportH: number,
+  viewportW?: number,
+  viewportH?: number,
 ): string => `/* __bwLocateText */ (() => {
   const squeeze = (s) => String(s ?? "").replace(/\\s+/g, "").toLowerCase();
   const want = squeeze(${JSON.stringify(text)});
   if (want === "") return { found: false, reason: "empty" };
-  const vw = ${Math.round(viewportW)};
-  const vh = ${Math.round(viewportH)};
+  // live 视口（审查 6）：表达式在页面内执行，读真实视口零成本；参数仅测试注入
+  const vw = ${viewportW === undefined ? "window.innerWidth" : String(Math.round(viewportW))};
+  const vh = ${viewportH === undefined ? "window.innerHeight" : String(Math.round(viewportH))};
   const vis = (el) => {
     const r = el.getBoundingClientRect();
     if (r.width <= 0 || r.height <= 0) return false;
     const cs = el.ownerDocument.defaultView.getComputedStyle(el);
     return cs.display !== "none" && cs.visibility !== "hidden" && cs.opacity !== "0";
   };
-  // 出界（含横向——B25）：视口外矩形不可点，先剔除出「可点候选」
+  // 出界（含横向——B25）：视口外矩形不可点
   const offscreen = (r) => r.x + r.width <= 0 || r.x >= vw || r.y + r.height <= 0 || r.y >= vh;
-  // 祖先裁剪（B25）：元素可在视口内、但在 overflow:auto/hidden 祖先的裁剪区外
-  //（下拉/feed/侧栏极常见）——rect 照常返回但实际不可见不可点，
-  // elementFromPoint 会落在裁剪外的其它内容上
+  // 中心点（遮挡采样与裁剪判定共用）
+  const center = (r) => ({
+    x: Math.max(1, Math.min(vw - 1, Math.round(r.x + r.width / 2))),
+    y: Math.max(1, Math.min(vh - 1, Math.round(r.y + r.height / 2))),
+  });
+  // 祖先裁剪（B25+审查 2）：中心点逐级判定——半裁剪元素中心可见即可点；
+  // fixed/sticky 不受 overflow 祖先裁剪（CSS 语义），html/body 不算裁剪盒
   const clipped = (el, r) => {
+    const own = el.ownerDocument.defaultView.getComputedStyle(el);
+    if (own.position === "fixed" || own.position === "sticky") return false;
+    const c = center(r);
     for (let a = el.parentElement; a !== null; a = a.parentElement) {
+      if (a.tagName === "HTML" || a.tagName === "BODY") break;
       const cs = a.ownerDocument.defaultView.getComputedStyle(a);
       if (cs.overflowY === "visible" && cs.overflowX === "visible") continue;
       const b = a.getBoundingClientRect();
-      if (r.y + r.height <= b.top || r.y >= b.bottom || r.x + r.width <= b.left || r.x >= b.right) {
-        return true;
-      }
+      if (c.x < b.left || c.x >= b.right || c.y < b.top || c.y >= b.bottom) return true;
     }
     return false;
   };
   // 遮挡复核：中心点命中元素或其后代才算可点（覆盖层下的副本出局）
   const occluded = (el, r) => {
-    const cx = Math.max(1, Math.min(vw - 1, Math.round(r.x + r.width / 2)));
-    const cy = Math.max(1, Math.min(vh - 1, Math.round(r.y + r.height / 2)));
-    const hit = document.elementFromPoint(cx, cy);
+    const c = center(r);
+    const hit = document.elementFromPoint(c.x, c.y);
     if (hit === null) return true;
-    return hit !== el && !el.contains(hit) && hit.contains(el) === false;
+    return hit !== el && !el.contains(hit) && !hit.contains(el);
   };
-  let best = null;
+  // ---- 阶段 1：纯收集（不滚动——审查 1/7：候选间滚动会互相顶走、布局抖动）----
+  const cands = [];
   let matches = 0;
-  let occludedCount = 0;
-  let offscreenCount = 0;
-  let bestEl = null;
   for (const el of document.querySelectorAll("*")) {
     if (["SCRIPT", "STYLE", "NOSCRIPT"].includes(el.tagName)) continue;
     if (!vis(el)) continue;
@@ -389,34 +411,34 @@ export const CLICK_TEXT_LOCATE_EXPRESSION = (
     const t = squeeze(el.innerText || direct || "");
     if (t === "" || !t.includes(want)) continue;
     matches++;
-    let r = el.getBoundingClientRect();
-    if (offscreen(r) || clipped(el, r)) {
-      // B25：页内滚入（scrollIntoView 覆盖 window + 嵌套 overflow:auto 容器）；
-      // 滚完重取 rect——仍在界外/仍被裁剪才真正出局
-      try { el.scrollIntoView({ block: "center", inline: "center" }); } catch {}
-      r = el.getBoundingClientRect();
-      if (offscreen(r) || clipped(el, r)) { offscreenCount++; continue; }
-    }
-    if (occluded(el, r)) { occludedCount++; continue; }
-    const score = (t === want ? 0 : 1) * 1e9 + r.width * r.height;
-    if (best === null || score < best.score) {
-      best = { score, x: r.x, y: r.y, w: r.width, h: r.height };
-      bestEl = el;
-    }
+    const r = el.getBoundingClientRect();
+    cands.push({ el, t, r, off: offscreen(r), clip: clipped(el, r) });
   }
-  if (best === null) {
-    return {
-      found: false,
-      matches,
-      ...(offscreenCount > 0 && occludedCount === 0 ? { reason: "offscreen" } : {}),
-      ...(occludedCount > 0 ? { reason: "occluded" } : {}),
-    };
+  // 分序：精确匹配优先 → 最小面积（best-smallest 语义）
+  cands.sort((a, b) => (a.t === want ? 0 : 1) - (b.t === want ? 0 : 1) || a.r.width * a.r.height - b.r.width * b.r.height);
+  // ---- 阶段 2：按分序逐个尝试（滚入即验即停——首个通过者胜出）----
+  let offscreenCount = 0;
+  let occludedCount = 0;
+  for (const c of cands) {
+    let r = c.r;
+    if (c.off || c.clip) {
+      try { c.el.scrollIntoView({ block: "center", inline: "center" }); } catch {}
+      r = c.el.getBoundingClientRect();
+      if (offscreen(r) || clipped(c.el, r)) { offscreenCount++; continue; }
+    }
+    if (occluded(c.el, r)) { occludedCount++; continue; }
+    return { found: true, x: r.x, y: r.y, w: r.width, h: r.height, matches, tag: c.el.tagName.toLowerCase() };
   }
-  // 最终坐标复核：滚入改变布局后重取（候选间滚入可能相互影响）
-  const fr = bestEl.getBoundingClientRect();
-  return { found: true, x: fr.x, y: fr.y, w: fr.width, h: fr.height, matches, tag: bestEl.tagName.toLowerCase() };
+  return {
+    found: false,
+    matches,
+    offscreenCount,
+    occludedCount,
+    ...((offscreenCount > 0 || occludedCount > 0)
+      ? { reason: offscreenCount >= occludedCount ? "offscreen" : "occluded" }
+      : {}),
+  };
 })()`;
-
 /** console/error 缓冲条目（页面侧 __bwLog 元素形状） */
 export interface PageLogEntry {
   t: number;

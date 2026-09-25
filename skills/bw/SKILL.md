@@ -74,7 +74,7 @@ bw s close sess-xxx
 | `tabs <id>` / `opentab <id> <url>` / `switchtab <id> <n>` / `closetab <id>` | 标签页 |
 | `wait <id> <seconds>` / `console <id>` / `errors <id>` | 等待 / 增量读 console / 页面报错 |
 
-**console 的边界**：`console`/`errors` 只抓页面进程内的消息（含首屏——钩子在文档创建时装）。**宿主进程日志（Metro/Expo/webpack dev server 终端、Node 服务 stdout）不在此面**——那些日志归宿主终端，bw 看不到；排查构建/热更新/HMR 问题要自己去盯宿主输出。
+**console 的边界**：`console`/`errors` 只抓页面进程内的消息。**chrome 后端含首屏**（钩子在文档创建时注入）；**webkit 后端首条消息需先触发过任意 extract/evaluate**（无 init 注入面——B25 已知取舍）。**宿主进程日志（Metro/Expo/webpack dev server 终端、Node 服务 stdout）不在此面**——那些日志归宿主终端，bw 看不到；排查构建/热更新/HMR 问题要自己去盯宿主输出。
 
 | `list` / `status <id>` / `gc` / `close <id>` | 会话管理 |
 

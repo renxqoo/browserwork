@@ -75,27 +75,40 @@ describe("click_text 引擎语义（B25 Fix A）", () => {
     await expect(engine.act({ kind: "click_text", text: "  \n\t " })).rejects.toThrow(/non-blank/i);
   });
 
-  test("全候选被遮挡 → ELEMENT_NOT_FOUND + occluded 理由", async () => {
-    const engine = createActionEngine(mkEngine({ found: false, reason: "occluded", matches: 2 }), {
-      settleQuietMs: 10,
-      settleCapMs: 200,
-    });
+  test("全候选被遮挡 → 双计数理由（审查 8）", async () => {
+    const engine = createActionEngine(
+      mkEngine({ found: false, matches: 2, offscreenCount: 0, occludedCount: 2 }),
+      { settleQuietMs: 10, settleCapMs: 200 },
+    );
     await engine.act({ kind: "open_tab", url: "https://t/" });
-    await expect(engine.act({ kind: "click_text", text: "深色" })).rejects.toThrow(/occluded|遮挡/);
-  });
-
-  test("全候选出界且滚入后仍无 → ELEMENT_NOT_FOUND + offscreen 理由", async () => {
-    const engine = createActionEngine(mkEngine({ found: false, reason: "offscreen", matches: 1 }), {
-      settleQuietMs: 10,
-      settleCapMs: 200,
-    });
-    await engine.act({ kind: "open_tab", url: "https://t/" });
-    await expect(engine.act({ kind: "click_text", text: "返回" })).rejects.toThrow(
-      /outside viewport/i,
+    await expect(engine.act({ kind: "click_text", text: "深色" })).rejects.toThrow(
+      /2 match\(es\): 2 occluded/,
     );
   });
 
-  test("消费单源表达式（页面收到的就是 CLICK_TEXT_LOCATE_EXPRESSION 的产物）", async () => {
+  test("混合场景双报：出界+遮挡不互相顶掉（审查 8）", async () => {
+    const engine = createActionEngine(
+      mkEngine({ found: false, matches: 3, offscreenCount: 1, occludedCount: 2 }),
+      { settleQuietMs: 10, settleCapMs: 200 },
+    );
+    await engine.act({ kind: "open_tab", url: "https://t/" });
+    await expect(engine.act({ kind: "click_text", text: "设置" })).rejects.toThrow(
+      /3 match\(es\): 1 outside viewport\/not scrollable; 2 occluded/,
+    );
+  });
+
+  test("全候选出界且滚不入 → offscreen 计数", async () => {
+    const engine = createActionEngine(
+      mkEngine({ found: false, matches: 1, offscreenCount: 1, occludedCount: 0 }),
+      { settleQuietMs: 10, settleCapMs: 200 },
+    );
+    await engine.act({ kind: "open_tab", url: "https://t/" });
+    await expect(engine.act({ kind: "click_text", text: "返回" })).rejects.toThrow(
+      /1 match\(es\): 1 outside viewport/,
+    );
+  });
+
+  test("消费单源表达式（页面收到的就是 CLICK_TEXT_LOCATE_EXPRESSION 的产物——live 视口形态）", async () => {
     const seen: string[] = [];
     const engine = createActionEngine(
       mkEngine({ found: true, x: 10, y: 20, w: 30, h: 8, matches: 1, tag: "div" }, seen),
@@ -105,8 +118,8 @@ describe("click_text 引擎语义（B25 Fix A）", () => {
     await engine.act({ kind: "click_text", text: "日K" });
     const locateCalls = seen.filter((e) => e.includes("__bwLocateText"));
     expect(locateCalls.length).toBeGreaterThanOrEqual(1);
-    // 与单源生成器逐字节一致（含注入文本与视口）
-    expect(locateCalls[0]).toBe(CLICK_TEXT_LOCATE_EXPRESSION("日K", 1280, 720));
+    // 与单源生成器逐字节一致（无参形态——审查 6 后不再烘焙视口）
+    expect(locateCalls[0]).toBe(CLICK_TEXT_LOCATE_EXPRESSION("日K"));
   });
 
   test("多匹配 → 输出仍报 (N matches, clicked smallest/best)", async () => {

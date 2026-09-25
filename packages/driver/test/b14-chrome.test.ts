@@ -91,6 +91,22 @@ describe.skipIf(!chromeAvailable)("B14 chrome 真视图", () => {
     }
   }, 45_000);
 
+  test("缺省视口同样生效（审查 4 裁决：chrome 构造器不落实任何尺寸——含默认 1280×720；每次 createPage 补 resize 是让默认视口生效的唯一路径，非冗余）", async () => {
+    const f = startFixture();
+    const driver = createWebViewDriver({ backend: "chrome" });
+    try {
+      const page = await driver.createPage({ url: `${f.origin}/` });
+      const wh = await page.evaluate<{ w: number; h: number }>(
+        "({ w: window.innerWidth, h: window.innerHeight })",
+      );
+      expect(Math.abs((wh?.w ?? 0) - 1280)).toBeLessThanOrEqual(2);
+      expect(Math.abs((wh?.h ?? 0) - 720)).toBeLessThanOrEqual(2);
+    } finally {
+      driver.close();
+      f.stop();
+    }
+  }, 45_000);
+
   test("pageOpts 级视口同样生效（每页尺寸语义不变）", async () => {
     const f = startFixture();
     const driver = createWebViewDriver({ backend: "chrome" });

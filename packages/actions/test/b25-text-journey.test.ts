@@ -69,12 +69,13 @@ describe.skipIf(process.platform !== "darwin")("click_text 通用网页旅程（
     });
   }, 60_000);
 
-  test("遮挡：透明遮罩盖住的元素不被点击命中（点容器或报 occluded，不穿透）", async () => {
+  test("遮挡：透明遮罩盖住的元素不被点击命中（穿透会被记录——真断言）", async () => {
     await withEngine(async (page, engine) => {
+      const before = await page.evaluate<number>("window.__clicks.length");
       await engine.act({ kind: "click_text", text: "被盖住" });
-      // 命中的绝不是 under-mask 本体（穿透才算失败）——委托记录容器文本
-      const clicked = await page.evaluate<string[]>("window.__clicks");
-      expect(clicked).not.toContain("被盖住");
+      const clicks = await page.evaluate<string[]>("window.__clicks");
+      // 铁断言：穿透即 under-mask 本体收到 click（监听已挂）——遮挡复核生效则绝不出现
+      expect(clicks.slice(before)).not.toContain("under-mask-penetrated");
     });
   }, 60_000);
 

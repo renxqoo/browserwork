@@ -96,6 +96,8 @@
     document.getElementById("inner-scroller").addEventListener("click", (e) => {
       if (e.target.classList.contains("pad")) mark(e.target.textContent.trim());
     });
+    // 遮挡场景：under-mask 挂监听——遮挡复核失效（穿透）时会被记录
+    document.getElementById("under-mask").addEventListener("click", () => mark("under-mask-penetrated"));
     // 加载期日志（console 钩子前移的验证载体——首屏即打，早于任何 extract）
     console.log("early message from page load");
     console.warn("scrollEventThrottle-style warning at load");

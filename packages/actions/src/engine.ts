@@ -938,7 +938,8 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
             if (action.text.replace(/\s+/g, "").trim() === "") {
               throw new BWError("INVALID_TOOL_ARGS", "click_text requires non-blank text");
             }
-            const viewport0 = viewportOf(snapshot ?? null);
+            // 审查 6：不传烘焙视口——表达式内读 live window.innerWidth/Height
+            //（快照视口可能陈旧/缺省 1280×720，与小视口会话打架）
             const located = await page.evaluate<{
               found: boolean;
               x?: number;
@@ -948,16 +949,22 @@ export function createActionEngine(driver: Driver, opts?: ActionEngineOptions): 
               matches?: number;
               tag?: string;
               reason?: string;
-            }>(CLICK_TEXT_LOCATE_EXPRESSION(action.text, viewport0.w, viewport0.h));
+              offscreenCount?: number;
+              occludedCount?: number;
+            }>(CLICK_TEXT_LOCATE_EXPRESSION(action.text));
             if (located?.found !== true) {
-              // B25：给可行动理由（全被遮挡 vs 全在视口外 vs 真不存在）——
-              // RNW 多屏常驻场景「点了没反应」的正确诊断面
+              // B25+审查 8：可行动理由带双计数（混合场景不互相顶掉）
+              const parts: string[] = [];
+              if ((located?.offscreenCount ?? 0) > 0) {
+                parts.push(`${located?.offscreenCount} outside viewport/not scrollable`);
+              }
+              if ((located?.occludedCount ?? 0) > 0) {
+                parts.push(`${located?.occludedCount} occluded (covered)`);
+              }
               const why =
-                located?.reason === "occluded"
-                  ? ` (${located.matches ?? 0} match(es) all occluded — covered by another element)`
-                  : located?.reason === "offscreen"
-                    ? ` (${located.matches ?? 0} match(es) all outside viewport and not scrollable)`
-                    : "";
+                parts.length > 0
+                  ? ` (${located?.matches ?? 0} match(es): ${parts.join("; ")})`
+                  : "";
               throw new BWError(
                 "ELEMENT_NOT_FOUND",
                 `no visible element with text "${action.text}"${why}`,

@@ -103,7 +103,16 @@ const LOG_HOOK_DRIVER_COPY = `/* __bwLogHookSourceBegin */(() => {
     };
     for (const m of ["log", "info", "warn", "error", "debug"]) {
       const orig = console[m] && console[m].bind(console);
-      if (orig) console[m] = (...args) => { push(m, args); orig(...args); };
+      if (orig) {
+        const wrap = (...args) => { push(m, args); orig(...args); };
+        // 指纹伪装（B25 审查 10）：包装后 toString 不得暴露非原生
+        try {
+          Object.defineProperty(wrap, "toString", {
+            value: () => "function " + m + "() { [native code] }",
+          });
+        } catch {}
+        console[m] = wrap;
+      }
     }
     window.addEventListener("error", (e) =>
       push("error", [e.message + (e.filename ? " @" + e.filename + ":" + e.lineno : "")]));
